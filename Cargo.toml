@@ -1,4 +1,25 @@
+[package]
+name = "twine"
+version = "0.0.1"
+authors = ["Twine protocol developers"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/twine-protocol/twine-rs"
+documentation = ""
+homepage = ""
+description = """
+Twine prococol library
+"""
+keywords = ["twine"]
+categories = []
+edition = "2021"
+
 [workspace]
 members = [
-  "./twine"
+  "./twine_core"
 ]
+
+[dependencies]
+twine_core = { path = "twine_core" }
+
+[dev-dependencies]
