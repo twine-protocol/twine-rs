@@ -4,4 +4,5 @@
 //!
 
 pub mod chain;
+pub mod sign;
 pub use chain::Chain;
