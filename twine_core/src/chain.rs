@@ -1,19 +1,6 @@
 use crate::sign::Signer;
-use libipld::multihash;
-use serde::Serialize;
+use crate::twine::{Chain};
 
-pub struct ChainContent {
-    source: String,
-    specification: String,
-    radix: u32,
-    mixins: Vec<dyn Serialize>, // TODO: how to get these `dyn`s to work...
-    meta: dyn Serialize
-
-}
-
-pub struct Chain {  }
-
-#[derive(Debug)]
 pub enum TwineError {}
 
 impl Chain {
