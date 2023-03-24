@@ -11,4 +11,6 @@ impl Signer {
     fn from_random() -> Result<Signer, SignerError> {}
     fn sign(&self, data: &[u8]) -> Result<Vec<u8>, SignerError> {}
     fn verify(&self, data: &[u8], signature: &[u8]) -> Result<bool, SignerError> {}
+    fn public_key(&self) -> &[u8] {}
+    fn private_key(&self) -> &[u8] {}
 }

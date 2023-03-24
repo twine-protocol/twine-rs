@@ -35,9 +35,9 @@ pub struct PulseContent {
 
 #[derive(Serialize, Deserialize)]
 pub struct Chain {
-    content: ChainContent,
-    signature: JwsCondensed,
-    cid: Cid // hash of content and signature
+    pub content: ChainContent,
+    pub signature: JwsCondensed,
+    pub cid: Cid // hash of content and signature
 }
 
 #[derive(Serialize, Deserialize)]
@@ -50,7 +50,7 @@ pub struct Pulse {
 #[derive(Debug)]
 pub enum TwineError {}
 
-enum TwineContent { // TODO: should I remove this enum?
+enum TwineContent { // TODO: should I remove this enum? It's only used for the is_valid fn...
     Chain(ChainContent),
     Pulse(PulseContent)
 }
@@ -61,6 +61,8 @@ impl TwineContent {
 
 trait Twine {
     fn sign(&self) -> &JwsCondensed;
+
+    /// Create the CID of a Pulse or Chain's content + signature combo
     fn create_cid(&self) -> Cid;
 }
 
@@ -70,13 +72,18 @@ impl Twine for Chain {
 }
 
 impl Twine for Pulse {
-    fn signature(&self) -> &JwsCondensed {  }
+    fn signature(&self) -> &JwsCondensed {}
     fn create_cid(&self) -> Cid {}
 }
 
 impl Chain {
-    fn build_chain(&self) -> Result<Chain, TwineError> {}
-    fn create_pulse(
+    pub fn build_chain(
+        content: ChainContent,
+        signer: Signer,
+        hasher: multihash::Code
+    ) -> Result<Chain, TwineError> {}
+
+    pub fn create_pulse(
         &self, 
         previous: Option(Pulse),
         mixins: Vec<Mixin>,
@@ -93,4 +100,8 @@ impl Chain {
         // generate signature from hash of dag-cbor of content
         // generate cid from hash of dag-cbor of content and signature
     }
+}
+
+pub impl Pulse {
+    
 }
