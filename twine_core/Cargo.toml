@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 libipld = "0.16.0"
 serde = "1.0.152"
+josekit = "0.8.2"
