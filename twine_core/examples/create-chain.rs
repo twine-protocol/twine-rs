@@ -4,7 +4,7 @@ use libipld::cid::multihash;
 fn main() -> Result<Chain, ChainError> {
     let signer = Signer{};
     let hasher: multihash::Code = multihash::Code::Sha3_512; // that implements
-    let our_chain = Chain::builder(
+    let our_chain = Chain::build_chain(
         ChainContent {
             source: "twine".to_string(),
             specification: "twine/1.0.x".to_string(),
