@@ -10,6 +10,11 @@ const DEFAULT_SPECIFICATION: &str = "twine/1.0.x"; // TODO: should setting this 
 
 type Payload = HashMap<String, dyn Into<Ipld>>;
 
+
+#[derive(Debug)]
+pub enum TwineError {}
+
+
 pub struct Mixin {
     chain: Cid,
     value: Cid
@@ -18,7 +23,7 @@ pub struct Mixin {
 pub struct ChainContent {
     source: String,
     specification: String,
-    radix: i64, // TODO: sizing; TODO: links_radix instead?
+    radix: u32,
     key: Jwk, 
     mixins: Vec<Mixin>, // we check that these links are not on the same chain at runtime
     meta: Ipld, // TODO: should be a map?
@@ -47,15 +52,7 @@ pub struct Pulse {
     cid: Cid
 }
 
-#[derive(Debug)]
-pub enum TwineError {}
-
-enum TwineContent { // TODO: should I remove this enum? It's only used for the is_valid fn...
-    Chain(ChainContent),
-    Pulse(PulseContent)
-}
-
-impl TwineContent {
+trait TwineContent {
     fn is_valid(&self) -> bool {}
 }
 
