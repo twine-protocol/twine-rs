@@ -2,18 +2,15 @@
 
 use std::collections::HashMap;
 use josekit::{jwk::Jwk, jws::JwsCondensed};
-use libipld::{Ipld, Link, Cid, cid::multihash};
+use libipld::{Ipld, Cid, cid::multihash};
 use serde::{Serialize, Deserialize};
 use crate::sign::Signer;
 
-const DEFAULT_SPECIFICATION: &str = "twine/1.0.x"; // TODO: should setting this be a build time macro?
-
-type Payload = HashMap<String, dyn Into<Ipld>>;
+pub const DEFAULT_SPECIFICATION: &str = "twine/1.0.x"; // TODO: should setting this be a build time macro?
 
 
 #[derive(Debug)]
 pub enum TwineError {}
-
 
 pub struct Mixin {
     chain: Cid,
@@ -21,13 +18,15 @@ pub struct Mixin {
 }
 
 pub struct ChainContent {
-    source: String,
-    specification: String,
-    radix: u32,
-    key: Jwk, 
-    mixins: Vec<Mixin>, // we check that these links are not on the same chain at runtime
-    meta: Ipld, // TODO: should be a map?
+    pub source: String, // TODO: should these be public
+    pub specification: String,
+    pub radix: u32,
+    pub key: Jwk, 
+    pub mixins: Vec<Mixin>, // we check that these links are not on the same chain at runtime
+    pub meta: HashMap<String, Ipld>, // TODO: should be a map?
 }
+
+type Payload = HashMap<String, dyn Into<Ipld>>;
 
 pub struct PulseContent {
     source: String,
@@ -38,11 +37,18 @@ pub struct PulseContent {
     payload: Payload // TODO: is payload supposed to be a Map? (see specs/twine/data-structures.md)
 }
 
+/// A thin wrapper around content and signature used to create CIDs
+#[derive(Serialize, Deserialize)]
+pub(crate) struct ChainHashable {
+    content: ChainContent,
+    signature: JwsCondensed
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Chain {
     pub content: ChainContent,
     pub signature: JwsCondensed,
-    pub cid: Cid // hash of content and signature
+    pub cid: Cid
 }
 
 #[derive(Serialize, Deserialize)]
@@ -52,43 +58,22 @@ pub struct Pulse {
     cid: Cid
 }
 
-trait TwineContent {
-    fn is_valid(&self) -> bool {}
-}
-
-trait Twine {
-    fn sign(&self) -> &JwsCondensed;
-
-    /// Create the CID of a Pulse or Chain's content + signature combo
-    fn create_cid(&self) -> Cid;
-}
-
-impl Twine for Chain {
-    fn signature(&self) -> &JwsCondensed { &self.signature }
-    fn create_cid(&self) -> Cid {}
-}
-
-impl Twine for Pulse {
-    fn signature(&self) -> &JwsCondensed {}
-    fn create_cid(&self) -> Cid {}
-}
-
 impl Chain {
-    pub fn build_chain(
-        content: ChainContent,
-        signer: Signer,
-        hasher: multihash::Code
-    ) -> Result<Chain, TwineError> {}
+    pub fn builder(source: String) -> ChainContent {
+        ChainContent::new(source)
+    }
 
     pub fn create_pulse(
         &self, 
         previous: Option(Pulse),
         mixins: Vec<Mixin>,
         payload: Payload,
-        signer: Signer,
+        signer: dyn Signer,
         hasher: multihash::Code
     ) -> Result<Pulse, TwineError> {
         // validate payload
+        
+
         // validate mixins (are from different chains)
         // validate previous (are on the same chain)
         // validate signer matches chain key
@@ -97,8 +82,4 @@ impl Chain {
         // generate signature from hash of dag-cbor of content
         // generate cid from hash of dag-cbor of content and signature
     }
-}
-
-pub impl Pulse {
-    
 }

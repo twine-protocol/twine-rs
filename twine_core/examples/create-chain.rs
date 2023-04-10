@@ -1,18 +1,8 @@
-use twine_core::{Chain, sign::Signer, chain::ChainContent};
+use twine_core::{twine::Chain, sign::DefaultSigner};
 use libipld::cid::multihash;
 
 fn main() -> Result<Chain, ChainError> {
-    let signer = Signer{};
-    let hasher: multihash::Code = multihash::Code::Sha3_512; 
-    let our_chain = Chain::build_chain(
-        ChainContent {
-            source: "twine".to_string(),
-            specification: "twine/1.0.x".to_string(),
-            radix: 5,
-            mixins: vec![1,2,3,4],
-            meta: "not much to say..."
-        },
-        signer,
-        hasher,
-    )?;
+    let signer = DefaultSigner {};
+    let hasher = multihash::Code::Sha3_512; 
+    let chain: Chain = Chain::builder("gold".into()).finalize(signer, hasher)?;
 }

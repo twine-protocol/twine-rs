@@ -5,4 +5,4 @@
 
 pub mod sign;
 pub mod twine;
-pub use chain::Chain;
+pub mod chain_builder;
