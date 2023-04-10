@@ -50,7 +50,6 @@ impl ChainContent {
             }
         )?);
         self.key = signer.public_key();
-
         Chain {
             content: self,
             signature,
