@@ -1,8 +1,26 @@
-use twine_core::twine::{Chain, Mixin, ChainContent, DEFAULT_SPECIFICATION, TwineError, ChainHashable};
+use twine_core::twine::{Chain, Mixin, ChainContent, DEFAULT_SPECIFICATION, ChainHashable};
 use josekit::{jws::JwsSigner, jwk::Jwk};
 use libipld::{cid::multihash, Ipld};
 
-struct ChainBuilder {
+pub enum ChainBuilderError {
+    Serde(String),
+}
+pub type Result<T> = Result<T, ChainBuilderError>;
+
+impl ser::Error for ChainBuilderError {
+    fn custom<T: Display>(msg: T) -> Self {
+        ChainBuilderError::Serde(msg.to_string())
+    }
+}
+
+impl de::Error for ChainBuilderError {
+    fn custom<T: Display>(msg: T) -> Self {
+        PulseBuilderError::Serde(msg.to_string())
+    }
+}
+
+
+pub struct ChainBuilder {
     content: ChainContent
 }
 
@@ -52,7 +70,7 @@ impl ChainBuilder {
         self
     }
 
-    pub fn finalize(self, signer: dyn JwsSigner, hasher: multihash::Code) -> Result<Chain, TwineError> {
+    pub fn finalize(self, signer: dyn JwsSigner, hasher: multihash::Code) -> Result<Chain, ChainBuilderError> {
         // Note: we do not check that chain spec matches current spec
         let signature = signer.sign(hasher.digest(serde_ipld_dagcbor::to_vec(&self.content)?))?;
         let cid = hasher.digest(serde_ipld_dagcbor::to_vec(

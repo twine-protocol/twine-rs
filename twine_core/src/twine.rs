@@ -1,17 +1,14 @@
 //! Structs and traits common to both Chain's and Pulses
 
 use std::collections::HashMap;
-use josekit::{jwk::Jwk, jws::JwsSigner};
-use libipld::{Ipld, Cid, cid::multihash};
+use josekit::{jwk::Jwk};
+use libipld::{Ipld, Cid};
 use serde::{Serialize, Deserialize};
 
 pub const DEFAULT_SPECIFICATION: &str = "twine/1.0.x"; // TODO: should setting this be a build time macro?
 
 #[derive(Debug)]
 pub enum TwineError {
-    MixinError(String),
-    KeyError(String),
-    SpecificationError(String),
     ChainError,
     ResolutionError,
 }
@@ -77,25 +74,9 @@ pub struct Pulse {
     pub cid: Cid
 }
 
-impl Chain {
-    pub fn builder(source: String, key: Jwk) -> ChainContent {
-        ChainContent::new(source, key)
-    }
-
-    /// sugar for creating the first pulse on a chain
-    pub fn first(
-        &self, 
-        mixins: Vec<Mixin>,
-        payload: Payload,
-        signer: dyn JwsSigner,
-        hasher: multihash::Code
-    ) -> Result<Pulse, TwineError> {
-        self.create_pulse(Vec::new(), mixins, payload, signer, hasher)
-    }
-}
-
 impl Pulse {
     pub fn chain(&self) -> Option<Chain> {
         // do some resolution to get the chain or return None if it does not exist
+        todo!()
     }
 }

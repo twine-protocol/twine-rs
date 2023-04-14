@@ -28,7 +28,7 @@ impl de::Error for PulseBuilderError {
     }
 }
 
-struct PulseBuilder {
+pub struct PulseBuilder {
     content: PulseContent,
     hasher: Hasher,
     key: Jwk // this is a private field, so users can't change the key
@@ -101,7 +101,7 @@ impl PulseBuilder {
     }
 
     pub fn payload(mut self, payload: HashMap<String, Ipld>) -> Result<Self, Err> {
-        self.content.payload = payload;
+        self.content.payload.extend(payload.iter());
         Ok(self)
     }
 
