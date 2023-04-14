@@ -16,6 +16,7 @@ pub enum TwineError {
     ResolutionError,
 }
 
+#[derive(Deserialize, Serialize)]
 pub struct Mixin {
     chain: Cid,
     value: Cid
@@ -33,7 +34,7 @@ pub struct ChainContent {
 
 type Payload = HashMap<String, Ipld>;
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct PulseContent {
     pub source: String,
     pub chain: Cid,

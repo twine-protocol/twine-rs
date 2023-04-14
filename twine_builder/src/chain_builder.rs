@@ -6,6 +6,8 @@ struct ChainBuilder {
     content: ChainContent
 }
 
+// todo: should this be self-consuming
+/// A self consuming builder for a chain
 impl ChainBuilder {
     pub fn new(source: String, key: Jwk) -> Self {
         Self { 
@@ -15,7 +17,7 @@ impl ChainBuilder {
                 radix: 32,
                 mixins: Vec::new(),
                 meta: None,
-                key: key, // TODO: this is kind of problematic
+                key,
             }
         }
     }
@@ -23,7 +25,6 @@ impl ChainBuilder {
     pub fn source(mut self, source: String) -> Self {
         self.content.source = source;
         self
-
     }
 
     pub fn radix(mut self, radix: u32) -> Self {
