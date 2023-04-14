@@ -45,7 +45,7 @@ pub struct PulseContent {
 
 /// A thin wrapper around content and signature used to create CIDs
 #[derive(Serialize, Deserialize)]
-pub(crate) struct ChainHashable {
+pub struct ChainHashable {
     content: ChainContent,
     signature: Vec<u8>
 }
@@ -57,7 +57,7 @@ pub enum Twine {
 
 /// A thin wrapper around content and signature used to create CIDs
 #[derive(Serialize, Deserialize)]
-pub(crate) struct PulseHashable {
+pub struct PulseHashable {
     content: PulseContent,
     signature: Vec<u8>
 }
@@ -90,62 +90,6 @@ impl Chain {
         hasher: multihash::Code
     ) -> Result<Pulse, TwineError> {
         self.create_pulse(Vec::new(), mixins, payload, signer, hasher)
-    }
-
-    pub fn pulse(
-        &self, 
-        previous: Vec<Pulse>,
-        mixins: Vec<Mixin>,
-        payload: Payload,
-        signer: dyn JwsSigner,
-        hasher: multihash::Code
-    ) -> Result<Pulse, TwineError> {
-        // validate mixins (are from different chains)
-        if mixins.iter().any(|m| m.chain == self.cid) {
-            return Err(TwineError::MixinError(String::from("mixins are from the same chain as the pulse you are trying to create")))
-        }
-
-        // validate previous (are on the same chain)
-        if previous.iter().any(|p| p.chain != self) {
-            return Err(TwineError::MixinError(String::from("previous should be from the same chain as the pulse you are trying to create")))
-        }
-
-        // validate signer matches chain key
-        if signer.public_key() == self.content.key {
-            return Err(TwineError::KeyError(String::from("signer should match key of chain")))
-        }
-
-        // check that chain spec matches current spec
-        if DEFAULT_SPECIFICATION != self.content.specification {
-            return Err(TwineError::SpecificationError(String::from("chain specification should match twine lib specification")))
-        }
-
-        // generate PulseContent using source etc from the chain
-        let prev_index = previous.iter().map(|p| p.content.index).max().unwrap_or(0);
-        let content = PulseContent {
-            source: self.content.source,
-            chain: self.cid,
-            index: prev_index + 1,
-            previous: previous.map(|p| p.cid),
-            mixins,
-            payload
-        };
-        // generate signature from hash of dag-cbor of content
-        let signature = signer.sign(hasher.digest(serde_ipld_dagcbor::to_vec(&content)?))?;
-        
-        // generate cid from hash of dag-cbor of content and signature
-        let cid = hasher.digest(serde_ipld_dagcbor::to_vec(
-            &PulseHashable {
-                content,
-                signature
-            }
-        ));
-
-        Ok(Pulse {
-            content,
-            signature,
-            cid
-        })
     }
 }
 
