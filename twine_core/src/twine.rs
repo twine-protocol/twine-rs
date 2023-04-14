@@ -1,10 +1,9 @@
 //! Structs and traits common to both Chain's and Pulses
 
 use std::collections::HashMap;
-use josekit::{jwk::Jwk, jws::JwsCondensed};
+use josekit::{jwk::Jwk, jws::JwsSigner};
 use libipld::{Ipld, Cid, cid::multihash};
 use serde::{Serialize, Deserialize};
-use crate::sign::Signer;
 
 pub const DEFAULT_SPECIFICATION: &str = "twine/1.0.x"; // TODO: should setting this be a build time macro?
 
@@ -48,7 +47,7 @@ pub struct PulseContent {
 #[derive(Serialize, Deserialize)]
 pub(crate) struct ChainHashable {
     content: ChainContent,
-    signature: JwsCondensed
+    signature: Vec<u8>
 }
 
 pub enum Twine {
@@ -60,26 +59,26 @@ pub enum Twine {
 #[derive(Serialize, Deserialize)]
 pub(crate) struct PulseHashable {
     content: PulseContent,
-    signature: JwsCondensed
+    signature: Vec<u8>
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct Chain {
     pub content: ChainContent,
-    pub signature: JwsCondensed,
+    pub signature: Vec<u8>,
     pub cid: Cid
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct Pulse {
     pub content: PulseContent,
-    pub signature: JwsCondensed,
+    pub signature: Vec<u8>,
     pub cid: Cid
 }
 
 impl Chain {
-    pub fn builder(source: String) -> ChainContent {
-        ChainContent::new(source)
+    pub fn builder(source: String, key: Jwk) -> ChainContent {
+        ChainContent::new(source, key)
     }
 
     /// sugar for creating the first pulse on a chain
@@ -87,7 +86,7 @@ impl Chain {
         &self, 
         mixins: Vec<Mixin>,
         payload: Payload,
-        signer: dyn Signer,
+        signer: dyn JwsSigner,
         hasher: multihash::Code
     ) -> Result<Pulse, TwineError> {
         self.create_pulse(Vec::new(), mixins, payload, signer, hasher)
@@ -98,7 +97,7 @@ impl Chain {
         previous: Vec<Pulse>,
         mixins: Vec<Mixin>,
         payload: Payload,
-        signer: dyn Signer,
+        signer: dyn JwsSigner,
         hasher: multihash::Code
     ) -> Result<Pulse, TwineError> {
         // validate mixins (are from different chains)

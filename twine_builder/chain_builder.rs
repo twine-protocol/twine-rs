@@ -1,16 +1,16 @@
 use crate::twine::{Chain, Mixin, ChainContent, DEFAULT_SPECIFICATION, TwineError, ChainHashable};
-use crate::sign::Signer;
+use josekit::{jws::JwsSigner, jwk::Jwk};
 use libipld::{cid::multihash, Ipld};
 
 impl ChainContent {
-    pub fn new(source: String) -> Self {
+    pub fn new(source: String, key: Jwk) -> Self {
         Self {
             source,
             specification: DEFAULT_SPECIFICATION.to_string(), // Do not allow specification to be set
             radix: 32,
             mixins: Vec::new(),
             meta: None,
-            key: None, // TODO: this is kind of problematic
+            key: key, // TODO: this is kind of problematic
         }
     }
 
@@ -40,7 +40,12 @@ impl ChainContent {
         self
     }
 
-    pub fn finalize(self, signer: dyn Signer, hasher: multihash::Code) -> Result<Chain, TwineError> {
+    pub fn key(mut self, key: Jwk) -> Self {
+        self.key = key;
+        self
+    }
+
+    pub fn finalize(self, signer: dyn JwsSigner, hasher: multihash::Code) -> Result<Chain, TwineError> {
         // Note: we do not check that chain spec matches current spec
         let signature = signer.sign(hasher.digest(serde_ipld_dagcbor::to_vec(&self)?))?;
         let cid = hasher.digest(serde_ipld_dagcbor::to_vec(
@@ -49,7 +54,8 @@ impl ChainContent {
                 signature
             }
         )?);
-        self.key = signer.public_key();
+
+        self.key;
         Chain {
             content: self,
             signature,

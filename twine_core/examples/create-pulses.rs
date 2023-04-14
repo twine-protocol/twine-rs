@@ -1,8 +1,11 @@
-use twine_core::{twine::{Pulse, Chain}, sign::DefaultSigner};
+use josekit::{jws::{JwsSigner, alg::eddsa::EddsaJwsAlgorithm}, jwk::alg::ed::EdCurve::Ed25519};
+use twine_core::twine::{Pulse, Chain};
 
 fn main() {
     // create a chain
-    let signer = DefaultSigner{};
+    let alg = EddsaJwsAlgorithm::Eddsa;
+    let keys = alg.generate_key_pair(Ed25519)?;
+    let signer = alg.signer_from_jwk(keys);
     let hasher: multihash::Code = multihash::Code::Sha3_512;
     let chain = Chain::builder("gold".into()).finalize(signer, hasher)?;
     

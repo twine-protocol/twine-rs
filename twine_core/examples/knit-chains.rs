@@ -1,8 +1,11 @@
+use josekit::{jws::alg::eddsa::EddsaJwsAlgorithm, jwk::alg::ed::EdCurve::Ed25519};
 use twine_core::twine::{Chain, ChainContent};
 
 fn main() {
     let hasher = multihash::Code::Sha3_512;
-    let our_signer = Signer::from_random()?;
+    let alg = EddsaJwsAlgorithm::Eddsa;
+    let keys = alg.generate_key_pair(Ed25519)?;
+    let signer = alg.signer_from_jwk(keys);
     let our_chain = Chain::build_chain(
         ChainContent {
             source: "twine".to_string(),
