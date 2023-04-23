@@ -1,7 +1,7 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, fmt::{Display, self}};
 
-use libipld::{Ipld, multihash::{Hasher, Code}, Cid, cid::CidGeneric};
-use twine_core::twine::{PulseContent, Chain, Pulse, DEFAULT_SPECIFICATION};
+use libipld::{Ipld, multihash::Code};
+use twine_core::twine::{PulseContent, Chain, Pulse, DEFAULT_SPECIFICATION, Mixin, PulseHashable};
 use serde::{ser, de};
 use crate::util::hasher_of;
 use josekit::{jws::JwsSigner, jwk::Jwk};
@@ -14,7 +14,21 @@ pub enum PulseBuilderError {
     MismatchedKeys,
     MismatchedVersion,
 }
-pub type Result<T> = Result<T, PulseBuilderError>;
+
+impl fmt::Display for PulseBuilderError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ChainBuilderError::Serde(reason) => write!(f, "Serde: {}", reason)
+        }
+    }
+}
+
+impl std::error::Error for PulseBuilderError {}
+
+
+type Err = PulseBuilderError;
+type Result<T, E = PulseBuilderError> = std::result::Result<T, E>;
+
 
 impl ser::Error for PulseBuilderError {
     fn custom<T: Display>(msg: T) -> Self {
@@ -30,7 +44,7 @@ impl de::Error for PulseBuilderError {
 
 pub struct PulseBuilder {
     content: PulseContent,
-    hasher: Hasher,
+    hasher: Code,
     key: Jwk // this is a private field, so users can't change the key
 }
 
@@ -47,7 +61,7 @@ impl PulseBuilder {
                 previous: vec![previous.cid],
                 chain,
                 index: previous.content.index + 1,
-                mixins: Vec::new(),
+                mixins: previous.content.mixins.clone(),
                 payload: HashMap::new(),
             },
             hasher: hasher_of(chain),
@@ -58,7 +72,7 @@ impl PulseBuilder {
     pub fn first(chain: Chain) -> Result<Self, Err> {
         Ok(Self {
             content: PulseContent { 
-                source: Chain.content.source,
+                source: chain.content.source,
                 chain: chain.cid, 
                 index: 1, // TODO: 0 or 1
                 previous: Vec::new(),
@@ -70,12 +84,12 @@ impl PulseBuilder {
         })
     }
 
-    pub fn source(mut self, source: String) -> Result<Self, Err> {
+    pub fn source(mut self, source: String) -> Result<Self> {
         self.content.source = source;
         Ok(self)
     }
 
-    pub fn mixin(mut self, mixin: Mixin) -> Result<Self, Err> {
+    pub fn mixin(mut self, mixin: Mixin) -> Result<Self> {
         if mixin.chain == self.content.chain.cid {
             return Err(Err::InvalidMixin(String::from("Mixin points back to the chain of this pulse")))
         }
@@ -83,15 +97,16 @@ impl PulseBuilder {
         Ok(self)
     }
 
-    pub fn mixins(mut self, mixins: Mixin) -> Result<Self, Err> {
-        Ok(mixins.iter().fold(self, |builder, mixin| builder.link(prev)?))
+
+    pub fn mixins(mut self, mixins: Vec<Mixin>) -> Result<Self> {
+        Ok(mixins.iter().fold(self, |builder, mixin| builder.link(mixin)?))
     }
 
     pub fn link(mut self, prev: Pulse) -> Result<Self, Err> {
-        if (prev.content.chain != self.content.chain) {
+        if prev.content.chain != self.content.chain {
             return Err(Err::InvalidLink(String::from("Chain of link doesn't match ")))
         }
-        self.content.previous.push(pulse.cid);
+        self.content.previous.push(prev.cid);
         Ok(self)
     }
 
@@ -100,26 +115,26 @@ impl PulseBuilder {
         Ok(prevs.iter().fold(self, |builder, prev| builder.link(prev)?))
     }
 
-    pub fn payload(mut self, payload: HashMap<String, Ipld>) -> Result<Self, Err> {
+    pub fn payload(mut self, payload: HashMap<String, Ipld>) -> Result<Self> {
         self.content.payload.extend(payload.iter());
         Ok(self)
     }
 
-    pub fn finalize(self, signer: dyn JwsSigner) -> Result<Pulse, TwineError> {
+    pub fn finalize(self, signer: dyn JwsSigner) -> Result<Pulse> {
         if signer.public_key() == self.key {
             return Err(Err::KeyError)
         }
 
-        let signature = signer.sign(hasher.digest(serde_ipld_dagcbor::to_vec(&self.content)?))?;
-        let cid = hasher.digest(serde_ipld_dagcbor::to_vec(
+        let signature = signer.sign(self.hasher.digest(serde_ipld_dagcbor::to_vec(&self.content)?))?;
+        let cid = self.hasher.digest(serde_ipld_dagcbor::to_vec(
             &PulseHashable {
-                content,
+                content: self.content,
                 signature
             }
         ));
 
         Ok(Pulse {
-            content,
+            content: self.content,
             signature,
             cid
         })

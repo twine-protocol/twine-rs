@@ -13,10 +13,10 @@ pub enum TwineError {
     ResolutionError,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Mixin {
-    chain: Cid,
-    value: Cid
+    pub chain: Cid,
+    pub value: Cid
 }
 
 #[derive(Deserialize, Serialize)]

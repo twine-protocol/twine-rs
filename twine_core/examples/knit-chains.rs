@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use josekit::{jws::alg::eddsa::EddsaJwsAlgorithm, jwk::alg::ed::EdCurve::Ed25519};
 use twine_core::twine::{Chain, ChainContent};
 
@@ -28,7 +30,7 @@ fn main() {
             radix: 5,
             key: their_signer.public_key(),
             mixins: vec![our_chain.cid],
-            meta: "not much to say..."
+            meta: HashMap::from(vec![("hello".into(), 1)])
         },
         signer,
         hasher,

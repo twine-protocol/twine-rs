@@ -1,4 +1,4 @@
-use libipld::multihash::{Code, MultihashDigest};
+use libipld::multihash::{Code};
 use twine_core::{twine::Chain, sign::{DefaultSigner, Signer}};
 
 fn main() {
