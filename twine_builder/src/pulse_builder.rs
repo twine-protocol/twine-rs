@@ -78,7 +78,7 @@ impl PulseBuilder {
                 mixins,
                 payload: HashMap::new(),
             },
-            hasher: match hasher_of(chain.cid) {
+            hasher: match hasher_of(&chain.cid) {
                 Err(_) => return Err(Err::UninferableHasher),
                 Ok(v) => v
             },
@@ -169,7 +169,7 @@ impl PulseBuilder {
         Ok(Pulse {
             content: hashable.content,
             signature: hashable.signature,
-            cid: Cid::new_v0(cid)?
+            cid: Cid::new_v1(0, cid)
         })
     }
 }

@@ -110,7 +110,7 @@ impl ChainBuilder {
         Ok(Chain {
             content: hashable.content, // TODO: weird ergonomics since we move content and signature around
             signature: hashable.signature,
-            cid: CidGeneric::new_v0(cid)? // TODO: CID version 0 or 1?
+            cid: CidGeneric::new_v1(0, cid) // TODO: codec version?
         })
     }
 }

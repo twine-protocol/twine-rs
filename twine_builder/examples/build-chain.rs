@@ -1,7 +1,7 @@
 use std::{collections::HashMap, error::Error};
 
-use josekit::{jws::{alg::eddsa::EddsaJwsAlgorithm, JwsVerifier}, jwk::alg::ed::EdCurve::Ed25519};
-use twine_core::{twine::Chain};
+use josekit::{jws::{alg::eddsa::EddsaJwsAlgorithm}, jwk::alg::ed::EdCurve::Ed25519};
+
 use twine_builder::ChainBuilder;
 use libipld::cid::multihash;
 
@@ -14,9 +14,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         keys.to_jwk_public_key(), 
         HashMap::new()
     );
-    let chain = builder.finalize(&signer, hasher)?;
-
+    let _chain = builder.finalize(&signer, hasher)?;
+    
     // builder is consumed, so we can't use it again here
+    println!("Chain Built!");
 
     Ok(())
 }
