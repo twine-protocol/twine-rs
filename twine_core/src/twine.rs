@@ -44,8 +44,8 @@ pub struct PulseContent {
 /// A thin wrapper around content and signature used to create CIDs
 #[derive(Serialize, Deserialize)]
 pub struct ChainHashable {
-    content: ChainContent,
-    signature: Vec<u8>
+    pub content: ChainContent,
+    pub signature: Vec<u8>
 }
 
 pub enum Twine {
@@ -56,8 +56,8 @@ pub enum Twine {
 /// A thin wrapper around content and signature used to create CIDs
 #[derive(Serialize, Deserialize)]
 pub struct PulseHashable {
-    content: PulseContent,
-    signature: Vec<u8>
+    pub content: PulseContent,
+    pub signature: Vec<u8>
 }
 
 #[derive(Serialize, Deserialize)]

@@ -2,7 +2,8 @@ use std::{fmt::Display, collections::HashMap};
 
 use twine_core::twine::{Chain, Mixin, ChainContent, DEFAULT_SPECIFICATION, ChainHashable};
 use josekit::{jws::JwsSigner, jwk::Jwk};
-use libipld::{cid::multihash, Ipld};
+use libipld::{cid::{multihash, CidGeneric}, Ipld};
+use libipld::cid::multihash::MultihashDigest;
 use serde::{de, ser};
 use std::fmt;
 
@@ -92,22 +93,21 @@ impl ChainBuilder {
         self
     }
 
-    pub fn finalize(self, signer: dyn JwsSigner, hasher: multihash::Code) -> Result<Chain> {
+    pub fn finalize(self, signer: &(dyn JwsSigner), hasher: multihash::Code) -> Result<Chain, Box<dyn std::error::Error>> {
         // Note: we do not check that chain spec matches current spec
-        let signature = signer.sign(hasher.digest(serde_ipld_dagcbor::to_vec(&self.content)?))?;
-        let cid = hasher.digest(serde_ipld_dagcbor::to_vec(
-            &ChainHashable {
-                content: self.content,
-                signature
-            }
-        )?);
-
-        Ok(Chain {
+        let signature = signer.sign(&hasher.digest(&serde_ipld_dagcbor::to_vec(&self.content)?).to_bytes())?;
+        let hashable = ChainHashable {
             content: self.content,
-            signature,
-            cid
-        });
+            signature
+        };
 
+        let cid = hasher.digest(&serde_ipld_dagcbor::to_vec(&hashable)?);
+
+        return Ok(Chain {
+            content: hashable.content, // TODO: weird ergonomics since we move content and signature around
+            signature: hashable.signature,
+            cid: CidGeneric::new_v0(cid)? // TODO: CID version 0 or 1?
+        });
     }
 }
 
