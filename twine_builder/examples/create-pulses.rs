@@ -28,5 +28,10 @@ fn main() -> Result<(), Box<dyn Error>>{
 
     assert_eq!(next.content.index, first.content.index + 1);
 
+    // builder is consumed, so we can't use it again here even if we wanted to
+    println!("Pulse Built!");
+    println!("{:#?}", next);
+
+
     Ok(())
 }
