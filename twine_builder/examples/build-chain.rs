@@ -16,6 +16,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
     let chain = builder.finalize(&signer, hasher)?;
 
-    // builder is consumed, so this should be invalid:
-    builder;
+    // builder is consumed, so we can't use it again here
+
+    Ok(())
 }

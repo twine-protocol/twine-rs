@@ -57,44 +57,53 @@ pub struct PulseBuilder {
 // TODO: should this be self-consuming?
 /// A self-consuming builder for pulses
 impl PulseBuilder {
-    pub fn new(chain: Chain, previous: Pulse) -> Result<Self> {
-        if previous.content.chain != chain.cid { 
+
+    /// A helper function to create a PulseBuilder using new() or first()
+    fn start_pulse(
+        chain: &Chain, 
+        &prev_chain: &Cid, previous: Vec<Cid>, 
+        index: u32, 
+        mixins: Vec<Mixin>
+    ) -> Result<Self> {
+        if prev_chain != chain.cid { 
             return Err(Err::InvalidLink(String::from("The chain and previous pulse's chain do not match"))) 
         }
         if chain.content.specification != DEFAULT_SPECIFICATION { return Err(Err::MismatchedVersion) }
         Ok(Self { 
             content: PulseContent {
-                source: chain.content.source,
-                previous: vec![previous.cid],
+                source: chain.content.source.clone(),
+                previous,
                 chain: chain.cid,
-                index: previous.content.index + 1,
-                mixins: previous.content.mixins.clone(),
+                index,
+                mixins,
                 payload: HashMap::new(),
             },
             hasher: match hasher_of(chain.cid) {
                 Err(_) => return Err(Err::UninferableHasher),
                 Ok(v) => v
             },
-            key: chain.content.key
+            key: chain.content.key.clone()
         })
     }
 
-    pub fn first(chain: Chain) -> Result<Self, Err> {
-        Ok(Self {
-            content: PulseContent { 
-                source: chain.content.source,
-                chain: chain.cid, 
-                index: 1, // TODO: 0 or 1
-                previous: Vec::new(),
-                mixins: Vec::new(),
-                payload: HashMap::new()
-            },
-            hasher: match hasher_of(chain.cid) {
-                Err(_) => return Err(Err::UninferableHasher),
-                Ok(v) => v
-            }, // TODO: duplicate code
-            key: chain.content.key
-        })
+    pub fn new(chain: &Chain, previous: &Pulse) -> Result<Self> {
+        Self::start_pulse(
+            chain, 
+            &previous.content.chain,
+            vec![previous.cid], 
+            previous.content.index + 1, 
+            previous.content.mixins.clone()
+        )
+    }
+
+    pub fn first(chain: &Chain) -> Result<Self, Err> {
+        Self::start_pulse(
+            chain, 
+            &chain.cid, 
+            Vec::new(), // TODO: 0 or 1
+            1, 
+            Vec::new()
+        )
     }
 
     pub fn source(mut self, source: String) -> Result<Self> {

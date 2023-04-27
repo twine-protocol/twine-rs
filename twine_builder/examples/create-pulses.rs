@@ -16,13 +16,15 @@ fn main() -> Result<(), Box<dyn Error>>{
         HashMap::new()
     ).finalize(&signer, hasher)?;
     
-    let first = PulseBuilder::first(chain)?.payload(
+    let first = PulseBuilder::first(&chain)?.payload(
         HashMap::from([(String::from("count"), Ipld::Integer(1))])
     )?.finalize(&signer)?;
 
-    let next = PulseBuilder::new(chain, first)
+    let next = PulseBuilder::new(&chain, &first)
         ?.payload(HashMap::from([(String::from("count"), Ipld::Integer(2))]))
         ?.finalize(&signer)?;
 
-    assert_eq!(next.content.index, first.content.index + 1)
+    assert_eq!(next.content.index, first.content.index + 1);
+
+    Ok(())
 }
