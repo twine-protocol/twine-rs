@@ -93,7 +93,11 @@ impl ChainBuilder {
         self
     }
 
-    pub fn finalize(self, signer: &(dyn JwsSigner), hasher: multihash::Code) -> Result<Chain, Box<dyn std::error::Error>> {
+    pub fn finalize(
+        self,
+        signer: &(dyn JwsSigner), 
+        hasher: multihash::Code // TODO: should hasher be a reference?
+    ) -> Result<Chain, Box<dyn std::error::Error>> {
         // Note: we do not check that chain spec matches current spec
         let signature = signer.sign(&hasher.digest(&serde_ipld_dagcbor::to_vec(&self.content)?).to_bytes())?;
         let hashable = ChainHashable {
@@ -103,11 +107,11 @@ impl ChainBuilder {
 
         let cid = hasher.digest(&serde_ipld_dagcbor::to_vec(&hashable)?);
 
-        return Ok(Chain {
+        Ok(Chain {
             content: hashable.content, // TODO: weird ergonomics since we move content and signature around
             signature: hashable.signature,
             cid: CidGeneric::new_v0(cid)? // TODO: CID version 0 or 1?
-        });
+        })
     }
 }
 

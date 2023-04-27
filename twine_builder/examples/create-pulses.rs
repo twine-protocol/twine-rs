@@ -1,20 +1,28 @@
-use std::io::Chain;
-use josekit::{jws::{JwsSigner, alg::eddsa::EddsaJwsAlgorithm}, jwk::alg::ed::EdCurve::Ed25519};
-use twine_builder::{ChainBuilder, PulseBuilder};
-use twine_core::twine::Pulse;
+use std::{collections::HashMap, error::Error};
 
-fn main() {
+use josekit::{jws::alg::eddsa::EddsaJwsAlgorithm, jwk::alg::ed::EdCurve::Ed25519};
+use libipld::{multihash, Ipld};
+use twine_builder::{ChainBuilder, PulseBuilder};
+
+fn main() -> Result<(), Box<dyn Error>>{
     // create a chain
     let alg = EddsaJwsAlgorithm::Eddsa;
     let keys = alg.generate_key_pair(Ed25519)?;
-    let signer = alg.signer_from_jwk(keys);
-    let hasher: multihash::Code = multihash::Code::Sha3_512;
-    let chain = ChainBuilder::new("gold".into(), keys.to_jwk_public_key()).finalize(signer, hasher)?;
+    let signer = alg.signer_from_jwk(&keys.to_jwk_private_key())?;
+    let hasher = multihash::Code::Sha3_512;
+    let chain = ChainBuilder::new(
+        "gold".into(), 
+        keys.to_jwk_public_key(), 
+        HashMap::new()
+    ).finalize(&signer, hasher)?;
     
-    let first = PulseBuilder::first(chain)?.payload(HashMap::from(vec![("count", 1)]))?.finalize(signer);    
+    let first = PulseBuilder::first(chain)?.payload(
+        HashMap::from([(String::from("count"), Ipld::Integer(1))])
+    )?.finalize(&signer)?;
+
     let next = PulseBuilder::new(chain, first)
-        ?.payload(HashMap::from(vec![(String::from("count"), 2)]))
-        ?.finalize(signer);
+        ?.payload(HashMap::from([(String::from("count"), Ipld::Integer(2))]))
+        ?.finalize(&signer)?;
 
     assert_eq!(next.content.index, first.content.index + 1)
 }
