@@ -13,13 +13,13 @@ pub enum TwineError {
     ResolutionError,
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Debug)]
 pub struct Mixin {
     pub chain: Cid,
     pub value: Cid
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, PartialEq, Debug)]
 pub struct ChainContent {
     pub source: String, // TODO: should these be public
     pub specification: String,
@@ -31,7 +31,7 @@ pub struct ChainContent {
 
 type Payload = HashMap<String, Ipld>;
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Debug)]
 pub struct PulseContent {
     pub source: String,
     pub chain: Cid,
@@ -48,11 +48,6 @@ pub struct ChainHashable {
     pub signature: Vec<u8>
 }
 
-pub enum Twine {
-    Chain(Chain),
-    Pulse(Pulse)
-}
-
 /// A thin wrapper around content and signature used to create CIDs
 #[derive(Serialize, Deserialize)]
 pub struct PulseHashable {
@@ -60,14 +55,14 @@ pub struct PulseHashable {
     pub signature: Vec<u8>
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Chain {
     pub content: ChainContent,
     pub signature: Vec<u8>,
     pub cid: Cid
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Pulse {
     pub content: PulseContent,
     pub signature: Vec<u8>,

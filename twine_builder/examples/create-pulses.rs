@@ -16,10 +16,12 @@ fn main() -> Result<(), Box<dyn Error>>{
         HashMap::new()
     ).finalize(&signer, hasher)?;
     
+    // the first pulse uses the `first` method
     let first = PulseBuilder::first(&chain)?.payload(
         HashMap::from([(String::from("count"), Ipld::Integer(1))])
     )?.finalize(&signer)?;
 
+    // subsequent pulses use the `new` method
     let next = PulseBuilder::new(&chain, &first)
         ?.payload(HashMap::from([(String::from("count"), Ipld::Integer(2))]))
         ?.finalize(&signer)?;
