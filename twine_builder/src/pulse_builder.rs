@@ -96,7 +96,7 @@ impl PulseBuilder {
         )
     }
 
-    pub fn first(chain: &Chain) -> Result<Self, Err> {
+    pub fn first(chain: &Chain) -> Result<Self> {
         Self::start_pulse(
             chain, 
             &chain.cid, 

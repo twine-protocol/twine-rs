@@ -59,6 +59,7 @@ pub struct PulseHashable {
 pub struct Chain {
     pub content: ChainContent,
     pub signature: Vec<u8>,
+    #[serde(serialize_with = "")]
     pub cid: Cid
 }
 
@@ -70,8 +71,13 @@ pub struct Pulse {
 }
 
 impl Pulse {
-    pub fn chain(&self) -> Option<Chain> {
-        // do some resolution to get the chain or return None if it does not exist
+    pub fn verify(&self) -> Result<(), TwineError> { // TODO: figure out error
+        todo!()
+    }
+}
+
+impl Chain {
+    pub fn verify(&self) -> Result<(), TwineError> { // TODO: figure out error
         todo!()
     }
 }

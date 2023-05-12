@@ -44,7 +44,7 @@ pub struct ChainBuilder {
 // todo: should this be self-consuming
 /// A self consuming builder for a chain
 impl ChainBuilder {
-    pub fn new(source: String, key: Jwk, meta: HashMap<String, Ipld>) -> Self {
+    pub fn new(source: String, meta: HashMap<String, Ipld>) -> Self {
         Self { 
             content: ChainContent {
                 source,
@@ -95,6 +95,7 @@ impl ChainBuilder {
 
     pub fn finalize(
         self,
+        key: Jwk,
         signer: &(dyn JwsSigner), 
         hasher: multihash::Code // TODO: should hasher be a reference?
     ) -> Result<Chain, Box<dyn std::error::Error>> {
