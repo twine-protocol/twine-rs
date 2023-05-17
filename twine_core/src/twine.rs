@@ -43,14 +43,14 @@ pub struct PulseContent {
 
 /// A thin wrapper around content and signature used to create CIDs
 #[derive(Serialize, Deserialize)]
-pub struct ChainHashable {
+pub(crate) struct ChainHashable {
     pub content: ChainContent,
     pub signature: Vec<u8>
 }
 
 /// A thin wrapper around content and signature used to create CIDs
 #[derive(Serialize, Deserialize)]
-pub struct PulseHashable {
+pub(crate) struct PulseHashable {
     pub content: PulseContent,
     pub signature: Vec<u8>
 }
@@ -70,14 +70,17 @@ pub struct Pulse {
     pub cid: Cid
 }
 
-impl Pulse {
-    pub fn verify(&self) -> Result<(), TwineError> { // TODO: figure out error
-        todo!()
-    }
+trait Twine {
+    fn cid();
+    fn from_json() -> Self; 
 }
 
-impl Chain {
-    pub fn verify(&self) -> Result<(), TwineError> { // TODO: figure out error
-        todo!()
+impl Twine for Chain {
+    fn from_json() -> Self {
+        return Chain {
+            content: {}
+            signature
+            cid
+        }
     }
 }

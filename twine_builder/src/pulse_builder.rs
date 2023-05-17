@@ -2,10 +2,9 @@ use std::{collections::HashMap, fmt::{Display, self}};
 
 use libipld::{Ipld, multihash::Code, Cid};
 use libipld::cid::multihash::MultihashDigest;
-use twine_core::twine::{PulseContent, Chain, Pulse, DEFAULT_SPECIFICATION, Mixin, PulseHashable};
+use twine_core::{twine::{PulseContent, Chain, Pulse, DEFAULT_SPECIFICATION, Mixin, PulseHashable}, verify::{verify_pulse, hasher_of}};
 use serde::{ser, de};
-use crate::util::hasher_of;
-use josekit::{jws::JwsSigner, jwk::Jwk};
+use josekit::{jws::{JwsSigner, JwsVerifier}, jwk::Jwk};
 
 #[derive(Debug)]
 pub enum PulseBuilderError {
@@ -30,7 +29,6 @@ impl fmt::Display for PulseBuilderError {
 
 impl std::error::Error for PulseBuilderError {}
 
-
 type Err = PulseBuilderError;
 type Result<T, E = PulseBuilderError> = std::result::Result<T, E>;
 
@@ -50,25 +48,22 @@ impl de::Error for PulseBuilderError {
 pub struct PulseBuilder {
     content: PulseContent,
     hasher: Code,
-    key: Jwk // this is a private field, so users can't change the key
+    key: Jwk, // this is a private field, so users can't change the key
+    previous: &Pulse
 }
 
 
-// TODO: should this be self-consuming?
 /// A self-consuming builder for pulses
 impl PulseBuilder {
 
     /// A helper function to create a PulseBuilder using new() or first()
     fn start_pulse(
         chain: &Chain, 
-        &prev_chain: &Cid, previous: Vec<Cid>, 
+        &prev_chain: &Cid, 
+        previous: Vec<Cid>, 
         index: u32, 
         mixins: Vec<Mixin>
     ) -> Result<Self> {
-        if prev_chain != chain.cid { 
-            return Err(Err::InvalidLink(String::from("The chain and previous pulse's chain do not match"))) 
-        }
-        if chain.content.specification != DEFAULT_SPECIFICATION { return Err(Err::MismatchedVersion) }
         Ok(Self { 
             content: PulseContent {
                 source: chain.content.source.clone(),
@@ -82,7 +77,8 @@ impl PulseBuilder {
                 Err(_) => return Err(Err::UninferableHasher),
                 Ok(v) => v
             },
-            key: chain.content.key.clone()
+            key: chain.content.key.clone(),
+            previous
         })
     }
 
@@ -112,22 +108,18 @@ impl PulseBuilder {
     }
 
     pub fn mixin(mut self, mixin: Mixin) -> Result<Self> {
-        if mixin.chain == self.content.chain {
-            return Err(Err::InvalidMixin(String::from("Mixin points back to the chain of this pulse")))
-        }
         self.content.mixins.push(mixin);
         Ok(self)
     }
 
 
     pub fn mixins(self, mixins: Vec<Mixin>) -> Result<Self> {
-        mixins.into_iter().fold(
-            Ok(self), 
-            |builder, mixin| Ok(builder?.mixin(mixin)?) // TODO: manual deref
-        )
+        self.content.mixins.extend(mixins);
+        Ok(self)
     }
 
     pub fn link(mut self, prev: Pulse) -> Result<Self, Err> {
+        // TODO: this check is impossible to do given just a Pulse struct
         if prev.content.chain != self.content.chain {
             return Err(Err::InvalidLink(String::from("Chain of link doesn't match")))
         }
@@ -148,13 +140,7 @@ impl PulseBuilder {
         Ok(self)
     }
 
-    pub fn finalize(self, signer: &(dyn JwsSigner)) -> Result<Pulse, Box<dyn std::error::Error>> {
-        // TODO: add in check for signer matching key:
-        /*  
-        if signer.public_key() != self.key {
-            return Err(Box::new(Err::KeyError))
-        } */
-
+    pub fn finalize(self, signer: &(dyn JwsSigner), verifier: &(dyn JwsVerifier)) -> Result<Pulse, Box<dyn std::error::Error>> {
         let signature = signer.sign(
             &self.hasher.digest(&serde_ipld_dagcbor::to_vec(&self.content)?).to_bytes()
         )?;
@@ -166,10 +152,10 @@ impl PulseBuilder {
             &hashable
         )?);
 
-        Ok(Pulse {
+        Ok(verify_pulse(Pulse {
             content: hashable.content,
             signature: hashable.signature,
             cid: Cid::new_v1(0, cid)
-        })
+        }, self.previous, verifier)?)
     }
 }
