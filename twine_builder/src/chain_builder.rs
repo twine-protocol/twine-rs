@@ -1,7 +1,7 @@
 use std::{fmt::Display, collections::HashMap};
 
-use twine_core::twine::{Chain, Mixin, ChainContent, DEFAULT_SPECIFICATION, ChainHashable};
-use josekit::{jws::JwsSigner, jwk::Jwk};
+use twine_core::{twine::{Chain, Mixin, ChainContent, DEFAULT_SPECIFICATION, ChainHashable}, verify::verify_chain};
+use josekit::{jws::{JwsSigner, JwsVerifier}, jwk::Jwk};
 use libipld::{cid::{multihash, CidGeneric}, Ipld};
 use libipld::cid::multihash::MultihashDigest;
 use serde::{de, ser};
@@ -96,7 +96,8 @@ impl ChainBuilder {
     pub fn finalize(
         self,
         key: Jwk,
-        signer: &(dyn JwsSigner), 
+        signer: &(dyn JwsSigner),
+        verifier: &(dyn JwsVerifier), 
         hasher: multihash::Code // TODO: should hasher be a reference?
     ) -> Result<Chain, Box<dyn std::error::Error>> {
         // Note: we do not check that chain spec matches current spec
@@ -108,11 +109,11 @@ impl ChainBuilder {
 
         let cid = hasher.digest(&serde_ipld_dagcbor::to_vec(&hashable)?);
 
-        Ok(Chain {
+        Ok(verify_chain(Chain {
             content: hashable.content, // TODO: weird ergonomics since we move content and signature around
             signature: hashable.signature,
             cid: CidGeneric::new_v1(0, cid) // TODO: codec version?
-        })
+        }, verifier))
     }
 }
 
