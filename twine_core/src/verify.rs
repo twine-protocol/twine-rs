@@ -45,13 +45,19 @@ pub fn hasher_of(&cid: &Cid) -> Result<Code, libipld::multihash::Error> {
     Code::try_from(cid.hash().code())
 }
 
-pub fn verify_pulse(pulse: Pulse, &previous: Pulse, verifier: &(dyn JwsVerifier)) -> Result<Pulse, PulseVerificationError> {
-    if previous.content.chain != pulse.content.chain { 
-        return Err(PulseErr::ChainMismatch(previous.content.chain, pulse.content.chain));
-    }
+pub fn verify_pulse(pulse: Pulse, previous: Option<&Pulse>, verifier: &(dyn JwsVerifier)) -> Result<Pulse, PulseVerificationError> {
+    if let Some(prev_pulse) = previous {
+        if prev_pulse.content.chain != pulse.content.chain { 
+            return Err(PulseErr::ChainMismatch(prev_pulse.content.chain, pulse.content.chain));
+        }
 
-    if previous.content.version != pulse.content.version {
-        return Err(PulseErr::TwineVersionMismatch(pulse.content.version, pulse.content.version));
+        if prev_pulse.content.version != pulse.content.version {
+            return Err(PulseErr::TwineVersionMismatch(pulse.content.version, pulse.content.version));
+        }
+
+        if prev_pulse.content.mixins.any(|mixin| !pulse.content.mixins.contains(mixin)) { 
+            return Err(PulseErr::PreviousMixinExclusion);
+        }
     }
 
     // mixins
@@ -59,10 +65,6 @@ pub fn verify_pulse(pulse: Pulse, &previous: Pulse, verifier: &(dyn JwsVerifier)
         if mixin.chain != pulse.content.chain {
             return Err(PulseErr::SameChainMixin);
         }
-    }
-
-    if previous.content.mixins.any(|mixin| !pulse.content.mixins.contains(mixin)) { 
-        return Err(PulseErr::PreviousMixinExclusion);
     }
 
     // links

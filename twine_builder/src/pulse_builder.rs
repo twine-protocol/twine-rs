@@ -49,7 +49,7 @@ pub struct PulseBuilder {
     content: PulseContent,
     hasher: Code,
     key: Jwk, // this is a private field, so users can't change the key
-    previous: &Pulse
+    previous: Option<&Pulse>
 }
 
 
@@ -60,14 +60,14 @@ impl PulseBuilder {
     fn start_pulse(
         chain: &Chain, 
         &prev_chain: &Cid, 
-        previous: Vec<Cid>, 
         index: u32, 
         mixins: Vec<Mixin>
-    ) -> Result<Self> {
-        Ok(Self { 
+        previous: Option<&Pulse>
+    ) -> Self {
+        Self { 
             content: PulseContent {
                 source: chain.content.source.clone(),
-                previous,
+                previous: previous.map_or(Vec::new(), |pulse| vec![pulse.cid]),
                 chain: chain.cid,
                 index,
                 mixins,
@@ -79,65 +79,59 @@ impl PulseBuilder {
             },
             key: chain.content.key.clone(),
             previous
-        })
+        }
     }
 
-    pub fn new(chain: &Chain, previous: &Pulse) -> Result<Self> {
+    pub fn new(chain: &Chain, previous: &Pulse) -> Self {
         Self::start_pulse(
             chain, 
             &previous.content.chain,
-            vec![previous.cid], 
             previous.content.index + 1, 
-            previous.content.mixins.clone()
+            previous.content.mixins.clone(),
+            Some(previous)
         )
     }
 
-    pub fn first(chain: &Chain) -> Result<Self> {
+    pub fn first(chain: &Chain) -> Self {
         Self::start_pulse(
             chain, 
             &chain.cid, 
-            Vec::new(), // TODO: 0 or 1
             1, 
-            Vec::new()
+            Vec::new(),
+            None
         )
     }
 
-    pub fn source(mut self, source: String) -> Result<Self> {
+    pub fn source(mut self, source: String) -> Self {
         self.content.source = source;
-        Ok(self)
+        self
     }
 
-    pub fn mixin(mut self, mixin: Mixin) -> Result<Self> {
+    pub fn mixin(mut self, mixin: Mixin) -> Self {
         self.content.mixins.push(mixin);
-        Ok(self)
+        self
     }
 
 
-    pub fn mixins(self, mixins: Vec<Mixin>) -> Result<Self> {
+    pub fn mixins(mut self, mixins: Vec<Mixin>) -> Self {
         self.content.mixins.extend(mixins);
-        Ok(self)
+        self
     }
 
-    pub fn link(mut self, prev: Pulse) -> Result<Self, Err> {
-        // TODO: this check is impossible to do given just a Pulse struct
-        if prev.content.chain != self.content.chain {
-            return Err(Err::InvalidLink(String::from("Chain of link doesn't match")))
-        }
+    pub fn link(mut self, prev: Pulse) -> Self {
         self.content.previous.push(prev.cid);
-        Ok(self)
+        self
     }
 
-    pub fn links(self, prevs: Vec<Pulse>) -> Result<Self, Err> {
+    pub fn links(mut self, prevs: Vec<Pulse>) -> Self {
         // return builder after links have been added one by one
-        prevs.into_iter().fold(
-            Ok(self), 
-            |builder, prev| Ok(builder?.link(prev)?)
-        )
+        self.content.previous.extend(prevs.iter().map(|prev| prev.cid));
+        self
     }
 
     pub fn payload(mut self, payload: HashMap<String, Ipld>) -> Result<Self> {
         self.content.payload.extend(payload);
-        Ok(self)
+        
     }
 
     pub fn finalize(self, signer: &(dyn JwsSigner), verifier: &(dyn JwsVerifier)) -> Result<Pulse, Box<dyn std::error::Error>> {
