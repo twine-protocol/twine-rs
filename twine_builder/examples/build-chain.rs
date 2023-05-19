@@ -12,11 +12,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let hasher = multihash::Code::Sha3_512; 
     let builder = ChainBuilder::new(
         "gold".into(),
-        keys.to_jwk_public_key(), 
         HashMap::new()
     );
-    let chain = builder.finalize(&signer, hasher)?;
-    verifier.verify(&hasher.digest(&serde_ipld_dagcbor::to_vec(&chain.content)?).to_bytes(), chain.
+    let chain = builder.finalize(keys.to_jwk_public_key(), &signer, &verifier, hasher)?;
+    verifier.verify(&hasher.digest(&serde_ipld_dagcbor::to_vec(&chain.content)?).to_bytes(), &chain.signature);
     
     // builder is consumed, so we can't use it again here even if we wanted to
     println!("Chain Built!");

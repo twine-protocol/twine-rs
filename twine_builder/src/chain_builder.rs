@@ -1,43 +1,29 @@
 use std::{fmt::Display, collections::HashMap};
 
-use twine_core::{twine::{Chain, Mixin, ChainContent, DEFAULT_SPECIFICATION, ChainHashable}, verify::verify_chain};
+use serde_ipld_dagcbor::EncodeError;
+use twine_core::{twine::{Chain, Mixin, ChainContent, DEFAULT_SPECIFICATION}, verify::verify_chain, utils::{chain_cid, CIDGenerationError}};
 use josekit::{jws::{JwsSigner, JwsVerifier}, jwk::Jwk};
 use libipld::{cid::{multihash, CidGeneric}, Ipld};
 use libipld::cid::multihash::MultihashDigest;
 use serde::{de, ser};
 use std::fmt;
+use thiserror::Error;
 
-#[derive(Debug, Clone)]
+const DUMMY_KEY: Jwk = Jwk::generate_rsa_key(256); // TODO: this feels like a bad solution
+
+#[derive(Debug, Error)]
 pub enum ChainBuilderError {
-    Serde(String),
+    #[error("Could not allocate space to serialize to DAG CBOR: {0}")]
+    SerializationError(#[from] EncodeError<TryReserveError>),
+    #[error("Could not generate a CID from this pulse: {0}")]
+    CIDGenerationError(#[from] CIDGenerationError),
+    #[error("Signature verifier failed: {0}")]
+    JoseError(#[from] JoseError)
 }
-
-impl fmt::Display for ChainBuilderError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ChainBuilderError::Serde(reason) => write!(f, "Serde: {}", reason)
-        }
-    }
-}
-
-impl std::error::Error for ChainBuilderError {}
 
 type Result<T, E = ChainBuilderError> = std::result::Result<T, E>;
 
-impl ser::Error for ChainBuilderError {
-    fn custom<T: Display>(msg: T) -> Self {
-        ChainBuilderError::Serde(msg.to_string())
-    }
-}
-
-impl de::Error for ChainBuilderError {
-    fn custom<T: Display>(msg: T) -> Self {
-        ChainBuilderError::Serde(msg.to_string())
-    }
-}
-
-
-pub struct ChainBuilder {
+pub(crate) struct ChainBuilder {
     content: ChainContent
 }
 
@@ -52,7 +38,7 @@ impl ChainBuilder {
                 radix: 32,
                 mixins: Vec::new(),
                 meta,
-                key,
+                key: DUMMY_KEY, 
             }
         }
     }
@@ -99,20 +85,13 @@ impl ChainBuilder {
         signer: &(dyn JwsSigner),
         verifier: &(dyn JwsVerifier), 
         hasher: multihash::Code // TODO: should hasher be a reference?
-    ) -> Result<Chain, Box<dyn std::error::Error>> {
-        // Note: we do not check that chain spec matches current spec
+    ) -> Result<Chain, > {
+        self.content.key = key;
         let signature = signer.sign(&hasher.digest(&serde_ipld_dagcbor::to_vec(&self.content)?).to_bytes())?;
-        let hashable = ChainHashable {
-            content: self.content,
-            signature
-        };
-
-        let cid = hasher.digest(&serde_ipld_dagcbor::to_vec(&hashable)?);
-
         Ok(verify_chain(Chain {
-            content: hashable.content, // TODO: weird ergonomics since we move content and signature around
-            signature: hashable.signature,
-            cid: CidGeneric::new_v1(0, cid) // TODO: codec version?
+            content: self.content,
+            signature, 
+            cid: chain_cid(&content, &signature, self.hasher)?
         }, verifier))
     }
 }

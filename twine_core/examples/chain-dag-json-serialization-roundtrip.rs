@@ -9,15 +9,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let alg = EddsaJwsAlgorithm::Eddsa;
     let keys = alg.generate_key_pair(Ed25519)?;
     let signer = alg.signer_from_jwk(&keys.to_jwk_private_key())?;
+    let verifier = alg.verifier_from_jwk(&keys.to_jwk_public_key())?;
     let hasher = multihash::Code::Sha3_512;
     let chain = ChainBuilder::new(
         "gold".into(), 
-        keys.to_jwk_public_key(), 
         HashMap::new()
-    ).finalize(&signer, hasher)?;
+    ).finalize(&keys.to_jwk_public_key(), &signer, &verifier, hasher)?;
     
     let jsonified = serde_json::to_string(&chain)?;
-    print!("{}",jsonified);
+    print!("{}", jsonified);
 
     let roundtrip: Chain = serde_json::from_str(&jsonified)?;
     

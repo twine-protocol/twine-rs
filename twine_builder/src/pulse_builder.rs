@@ -5,47 +5,21 @@ use libipld::cid::multihash::MultihashDigest;
 use twine_core::{twine::{PulseContent, Chain, Pulse, DEFAULT_SPECIFICATION, Mixin, PulseHashable}, verify::{verify_pulse, hasher_of}};
 use serde::{ser, de};
 use josekit::{jws::{JwsSigner, JwsVerifier}, jwk::Jwk};
+use thiserror::Error;
 
-#[derive(Debug)]
-pub enum PulseBuilderError {
-    Serde(String), // serde errors
-    InvalidLink(String),
-    InvalidMixin(String),
-    MismatchedKeys,
-    UninferableHasher,
-    MismatchedVersion,
-    KeyError,
+#[derive(Debug, Error)]
+pub enum ChainBuilderError {
+    #[error("Could not allocate space to serialize to DAG CBOR: {0}")]
+    SerializationError(#[from] EncodeError<TryReserveError>),
+    #[error("Could not generate a CID from this chain: {0}")]
+    CIDGenerationError(#[from] CIDGenerationError),
+    #[error("Signature verifier failed: {0}")]
+    JoseError(#[from] JoseError)
 }
 
-impl fmt::Display for PulseBuilderError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            PulseBuilderError::Serde(reason) => write!(f, "Serde: {}", reason),
-            v => write!(f, "{:?}", v)
-
-        }
-    }
-}
-
-impl std::error::Error for PulseBuilderError {}
-
-type Err = PulseBuilderError;
 type Result<T, E = PulseBuilderError> = std::result::Result<T, E>;
 
-
-impl ser::Error for PulseBuilderError {
-    fn custom<T: Display>(msg: T) -> Self {
-        PulseBuilderError::Serde(msg.to_string())
-    }
-}
-
-impl de::Error for PulseBuilderError {
-    fn custom<T: Display>(msg: T) -> Self {
-        PulseBuilderError::Serde(msg.to_string())
-    }
-}
-
-pub struct PulseBuilder {
+pub(crate) struct PulseBuilder {
     content: PulseContent,
     hasher: Code,
     key: Jwk, // this is a private field, so users can't change the key
@@ -55,13 +29,12 @@ pub struct PulseBuilder {
 
 /// A self-consuming builder for pulses
 impl PulseBuilder {
-
     /// A helper function to create a PulseBuilder using new() or first()
     fn start_pulse(
         chain: &Chain, 
         &prev_chain: &Cid, 
         index: u32, 
-        mixins: Vec<Mixin>
+        mixins: Vec<Mixin>,
         previous: Option<&Pulse>
     ) -> Self {
         Self { 
@@ -73,10 +46,7 @@ impl PulseBuilder {
                 mixins,
                 payload: HashMap::new(),
             },
-            hasher: match hasher_of(&chain.cid) {
-                Err(_) => return Err(Err::UninferableHasher),
-                Ok(v) => v
-            },
+            hasher: hasher_of(&chain.cid).unwrap_or(Code::Sha3_512), // TODO: is this good behavior?
             key: chain.content.key.clone(),
             previous
         }
@@ -138,18 +108,11 @@ impl PulseBuilder {
         let signature = signer.sign(
             &self.hasher.digest(&serde_ipld_dagcbor::to_vec(&self.content)?).to_bytes()
         )?;
-        let hashable = PulseHashable {
-            content: self.content,
-            signature
-        };
-        let cid = self.hasher.digest(&serde_ipld_dagcbor::to_vec(
-            &hashable
-        )?);
 
         Ok(verify_pulse(Pulse {
-            content: hashable.content,
-            signature: hashable.signature,
-            cid: Cid::new_v1(0, cid)
+            content: self.content,
+            signature,
+            cid: pulse_cid(content, signature, self.hasher)?
         }, self.previous, verifier)?)
     }
 }

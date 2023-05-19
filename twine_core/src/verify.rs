@@ -1,49 +1,51 @@
-use std::fmt;
-
-use josekit::jws::JwsVerifier;
-use libipld::{Cid, multihash::{Code, MultihashDigest}};
-
-use crate::twine::{Pulse, Chain, ChainHashable};
+use std::collections::TryReserveError;
+use josekit::{jws::JwsVerifier, JoseError};
+use libipld::{Cid, multihash::MultihashDigest};
+use crate::{twine::{Pulse, Chain, Mixin}, utils::{hasher_of, pulse_cid, chain_cid, CIDGenerationError}};
+use thiserror::Error;
 
 
 // Error types
-#[derive(Debug)]
+#[derive(Error, Debug)]
+pub enum SignatureVerificationError {
+    #[error("Cannot infer hasher from CID of chain. Source: {0}")]
+    UninferableHasher(#[from] libipld::multihash::Error),
+    #[error("Cannot serialize into bytes before signing. Source: {0}")]
+    Serializationerror(#[from] serde_ipld_dagcbor::EncodeError<TryReserveError>),
+    #[error("signature verifier failed: {0}")]
+    JoseError(#[from] JoseError)
+}
+
+#[derive(Debug, Error)]
 pub enum PulseVerificationError {
+    #[error("pulse's chain (chain cid: {0}) does not match the previous pulse's chain ({1})")]
     ChainMismatch(Cid, Cid),
-    TwineVersionMismatch(String, String),
-    SameChainMixin,
-    PreviousMixinExclusion,
+    #[error("A mixin ({0}) has the same CID as the chain of the pulse ({1})")]
+    SameChainMixin(Mixin, Cid),
+    #[error("Mixin(s) of the previous pulse was excluded from this pulse (first, {0})")]
+    PreviousMixinExclusion(Mixin),
+    #[error("Previous pulse not in links (Pulse.content.previous)")]
     PreviousPulseExclusion,
-    BadSignature,
-    CidMismatch,
-    UninferableHasher
+    #[error("Bad Signature: {0}")]
+    BadSignature(#[from] SignatureVerificationError),
+    #[error("Could not generate a CID from this pulse: {0}")]
+    CIDGenerationError(#[from] CIDGenerationError),
+    #[error("pulse's CID ({0}) does not match the expected CID to be generated from this pulse ({1})")]
+    CidMismatch(Cid, Cid),
 }
 type PulseErr = PulseVerificationError;
-impl fmt::Display for PulseVerificationError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-impl std::error::Error for PulseVerificationError {}
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ChainVerificationError {
+    #[error("")]
     BadSignature,
+    #[error("")]
     CidMismatch,
-    UninferableHasher
+    #[error("")]
+    UninferableHasher,
+
 }
 type ChainErr = ChainVerificationError;
-impl fmt::Display for ChainVerificationError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", v)
-    }
-}
-impl std::error::Error for ChainVerificationError {}
-
-/// A helper function that gets the hasher that produced a given CID.
-pub fn hasher_of(&cid: &Cid) -> Result<Code, libipld::multihash::Error> {
-    Code::try_from(cid.hash().code())
-}
 
 pub fn verify_pulse(pulse: Pulse, previous: Option<&Pulse>, verifier: &(dyn JwsVerifier)) -> Result<Pulse, PulseVerificationError> {
     if let Some(prev_pulse) = previous {
@@ -51,35 +53,35 @@ pub fn verify_pulse(pulse: Pulse, previous: Option<&Pulse>, verifier: &(dyn JwsV
             return Err(PulseErr::ChainMismatch(prev_pulse.content.chain, pulse.content.chain));
         }
 
-        if prev_pulse.content.version != pulse.content.version {
-            return Err(PulseErr::TwineVersionMismatch(pulse.content.version, pulse.content.version));
+        if let Some(mixin) = prev_pulse.content.mixins.iter().filter(
+            |mixin| !pulse.content.mixins.contains(mixin)
+        ).next() { 
+            return Err(PulseErr::PreviousMixinExclusion(mixin));
         }
-
-        if prev_pulse.content.mixins.any(|mixin| !pulse.content.mixins.contains(mixin)) { 
-            return Err(PulseErr::PreviousMixinExclusion);
+        
+        if !pulse.content.previous.contains(&prev_pulse.cid) {
+            return Err(PulseErr::PreviousPulseExclusion);
         }
     }
 
-    // mixins
     for mixin in pulse.content.mixins.iter() {
-        if mixin.chain != pulse.content.chain {
-            return Err(PulseErr::SameChainMixin);
+        if mixin.chain == pulse.content.chain {
+            return Err(PulseErr::SameChainMixin(mixin, pulse.content.chain));
         }
     }
-
-    // links
-    if !pulse.content.previous.contains(&previous.cid) {
-        return Err(PulseErr::PreviousPulseExclusion);
-    }
-
-    // todo: should we check that source is the same as a chain
     
-    // signature
-    let hasher = hasher_of(&pulse.cid).or(Err(PulseErr::UninferableHasher))?; // TODO: safe to assume the same hasher is used for cid and signature?
-    verifier.verify(
-        &hasher.digest(&serde_ipld_dagcbor::to_vec(&pulse.content)?).to_bytes(), 
-        &pulse.signature
-    ).or(Err(PulseErr::BadSignature))?;
+    let hasher = match hasher_of(&pulse.cid) {
+        Ok(v) => v,
+        Err(e) => Err(SignatureVerificationError::UninferableHasher(e))?
+    };
+    let serialized = match serde_ipld_dagcbor::to_vec(&pulse.content) {
+        Ok(v) => v,
+        Err(e) => Err(SignatureVerificationError::Serializationerror(e))?
+    };
+    match verifier.verify(&hasher.digest(&serialized).to_bytes(), &pulse.signature) {
+        Ok(_) => (),
+        Err(e) => Err(SignatureVerificationError::JoseError(e))?
+    };
 
     // TODO: add in check for signer matching key:
     /*  
@@ -87,15 +89,9 @@ pub fn verify_pulse(pulse: Pulse, previous: Option<&Pulse>, verifier: &(dyn JwsV
         return Err(Box::new(Err::KeyError))
     } */
 
-    // cid
-    let cid = self.hasher.digest(&serde_ipld_dagcbor::to_vec(
-        &(PulseHashable {
-            content: self.content,
-            signature
-        })
-    )?);
+    let cid = pulse_cid(&pulse.content, &pulse.signature)?;
     if cid != pulse.cid {
-        return Err(PulseErr::CidMismatch)
+        return Err(PulseErr::CidMismatch(pulse.cid, cid))
     }
 
     Ok(pulse)
@@ -103,7 +99,7 @@ pub fn verify_pulse(pulse: Pulse, previous: Option<&Pulse>, verifier: &(dyn JwsV
 
 pub fn verify_chain(chain: Chain, verifier: &(dyn JwsVerifier)) -> Result<Chain, ChainVerificationError> {
     // signature
-    let hasher = hasher_of(&chain.cid).or(Err(PulseErr::UninferableHasher))?; // TODO: safe to assume the same hasher is used for cid and signature?
+    let hasher = hasher_of(&chain.cid).or(Err(ChainVerificationError::UninferableHasher))?; // TODO: safe to assume the same hasher is used for cid and signature?
     verifier.verify(
         &hasher.digest(&serde_ipld_dagcbor::to_vec(&chain.content)?).to_bytes(), 
         &chain.signature
@@ -116,15 +112,7 @@ pub fn verify_chain(chain: Chain, verifier: &(dyn JwsVerifier)) -> Result<Chain,
     } */
 
     // cid
-    let cid = hasher.digest(&serde_ipld_dagcbor::to_vec(
-        &(ChainHashable {
-            content: chain.content,
-            signature: chain.signature
-        })
-    )?);
-    if Cid::new_v1(0, cid) != chain.cid {
-        return Err(ChainErr::CidMismatch);
-    }
+    let cid = chain_cid(&chain.content, &chain.signature, hasher)?;
 
     //  TODO: specification field (in libp2p format)
 

@@ -1,8 +1,6 @@
 use libipld::{cid::{Cid, Version}, multibase::Base};
 use serde::{Serializer, ser::SerializeStruct, Deserializer, de::Visitor};
 
-use libipld::json::DagJsonCodec;
-
 pub fn serialize<S>(cid: Cid, ser: S) -> Result<S::Ok, S::Error> where S: Serializer {
     let encoded = match cid.version() {
         Version::V0 => cid.to_string_of_base(Base::Base32Lower), // V0 is encoded as B32

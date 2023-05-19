@@ -10,6 +10,7 @@ libipld = { version="0.16.0", features=["serde-codec"] }
 serde = "1.0.152"
 josekit = "0.8.2"
 serde_ipld_dagcbor = "0.3.0"
+thiserror = "1.0.40"
 
 [dev-dependencies]
 twine_builder = { path = "../twine_builder" }
