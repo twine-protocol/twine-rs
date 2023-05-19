@@ -3,7 +3,7 @@ use std::{collections::HashMap, error::Error};
 use josekit::{jws::{alg::eddsa::EddsaJwsAlgorithm, JwsVerifier}, jwk::alg::ed::EdCurve::Ed25519};
 
 use twine_builder::ChainBuilder;
-use libipld::cid::multihash;
+use libipld::{cid::multihash, multihash::MultihashDigest};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let keys = EddsaJwsAlgorithm::Eddsa.generate_key_pair(Ed25519)?;
@@ -12,10 +12,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let hasher = multihash::Code::Sha3_512; 
     let builder = ChainBuilder::new(
         "gold".into(),
-        HashMap::new()
+        HashMap::new(),
+        keys.to_jwk_public_key()
     );
-    let chain = builder.finalize(keys.to_jwk_public_key(), &signer, &verifier, hasher)?;
-    verifier.verify(&hasher.digest(&serde_ipld_dagcbor::to_vec(&chain.content)?).to_bytes(), &chain.signature);
+    let chain = builder.finalize( &signer, &verifier, hasher)?;
+    verifier.verify(&hasher.digest(&serde_ipld_dagcbor::to_vec(&chain.content)?).to_bytes(), &chain.signature)?;
     
     // builder is consumed, so we can't use it again here even if we wanted to
     println!("Chain Built!");

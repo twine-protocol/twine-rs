@@ -1,6 +1,5 @@
 use std::collections::TryReserveError;
 
-use josekit::jws::{JwsSigner, JwsVerifier};
 use libipld::{Cid, multihash::{Code, MultihashDigest}};
 use serde_ipld_dagcbor::EncodeError;
 
