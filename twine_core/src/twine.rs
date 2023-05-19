@@ -4,7 +4,9 @@ use std::{collections::HashMap, fmt::Display};
 use josekit::{jwk::Jwk};
 use libipld::{Ipld, Cid};
 use serde::{Serialize, Deserialize};
+use crate::serde_utils::bytes_base64;
 
+use crate::serde_utils;
 
 pub const DEFAULT_SPECIFICATION: &str = "twine/1.0.x"; // TODO: should setting this be a build time macro?
 
@@ -58,6 +60,7 @@ pub(crate) struct PulseHashable<'a> {
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Chain {
     pub content: ChainContent,
+    #[serde(with="bytes_base64")]
     pub signature: Vec<u8>,
     #[serde(rename = "/")]
     pub cid: Cid
@@ -66,6 +69,7 @@ pub struct Chain {
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Pulse {
     pub content: PulseContent,
+    #[serde(with="bytes_base64")]
     pub signature: Vec<u8>,
     #[serde(rename = "/")]
     pub cid: Cid
