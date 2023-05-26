@@ -3,6 +3,7 @@ use josekit::{jws::JwsVerifier, JoseError};
 use libipld::multihash::MultihashDigest;
 use crate::{twine::{Pulse, Chain, Mixin}, utils::{hasher_of, pulse_cid, chain_cid, CIDGenerationError}};
 use thiserror::Error;
+use std::iter::zip;
 
 
 // Error types
@@ -22,8 +23,8 @@ pub enum PulseVerificationError {
     ChainMismatch,
     #[error("A mixin has the same CID as the chain of the pulse")]
     SameChainMixin,
-    #[error("Mixin(s) of the previous pulse was excluded from this pulse (first, {0})")]
-    PreviousMixinExclusion(Mixin),
+    #[error("Mixin(s) of the previous pulse were either excluded or misordered from the current pulse")] // TODO: break excluded and misordered into 2 seperate branches
+    MisplacedPreviousMixin,
     #[error("Previous pulse not in links (Pulse.content.previous)")]
     PreviousPulseExclusion,
     #[error("Bad Signature: {0}")]
@@ -53,9 +54,15 @@ pub fn verify_pulse(pulse: Pulse, previous: Option<&Pulse>, verifier: &(dyn JwsV
             return Err(PulseVerificationError::ChainMismatch);
         }
 
-        for mixin in prev_pulse.content.mixins.iter() {
-            if !pulse.content.mixins.contains(mixin) {
-                return Err(PulseVerificationError::PreviousMixinExclusion(mixin.clone()));
+        // check that the previous pulse's mixins are in the new pulse's mixins and that they follow the same order
+        if prev_pulse.content.mixins.len() > pulse.content.mixins.len() {
+            return Err(PulseVerificationError::MisplacedPreviousMixin);
+        }
+
+        for (prev_mixin, curr_mixin) in zip(prev_pulse.content.mixins.iter(), pulse.content.mixins.iter()) { // TODO: order matters
+            // chains need to match at each position (mixin.value does not necessarily need to match)
+            if prev_mixin.chain != curr_mixin.chain {
+                return Err(PulseVerificationError::MisplacedPreviousMixin);
             }
         }
         
@@ -64,12 +71,14 @@ pub fn verify_pulse(pulse: Pulse, previous: Option<&Pulse>, verifier: &(dyn JwsV
         }
     }
 
+    // mixin cannot be from the same chain as this pulse
     for mixin in pulse.content.mixins.iter() {
         if mixin.chain == pulse.content.chain {
             return Err(PulseVerificationError::SameChainMixin);
         }
     }
     
+    // verify signature
     let hasher = match hasher_of(&pulse.cid) {
         Ok(v) => v,
         Err(e) => Err(SignatureVerificationError::UninferableHasher(e))?
