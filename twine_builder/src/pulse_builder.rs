@@ -67,13 +67,22 @@ impl<'a> PulseBuilder<'a> {
         )
     }
 
+    /// Upsert a mixin.
+    /// This method inserts a mixin to the end of the sequence of mixins
+    /// if a mixin of the same chain does not already exist.
+    /// If a mixin with the same chain already exists (for example,
+    /// because the previous pulse mixed in the chain) then the old mixin
+    /// is updated, and no new mixin is added.
     pub fn mixin(mut self, mixin: Mixin) -> Self {
         self.mixin_map.insert(mixin.chain, mixin.value);
         self
     }
 
+    /// Upsert a sequence of mixins.
+    /// This method has the same behavior as repeatedly applying mixin
+    /// for each element of the vector in sequence.
     pub fn mixins(mut self, mixins: Vec<Mixin>) -> Self {
-        self.mixin_map.extend(mixins.into_iter().map(|mixin| (mixin.chain, mixin.value))); // inserts or updates
+        self.mixin_map.extend(mixins.into_iter().map(|mixin| (mixin.chain, mixin.value)));
         self
     }
 
