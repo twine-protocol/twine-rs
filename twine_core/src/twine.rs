@@ -1,12 +1,10 @@
 //! Structs and traits common to both Chain's and Pulses
 
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, fmt::Display, io::Read};
 use josekit::{jwk::Jwk};
 use libipld::{Ipld, Cid};
 use serde::{Serialize, Deserialize};
 use crate::serde_utils::bytes_base64;
-
-use crate::serde_utils;
 
 pub const DEFAULT_SPECIFICATION: &str = "twine/1.0.x"; // TODO: should setting this be a build time macro?
 
@@ -76,6 +74,17 @@ pub struct Pulse {
 }
 
 trait Twine {
-    /// Recompute the cid
-    fn from_json() -> Self; 
+    /// Decode from DAG-JSON
+    fn from_json(json: String) -> Self; 
+
+    /// Decode from DAG-JSON file
+    fn from_json_reader<R>(rdr: R) -> Self 
+    where R: Read;
+
+    /// Decode from DAG-CBOR
+    fn from_cbor(bytes: [u8]) -> Self;
+
+    /// Decode from DAG-CBOR file
+    fn from_cbor_reader<R>(rdr: R) -> Self
+    where R: Read;
 }
