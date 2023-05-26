@@ -17,7 +17,8 @@ edition = "2021"
 [workspace]
 members = [
   "./twine_core",
-  "./twine_builder"
+  "./twine_builder",
+  "./test_apis"
 ]
 
 [dependencies]

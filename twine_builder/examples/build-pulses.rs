@@ -1,7 +1,7 @@
 use std::{collections::HashMap, error::Error};
 
 use josekit::{jws::alg::eddsa::EddsaJwsAlgorithm, jwk::alg::ed::EdCurve::Ed25519};
-use libipld::{multihash, Ipld};
+use libipld::multihash;
 use twine_builder::{ChainBuilder, PulseBuilder};
 use libipld::ipld;
 
