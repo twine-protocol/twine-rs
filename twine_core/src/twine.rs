@@ -1,10 +1,12 @@
 //! Structs and traits common to both Chain's and Pulses
 
-use std::{collections::HashMap, fmt::Display, io::Read};
+use std::{collections::HashMap, fmt::{Display, Write}, io::Read, error::Error};
 use josekit::{jwk::Jwk};
 use libipld::{Ipld, Cid};
 use serde::{Serialize, Deserialize};
+use serde_ipld_dagcbor::{DecodeError, EncodeError};
 use crate::serde_utils::bytes_base64;
+use serde_json::Error as JsonError;
 
 pub const DEFAULT_SPECIFICATION: &str = "twine/1.0.x"; // TODO: should setting this be a build time macro?
 
@@ -73,18 +75,49 @@ pub struct Pulse {
     pub cid: Cid
 }
 
-trait Twine {
+
+pub trait Twine {
     /// Decode from DAG-JSON
-    fn from_json(json: String) -> Self; 
+    fn from_json(json: String) -> Result<Self, JsonError> where Self: Sized; 
 
     /// Decode from DAG-JSON file
-    fn from_json_reader<R>(rdr: R) -> Self 
-    where R: Read;
+    fn from_json_reader<R: Read>(rdr: R) -> Result<Self, JsonError> where Self: Sized { todo!() } 
+
+    /// Encode to DAG-JSON
+    fn to_json(&self) -> Result<String, JsonError>;
+
+    /// Write DAG-JSON
+    fn to_json_writer<W: Write>(&self, wtr: W) -> Result<(), JsonError> { todo!() } 
 
     /// Decode from DAG-CBOR
-    fn from_cbor(bytes: [u8]) -> Self;
+    fn from_cbor(bytes: &[u8]) -> Result<Self, DecodeError<&Box<dyn Error>>> where Self: Sized { todo!() } // TODO: change the Error type
 
     /// Decode from DAG-CBOR file
-    fn from_cbor_reader<R>(rdr: R) -> Self
-    where R: Read;
+    fn from_cbor_reader<R: Read>(rdr: R) -> Result<Self, DecodeError<&'static Box<dyn Error>>> where Self: Sized { todo!() }
+
+    /// Encode to DAG-CBOR
+    fn to_cbor<W: Write>() -> Result<Vec<u8>, EncodeError<&'static Box<dyn Error>>> { todo!() } 
+
+    /// Write DAG-CBOR
+    fn to_cbor_writer<W: Write>(&self, wtr: W) -> Result<(), EncodeError<&'static Box<dyn Error>>> { todo!() } 
+}
+
+impl Twine for Pulse {
+    fn from_json(json: String) -> Result<Self, JsonError> {
+        serde_json::from_str(&json)
+    }
+
+    fn to_json(&self) -> Result<String, JsonError> {
+        serde_json::to_string(self)
+    }
+}
+
+impl Twine for Chain {
+    fn from_json(json: String) -> Result<Self, JsonError> {
+        serde_json::from_str(&json)
+    }
+
+    fn to_json(&self) -> Result<String, JsonError> {
+        serde_json::to_string(self)
+    }
 }

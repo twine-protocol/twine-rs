@@ -9,3 +9,4 @@ edition = "2021"
 twine_builder = { path = "../twine_builder" }
 twine_core = { path = "../twine_core" }
 rocket = "0.5.0-rc.3"
+thiserror = "1.0.40"

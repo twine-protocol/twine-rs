@@ -1,4 +1,3 @@
-
 pub(crate) mod bytes_base64 {
     use serde::{Serialize, Deserialize};
     use serde::{Deserializer, Serializer};
@@ -17,5 +16,5 @@ pub(crate) mod bytes_base64 {
 }
 
 pub(crate) mod dag_json {
-    
+
 }
