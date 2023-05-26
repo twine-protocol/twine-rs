@@ -17,3 +17,11 @@ impl FromParam<'_> for ParamCid {
         Ok(ParamCid(Cid::from_str(param)?))
     }
 }
+
+#[macro_export]
+macro_rules! map {
+    // map-like
+    ($($k:expr => $v:expr),* $(,)?) => {{
+        core::convert::From::from([$(($k, $v),)*])
+    }};
+}
