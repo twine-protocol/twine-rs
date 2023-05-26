@@ -8,7 +8,7 @@ use serde_ipld_dagcbor::{DecodeError, EncodeError};
 use crate::serde_utils::bytes_base64;
 use serde_json::Error as JsonError;
 
-pub const DEFAULT_SPECIFICATION: &str = "twine/1.0.x"; // TODO: should setting this be a build time macro?
+pub const DEFAULT_SPECIFICATION: &str = env!("CARGO_PKG_VERSION"); // TODO / NOTE: this implies that we need cargo to build this
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Debug)]
 pub struct Mixin {
@@ -23,12 +23,12 @@ impl Display for Mixin {
 
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
 pub struct ChainContent {
-    pub source: String, // TODO: should these be public
+    pub source: String,
     pub specification: String,
     pub radix: u32,
     pub key: Jwk, 
     pub mixins: Vec<Mixin>, // we check that these links are not on the same chain at runtime
-    pub meta: HashMap<String, Ipld>, // TODO: should be a map?
+    pub meta: HashMap<String, Ipld>,
 }
 
 type Payload = HashMap<String, Ipld>;
@@ -40,7 +40,7 @@ pub struct PulseContent {
     pub index: u32, // note: DAG-CBOR supports i64, but we don't
     pub previous: Vec<Cid>,
     pub mixins: Vec<Mixin>, // we check that these links are not on the same chain at runtime
-    pub payload: Payload // TODO: is payload supposed to be a Map? (see specs/twine/data-structures.md)
+    pub payload: Payload
 }
 
 /// A thin wrapper around content and signature used to create CIDs
@@ -61,7 +61,7 @@ pub(crate) struct PulseHashable<'a> {
 pub struct Chain {
     pub content: ChainContent,
     #[serde(with="bytes_base64")]
-    pub signature: Vec<u8>,
+    pub signature: Vec<u8>, // TODO: signatures should be JWS, not bytes
     #[serde(rename = "/")]
     pub cid: Cid
 }

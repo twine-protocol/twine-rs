@@ -6,6 +6,7 @@ use twine_builder::ChainBuilder;
 use twine_core::libipld::{cid::multihash, multihash::MultihashDigest};
 
 fn main() -> Result<(), Box<dyn Error>> {
+    // TODO: make this easier
     let keys = EddsaJwsAlgorithm::Eddsa.generate_key_pair(Ed25519)?;
     let signer = EddsaJwsAlgorithm::Eddsa.signer_from_jwk(&keys.to_jwk_private_key())?;
     let verifier = EddsaJwsAlgorithm::Eddsa.verifier_from_jwk(&keys.to_jwk_public_key())?;

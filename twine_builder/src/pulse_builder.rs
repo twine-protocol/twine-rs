@@ -1,7 +1,7 @@
 use std::collections::{HashMap, TryReserveError};
 
 use twine_core::josekit::JoseError;
-use twine_core::libipld::Cid; // TODO: remove separate dependence on libipld
+use twine_core::libipld::Cid;
 use twine_core::libipld::{Ipld, multihash::Code};
 use twine_core::libipld::cid::multihash::MultihashDigest;
 use serde_ipld_dagcbor::EncodeError;
