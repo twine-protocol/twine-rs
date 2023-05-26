@@ -55,7 +55,7 @@ pub fn stage() -> AdHoc {
         let hasher = multihash::Code::Sha3_512;
 
         let chain = ChainBuilder::new(
-            "gold".into(),
+            "test".into(),
             HashMap::new(),
             keys.to_jwk_public_key()
         )
@@ -67,7 +67,7 @@ pub fn stage() -> AdHoc {
             .finalize(&signer, &verifier)
             .expect("Should be able to make pulses");
         
-        println!("chain {:?} : pulse {:?}", chain.cid, pulse.cid)
+        println!("chain {:?} : pulse {:?}", chain.cid, pulse.cid);
 
         let state = PulseCache::new(map!{ chain.cid => map!{ pulse.cid => pulse } });
         rocket.mount("/", routes![index])
