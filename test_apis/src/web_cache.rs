@@ -14,7 +14,7 @@ use twine_core::libipld::{Cid, ipld, multihash};
 use twine_core::twine::{Pulse, Chain};
 use crate::helpers::ParamCid;
 use crate::map;
-use twine_core::twine::Twine;
+use twine_core::twine::TwineSerialize;
 
 type DangerousChainCache = HashMap<Cid, Chain>;
 type ChainCache = Mutex<DangerousChainCache>;
@@ -42,7 +42,7 @@ fn index(chain_cid: ParamCid, pulse_cid: ParamCid, cache: &State<PulseCache>) ->
     .get(&chain_cid.0)
     .and_then(|p| p.get(&pulse_cid.0))
     .and_then(|pulse| Some(
-        Ok(RawJson(pulse.to_json().expect("Pulse already in cache cannot be serialized to JSON!")))
+        Ok(RawJson(pulse.to_json().expect("Pulse already in cache are already serialized to JSON!")))
     ))
     .unwrap_or(Err(ResolutionError::NotFound(String::from("Could not located chain or pulse in the cache"))))
 }

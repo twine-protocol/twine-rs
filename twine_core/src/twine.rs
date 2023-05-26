@@ -1,9 +1,9 @@
 //! Structs and traits common to both Chain's and Pulses
 
-use std::{collections::HashMap, fmt::{Display, Write}, io::Read, error::Error};
+use std::{collections::{HashMap, TryReserveError}, fmt::Display, io::{Read, Write, BufRead}, error::Error, convert::Infallible};
 use josekit::{jwk::Jwk};
 use libipld::{Ipld, Cid};
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use serde_ipld_dagcbor::{DecodeError, EncodeError};
 use crate::serde_utils::bytes_base64;
 use serde_json::Error as JsonError;
@@ -18,6 +18,14 @@ pub struct Mixin {
 impl Display for Mixin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
+    }
+}
+impl From<Pulse> for Mixin {
+    fn from(value: Pulse) -> Self {
+        Self {
+            chain: value.content.chain,
+            value: value.cid
+        }
     }
 }
 
@@ -75,34 +83,38 @@ pub struct Pulse {
     pub cid: Cid
 }
 
+pub trait Twine: Serialize + DeserializeOwned {}
+impl Twine for Pulse {}
+impl Twine for Chain {}
 
-pub trait Twine {
+/// Provide a subset of serde functionality in easy to use methods
+pub trait TwineSerialize {
     /// Decode from DAG-JSON
     fn from_json(json: String) -> Result<Self, JsonError> where Self: Sized; 
 
     /// Decode from DAG-JSON file
-    fn from_json_reader<R: Read>(rdr: R) -> Result<Self, JsonError> where Self: Sized { todo!() } 
+    fn from_json_reader<R: Read>(rdr: R) -> Result<Self, JsonError> where Self: Sized;
 
     /// Encode to DAG-JSON
     fn to_json(&self) -> Result<String, JsonError>;
 
     /// Write DAG-JSON
-    fn to_json_writer<W: Write>(&self, wtr: W) -> Result<(), JsonError> { todo!() } 
+    fn to_json_writer<W: Write>(&self, wtr: W) -> Result<(), JsonError>;
 
     /// Decode from DAG-CBOR
-    fn from_cbor(bytes: &[u8]) -> Result<Self, DecodeError<&Box<dyn Error>>> where Self: Sized { todo!() } // TODO: change the Error type
+    fn from_cbor(bytes: &[u8]) -> Result<Self, DecodeError<Infallible>> where Self: Sized; // TODO: change the Error type
 
     /// Decode from DAG-CBOR file
-    fn from_cbor_reader<R: Read>(rdr: R) -> Result<Self, DecodeError<&'static Box<dyn Error>>> where Self: Sized { todo!() }
+    fn from_cbor_reader<R: BufRead>(rdr: R) -> Result<Self, DecodeError<std::io::Error>> where Self: Sized;
 
     /// Encode to DAG-CBOR
-    fn to_cbor<W: Write>() -> Result<Vec<u8>, EncodeError<&'static Box<dyn Error>>> { todo!() } 
+    fn to_cbor(&self) -> Result<Vec<u8>, EncodeError<TryReserveError>>;
 
     /// Write DAG-CBOR
-    fn to_cbor_writer<W: Write>(&self, wtr: W) -> Result<(), EncodeError<&'static Box<dyn Error>>> { todo!() } 
+    fn to_cbor_writer<W: Write>(&self, wtr: W) -> Result<(), EncodeError<std::io::Error>>;
 }
 
-impl Twine for Pulse {
+impl<T> TwineSerialize for T where T: Twine {
     fn from_json(json: String) -> Result<Self, JsonError> {
         serde_json::from_str(&json)
     }
@@ -110,14 +122,28 @@ impl Twine for Pulse {
     fn to_json(&self) -> Result<String, JsonError> {
         serde_json::to_string(self)
     }
-}
 
-impl Twine for Chain {
-    fn from_json(json: String) -> Result<Self, JsonError> {
-        serde_json::from_str(&json)
+    fn from_json_reader<R: Read>(rdr: R) -> Result<Self, JsonError> where Self: Sized {
+        serde_json::from_reader(rdr)
     }
 
-    fn to_json(&self) -> Result<String, JsonError> {
-        serde_json::to_string(self)
+    fn to_json_writer<W: Write>(&self, wtr: W) -> Result<(), JsonError> {
+        serde_json::to_writer(wtr, self)
+    }
+
+    fn from_cbor(bytes: &[u8]) -> Result<Self, DecodeError<Infallible>> where Self: Sized {
+        serde_ipld_dagcbor::from_slice(bytes)
+    }
+
+    fn from_cbor_reader<R: BufRead>(rdr: R) -> Result<T, DecodeError<std::io::Error>> where Self: Sized {
+        serde_ipld_dagcbor::from_reader(rdr)
+    }
+
+    fn to_cbor(&self) -> Result<Vec<u8>, EncodeError<TryReserveError>> {
+        serde_ipld_dagcbor::to_vec(self)
+    }
+
+    fn to_cbor_writer<W: Write>(&self, wtr: W) -> Result<(), EncodeError<std::io::Error>> {
+        serde_ipld_dagcbor::to_writer(wtr, self)
     }
 }
