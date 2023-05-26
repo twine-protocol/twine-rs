@@ -1,9 +1,9 @@
 use std::{collections::HashMap, error::Error};
 
-use josekit::{jws::alg::eddsa::EddsaJwsAlgorithm, jwk::alg::ed::EdCurve::Ed25519};
-use libipld::multihash;
+use twine_core::josekit::{jws::alg::eddsa::EddsaJwsAlgorithm, jwk::alg::ed::EdCurve::Ed25519};
+use twine_core::libipld::multihash;
 use twine_builder::{ChainBuilder, PulseBuilder};
-use libipld::ipld;
+use twine_core::libipld::ipld;
 
 fn main() -> Result<(), Box<dyn Error>>{
     // create a chain

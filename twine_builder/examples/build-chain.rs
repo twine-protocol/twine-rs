@@ -1,9 +1,9 @@
 use std::{collections::HashMap, error::Error};
 
-use josekit::{jws::{alg::eddsa::EddsaJwsAlgorithm, JwsVerifier}, jwk::alg::ed::EdCurve::Ed25519};
+use twine_core::josekit::{jws::{alg::eddsa::EddsaJwsAlgorithm, JwsVerifier}, jwk::alg::ed::EdCurve::Ed25519};
 
 use twine_builder::ChainBuilder;
-use libipld::{cid::multihash, multihash::MultihashDigest};
+use twine_core::libipld::{cid::multihash, multihash::MultihashDigest};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let keys = EddsaJwsAlgorithm::Eddsa.generate_key_pair(Ed25519)?;

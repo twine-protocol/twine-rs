@@ -1,14 +1,14 @@
 use std::collections::{HashMap, TryReserveError};
 
-use josekit::JoseError;
-use libipld::{Cid, Link}; // TODO: remove separate dependence on libipld
-use libipld::{Ipld, multihash::Code};
-use libipld::cid::multihash::MultihashDigest;
-use linked_hash_map::LinkedHashMap;
+use twine_core::josekit::JoseError;
+use twine_core::libipld::Cid; // TODO: remove separate dependence on libipld
+use twine_core::libipld::{Ipld, multihash::Code};
+use twine_core::libipld::cid::multihash::MultihashDigest;
 use serde_ipld_dagcbor::EncodeError;
 use twine_core::utils::{CIDGenerationError, pulse_cid};
 use twine_core::{twine::{PulseContent, Chain, Pulse, Mixin}, verify::verify_pulse, utils::hasher_of};
-use josekit::jws::{JwsSigner, JwsVerifier};
+use twine_core::josekit::jws::{JwsSigner, JwsVerifier};
+use linked_hash_map::LinkedHashMap;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

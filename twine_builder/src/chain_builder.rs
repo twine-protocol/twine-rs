@@ -3,9 +3,9 @@ use std::{collections::{HashMap, TryReserveError}};
 use linked_hash_map::LinkedHashMap;
 use serde_ipld_dagcbor::EncodeError;
 use twine_core::{twine::{Chain, Mixin, ChainContent, DEFAULT_SPECIFICATION}, verify::{verify_chain, ChainVerificationError}, utils::{chain_cid, CIDGenerationError}};
-use josekit::{jws::{JwsSigner, JwsVerifier}, jwk::Jwk, JoseError};
-use libipld::{cid::multihash, Ipld, Cid};
-use libipld::cid::multihash::MultihashDigest;
+use twine_core::josekit::{jws::{JwsSigner, JwsVerifier}, jwk::Jwk, JoseError};
+use twine_core::libipld::{cid::multihash, Ipld, Cid};
+use twine_core::libipld::cid::multihash::MultihashDigest;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -27,7 +27,6 @@ pub struct ChainBuilder {
     mixin_map: LinkedHashMap<Cid, Cid>
 }
 
-// todo: should this be self-consuming
 /// A self consuming builder for a chain
 impl ChainBuilder {
     pub fn new(source: String, meta: HashMap<String, Ipld>, key: Jwk) -> Self {
@@ -78,7 +77,6 @@ impl ChainBuilder {
         self
     }
 
-    // TODO: should it totally replace the existing meta?
     pub fn meta(mut self, meta: HashMap<String, Ipld>) -> Self {
         self.content.meta = meta;
         self
