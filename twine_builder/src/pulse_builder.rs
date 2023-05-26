@@ -1,8 +1,10 @@
 use std::collections::{HashMap, TryReserveError};
 
 use josekit::JoseError;
+use libipld::{Cid, Link}; // TODO: remove separate dependence on libipld
 use libipld::{Ipld, multihash::Code};
 use libipld::cid::multihash::MultihashDigest;
+use linked_hash_map::LinkedHashMap;
 use serde_ipld_dagcbor::EncodeError;
 use twine_core::utils::{CIDGenerationError, pulse_cid};
 use twine_core::{twine::{PulseContent, Chain, Pulse, Mixin}, verify::verify_pulse, utils::hasher_of};
@@ -23,9 +25,9 @@ type Result<T, E = ChainBuilderError> = std::result::Result<T, E>;
 
 pub struct PulseBuilder<'a> {
     content: PulseContent,
-    previous: Option<&'a Pulse>
+    previous: Option<&'a Pulse>,
+    mixin_map: LinkedHashMap<Cid, Cid>
 }
-
 
 /// A self-consuming builder for pulses
 impl<'a> PulseBuilder<'a> {
@@ -41,17 +43,18 @@ impl<'a> PulseBuilder<'a> {
                 previous: previous.map_or(Vec::new(), |pulse| vec![pulse.cid]),
                 chain: chain.cid,
                 index: previous.map_or(1, |pulse| pulse.content.index + 1),
-                mixins,
+                mixins: Vec::new(),
                 payload: HashMap::new(),
             },
-            previous
+            mixin_map: LinkedHashMap::from_iter(mixins.into_iter().map(|mixin| (mixin.chain, mixin.value))),
+            previous,
         }
     }
 
     pub fn new(chain: &Chain, previous: &'a Pulse) -> Self {
         Self::start_pulse(
             chain, 
-            previous.content.mixins.clone(),
+            previous.content.mixins.clone(), // TODO: should this be a clone?
             Some(previous)
         )
     }
@@ -64,19 +67,13 @@ impl<'a> PulseBuilder<'a> {
         )
     }
 
-    pub fn source(mut self, source: String) -> Self {
-        self.content.source = source;
-        self
-    }
-
     pub fn mixin(mut self, mixin: Mixin) -> Self {
-        self.content.mixins.push(mixin);
+        self.mixin_map.insert(mixin.chain, mixin.value);
         self
     }
-
 
     pub fn mixins(mut self, mixins: Vec<Mixin>) -> Self {
-        self.content.mixins.extend(mixins);
+        self.mixin_map.extend(mixins.into_iter().map(|mixin| (mixin.chain, mixin.value))); // inserts or updates
         self
     }
 
@@ -86,7 +83,6 @@ impl<'a> PulseBuilder<'a> {
     }
 
     pub fn links(mut self, prevs: Vec<Pulse>) -> Self {
-        // return builder after links have been added one by one
         self.content.previous.extend(prevs.iter().map(|prev| prev.cid));
         self
     }
@@ -96,7 +92,12 @@ impl<'a> PulseBuilder<'a> {
         self
     }
 
-    pub fn finalize(self, signer: &(dyn JwsSigner), verifier: &(dyn JwsVerifier)) -> Result<Pulse, Box<dyn std::error::Error>> {
+    pub fn finalize(
+        mut self, 
+        signer: &(dyn JwsSigner), 
+        verifier: &(dyn JwsVerifier)
+    ) -> Result<Pulse, Box<dyn std::error::Error>> {
+        self.content.mixins.extend(self.mixin_map.into_iter().map(|(chain, value)| Mixin { chain, value } ));
         let hasher: Code = hasher_of(&self.content.chain)?;
         let signature = signer.sign(
             &hasher.digest(&serde_ipld_dagcbor::to_vec(&self.content)?).to_bytes()

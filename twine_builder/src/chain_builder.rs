@@ -1,9 +1,10 @@
 use std::{collections::{HashMap, TryReserveError}};
 
+use linked_hash_map::LinkedHashMap;
 use serde_ipld_dagcbor::EncodeError;
 use twine_core::{twine::{Chain, Mixin, ChainContent, DEFAULT_SPECIFICATION}, verify::{verify_chain, ChainVerificationError}, utils::{chain_cid, CIDGenerationError}};
 use josekit::{jws::{JwsSigner, JwsVerifier}, jwk::Jwk, JoseError};
-use libipld::{cid::multihash, Ipld};
+use libipld::{cid::multihash, Ipld, Cid};
 use libipld::cid::multihash::MultihashDigest;
 use thiserror::Error;
 
@@ -22,7 +23,8 @@ pub enum ChainBuilderError {
 type Result<T, E = ChainBuilderError> = std::result::Result<T, E>;
 
 pub struct ChainBuilder {
-    content: ChainContent
+    content: ChainContent,
+    mixin_map: LinkedHashMap<Cid, Cid>
 }
 
 // todo: should this be self-consuming
@@ -37,7 +39,8 @@ impl ChainBuilder {
                 mixins: Vec::new(),
                 meta,
                 key, 
-            }
+            },
+            mixin_map: LinkedHashMap::new()
         }
     }
 
@@ -52,12 +55,12 @@ impl ChainBuilder {
     }
 
     pub fn mixin(mut self, mixin: Mixin) -> Self {
-        self.content.mixins.push(mixin);
+        self.mixin_map.insert(mixin.chain, mixin.value);
         self
     }
 
     pub fn mixins(mut self, mixins: Vec<Mixin>) -> Self {
-        self.content.mixins.extend(mixins);
+        self.mixin_map.extend(mixins.into_iter().map(|mixin| (mixin.chain, mixin.value))); // inserts or updates
         self
     }
 
@@ -78,11 +81,12 @@ impl ChainBuilder {
     }
 
     pub fn finalize(
-        self,
+        mut self,
         signer: &(dyn JwsSigner),
         verifier: &(dyn JwsVerifier), 
-        hasher: multihash::Code // TODO: should hasher be a reference?
+        hasher: multihash::Code
     ) -> Result<Chain, > {
+        self.content.mixins.extend(self.mixin_map.into_iter().map(|(chain, value)| Mixin { chain, value } ));
         let signature = signer.sign(&hasher.digest(&serde_ipld_dagcbor::to_vec(&self.content)?).to_bytes())?;
         Ok(verify_chain(Chain {
             cid: chain_cid(&self.content, &signature, hasher)?,
