@@ -22,6 +22,6 @@ members = [
 ]
 
 [dependencies]
-twine_core = { path = "twine_core" }
+twine_core = { path = "./twine_core" }
 
 [dev-dependencies]
