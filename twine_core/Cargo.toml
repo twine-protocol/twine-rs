@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 libipld = { version = "0.16.0", features = ["serde-codec"] }
-serde = "1.0.152"
+serde = { version = "1.0.152", features = ["rc"] }
 josekit = "0.8.2"
 serde_ipld_dagcbor = { version = ">=0.6.1" }
 serde_ipld_dagjson = "0.2.0"

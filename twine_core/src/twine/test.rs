@@ -1,13 +1,11 @@
+#![allow(unused_imports)]
 use super::*;
 
 // tests
 #[cfg(test)]
 mod test {
-  use ipld_core::codec::Codec;
-use serde_ipld_dagcbor::codec::DagCborCodec;
-use serde_ipld_dagjson::codec::DagJsonCodec;
 
-use super::*;
+  use super::*;
 
   const STRANDJSON: &'static str = r#"
     {
@@ -108,7 +106,7 @@ use super::*;
     assert!(res.is_ok(), "Failed to deserialize Strand: {:?}", res.err());
     // println!("{}", std::str::from_utf8(&DagJsonCodec::encode_to_vec(&res.unwrap()).unwrap()).unwrap());
     // print hex
-    let cbor = DagCborCodec::encode_to_vec(&res.unwrap()).unwrap();
+    let cbor = res.unwrap().to_bytes();
     for byte in cbor {
       print!("{:02x}", byte);
     }
@@ -117,8 +115,8 @@ use super::*;
   #[test]
   fn test_deserialize_tixel_bytes(){
     let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
-    let bytes = DagCborCodec::encode_to_vec(&tixel).unwrap();
-    let res = Tixel::from_bytes(tixel.cid, bytes);
+    let bytes = tixel.to_bytes();
+    let res = Tixel::from_block(tixel.cid(), bytes);
     dbg!(&res);
     assert!(res.is_ok(), "Failed to deserialize Tixel from bytes: {:?}", res.err());
   }
@@ -126,9 +124,24 @@ use super::*;
   #[test]
   fn test_deserialize_strand_bytes(){
     let strand = Strand::from_dag_json(STRANDJSON).unwrap();
-    let bytes = DagCborCodec::encode_to_vec(&strand).unwrap();
-    let res = Strand::from_bytes(strand.cid, bytes);
-    dbg!(&res);
+    let res = Strand::from_block(strand.cid(), strand.to_bytes());
+    // dbg!(&res);
     assert!(res.is_ok(), "Failed to deserialize Strand from bytes: {:?}", res.err());
+  }
+
+  #[test]
+  fn test_deserialize_arbitrary() {
+    let twine = Twine::from_dag_json(STRANDJSON);
+    assert!(twine.is_ok(), "Failed to deserialize Strand: {:?}", twine.err());
+    assert!(twine.unwrap().is_strand(), "Twine is not a Strand");
+  }
+
+  #[test]
+  fn test_in_out_json(){
+    let twine = Twine::from_dag_json(TIXELJSON).unwrap();
+    let json = twine.to_dag_json();
+    let twine2 = Twine::from_dag_json(&json).unwrap();
+    assert_eq!(twine, twine2, "Twine JSON roundtrip failed. Json: {}", json);
+    assert!(twine2.is_tixel(), "Twine is not a Tixel");
   }
 }

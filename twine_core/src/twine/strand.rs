@@ -1,8 +1,8 @@
 use crate::schemas::v1;
 use serde::{Serialize, Deserialize};
-use super::twine::TwineContainer;
+use super::container::TwineContainer;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
 pub enum StrandContent {
   V1(v1::ChainContentV1),
