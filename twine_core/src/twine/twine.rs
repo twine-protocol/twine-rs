@@ -7,7 +7,7 @@ use libipld::Cid;
 use serde::{Serialize, Deserialize};
 use super::{assert_cid, get_hasher, Strand};
 use super::Tixel;
-use super::TwineEncode;
+use super::TwineBlock;
 use super::errors::ParseError;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -18,6 +18,7 @@ pub enum Twine {
 }
 
 impl Twine {
+
   pub fn cid(&self) -> Cid {
     match self {
       Twine::Strand(s) => s.cid(),
@@ -56,7 +57,7 @@ impl From<Twine> for Cid {
   }
 }
 
-impl TwineEncode for Twine {
+impl TwineBlock for Twine {
   /// Decode from DAG-JSON
   ///
   /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
@@ -99,18 +100,18 @@ impl TwineEncode for Twine {
   }
 
   /// Encode to DAG-JSON
-  fn to_dag_json(&self) -> String {
+  fn dag_json(&self) -> String {
     match self {
-      Twine::Strand(s) => s.to_dag_json(),
-      Twine::Tixel(t) => t.to_dag_json(),
+      Twine::Strand(s) => s.dag_json(),
+      Twine::Tixel(t) => t.dag_json(),
     }
   }
 
   /// Encode to raw bytes
-  fn to_bytes(&self) -> Vec<u8> {
+  fn bytes(&self) -> Vec<u8> {
     match self {
-      Twine::Strand(s) => s.to_bytes(),
-      Twine::Tixel(t) => t.to_bytes(),
+      Twine::Strand(s) => s.bytes(),
+      Twine::Tixel(t) => t.bytes(),
     }
   }
 }

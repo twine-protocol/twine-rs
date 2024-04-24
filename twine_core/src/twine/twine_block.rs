@@ -3,7 +3,7 @@ use std::fmt::Display;
 use super::errors::ParseError;
 use libipld::multihash::Code;
 
-pub trait TwineEncode where Self: Sized {
+pub trait TwineBlock where Self: Sized {
   /// Decode from DAG-JSON
   ///
   /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
@@ -18,14 +18,14 @@ pub trait TwineEncode where Self: Sized {
   fn from_block<T: AsRef<[u8]>>(cid: Cid, bytes: T) -> Result<Self, ParseError>;
 
   /// Encode to DAG-JSON
-  fn to_dag_json(&self) -> String;
+  fn dag_json(&self) -> String;
 
   /// Encode to raw bytes
-  fn to_bytes(&self) -> Vec<u8>;
+  fn bytes(&self) -> Vec<u8>;
 
   /// Encode to pretty dag-json
   fn to_dag_json_pretty(&self) -> String {
-    let json = self.to_dag_json();
+    let json = self.dag_json();
     let j: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
     serde_json::to_string_pretty(&j).unwrap()
   }

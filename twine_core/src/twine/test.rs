@@ -104,18 +104,12 @@ mod test {
     let res = Strand::from_dag_json(STRANDJSON);
     dbg!(&res);
     assert!(res.is_ok(), "Failed to deserialize Strand: {:?}", res.err());
-    // println!("{}", std::str::from_utf8(&DagJsonCodec::encode_to_vec(&res.unwrap()).unwrap()).unwrap());
-    // print hex
-    let cbor = res.unwrap().to_bytes();
-    for byte in cbor {
-      print!("{:02x}", byte);
-    }
   }
 
   #[test]
   fn test_deserialize_tixel_bytes(){
     let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
-    let bytes = tixel.to_bytes();
+    let bytes = tixel.bytes();
     let res = Tixel::from_block(tixel.cid(), bytes);
     dbg!(&res);
     assert!(res.is_ok(), "Failed to deserialize Tixel from bytes: {:?}", res.err());
@@ -124,7 +118,7 @@ mod test {
   #[test]
   fn test_deserialize_strand_bytes(){
     let strand = Strand::from_dag_json(STRANDJSON).unwrap();
-    let res = Strand::from_block(strand.cid(), strand.to_bytes());
+    let res = Strand::from_block(strand.cid(), strand.bytes());
     // dbg!(&res);
     assert!(res.is_ok(), "Failed to deserialize Strand from bytes: {:?}", res.err());
   }
@@ -139,7 +133,7 @@ mod test {
   #[test]
   fn test_in_out_json(){
     let twine = Twine::from_dag_json(TIXELJSON).unwrap();
-    let json = twine.to_dag_json();
+    let json = twine.dag_json();
     let twine2 = Twine::from_dag_json(&json).unwrap();
     assert_eq!(twine, twine2, "Twine JSON roundtrip failed. Json: {}", json);
     assert!(twine2.is_tixel(), "Twine is not a Tixel");

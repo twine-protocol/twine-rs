@@ -6,7 +6,7 @@ use serde::{Serialize, Deserialize};
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use crate::twine::get_hasher;
 
-use super::{assert_cid, TwineEncode};
+use super::{assert_cid, TwineBlock};
 use super::errors::ParseError;
 use super::get_cid;
 
@@ -53,7 +53,7 @@ impl<C> TwineContainer<C> where C: Clone + Serialize + for<'de> Deserialize<'de>
   }
 }
 
-impl<C> TwineEncode for TwineContainer<C> where C: Clone + Serialize + for<'de> Deserialize<'de> {
+impl<C> TwineBlock for TwineContainer<C> where C: Clone + Serialize + for<'de> Deserialize<'de> {
   /// Decode from DAG-JSON
   ///
   /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
@@ -90,7 +90,7 @@ impl<C> TwineEncode for TwineContainer<C> where C: Clone + Serialize + for<'de> 
   }
 
   /// Encode to DAG-JSON
-  fn to_dag_json(&self) -> String {
+  fn dag_json(&self) -> String {
     format!(
       "{{\"cid\":{},\"data\":{}}}",
       String::from_utf8(DagJsonCodec::encode_to_vec(&self.cid).unwrap()).unwrap(),
@@ -99,7 +99,7 @@ impl<C> TwineEncode for TwineContainer<C> where C: Clone + Serialize + for<'de> 
   }
 
   /// Encode to raw bytes
-  fn to_bytes(&self) -> Vec<u8> {
+  fn bytes(&self) -> Vec<u8> {
     DagCborCodec::encode_to_vec(self).unwrap()
   }
 }
