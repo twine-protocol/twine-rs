@@ -9,7 +9,7 @@ edition = "2021"
 libipld = { version = "0.16.0", features = ["serde-codec"] }
 serde = "1.0.152"
 josekit = "0.8.2"
-serde_ipld_dagcbor = { version = "0.6.0" }
+serde_ipld_dagcbor = { version = ">=0.6.1" }
 serde_ipld_dagjson = "0.2.0"
 multihash-codetable = { version = "0.1", features = ["sha3"] }
 multihash-derive = "0.9"

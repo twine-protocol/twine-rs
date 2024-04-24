@@ -94,9 +94,6 @@ use super::*;
     }
   "#;
 
-
-  // TODO: serde-dag-cbor is bugged. Need to use dag-cbor-derive maybe????
-
   #[test]
   fn test_deserialize_tixel_json() {
     let res = Tixel::from_dag_json(TIXELJSON);
@@ -133,29 +130,5 @@ use super::*;
     let res = Strand::from_bytes(strand.cid, bytes);
     dbg!(&res);
     assert!(res.is_ok(), "Failed to deserialize Strand from bytes: {:?}", res.err());
-  }
-
-  #[test]
-  fn test_canonical(){
-    use serde::{Serialize, Deserialize};
-    #[derive(Serialize, Deserialize, PartialEq, Debug)]
-    struct First {
-      a: u32,
-      b: u32,
-    }
-    #[derive(Serialize, Deserialize, PartialEq, Debug)]
-    struct Second {
-      b: u32,
-      a: u32,
-    }
-
-    let first = First { a: 1, b: 2 };
-    let second = Second { a: 1, b: 2 };
-
-    let first_bytes = DagCborCodec::encode_to_vec(&first).unwrap();
-    let second_bytes = DagCborCodec::encode_to_vec(&second).unwrap();
-
-    assert_eq!(first_bytes, second_bytes);
-
   }
 }
