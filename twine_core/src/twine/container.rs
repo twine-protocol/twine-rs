@@ -7,11 +7,9 @@ use libipld::{Cid, multihash::Code};
 use serde_ipld_dagjson::codec::DagJsonCodec;
 use serde::{Serialize, Deserialize};
 use serde_ipld_dagcbor::codec::DagCborCodec;
-use crate::twine::get_hasher;
-
-use super::{assert_cid, TwineBlock};
-use super::errors::ParseError;
-use super::get_cid;
+use crate::crypto::{get_hasher, assert_cid, get_cid};
+use super::TwineBlock;
+use crate::errors::VerificationError;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct TwineContainer<C: Clone> {
@@ -28,7 +26,7 @@ impl<C: Clone> TwineContainer<C> {
     self.cid.clone()
   }
 
-  fn assert_cid(&self, expected: Cid) -> Result<(), ParseError> {
+  fn assert_cid(&self, expected: Cid) -> Result<(), VerificationError> {
     assert_cid(expected, self.cid)
   }
 
@@ -76,7 +74,7 @@ impl<C> TwineBlock for TwineContainer<C> where C: Clone + Serialize + for<'de> D
   /// Decode from DAG-JSON
   ///
   /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
-  fn from_dag_json<S: Display>(json: S) -> Result<Self, ParseError> {
+  fn from_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
 
     #[derive(Serialize, Deserialize)]
     struct TwineContainerJson<T: Clone> {
@@ -92,7 +90,7 @@ impl<C> TwineBlock for TwineContainer<C> where C: Clone + Serialize + for<'de> D
   }
 
   /// Decode from raw bytes without checking CID
-  fn from_bytes_unchecked(hasher: Code, bytes: Vec<u8>) -> Result<Self, ParseError> {
+  fn from_bytes_unchecked(hasher: Code, bytes: Vec<u8>) -> Result<Self, VerificationError> {
     let mut twine: Self = DagCborCodec::decode_from_slice(bytes.as_slice())?;
     twine.cid = get_cid(hasher, bytes.as_slice());
     Ok(twine)
@@ -101,7 +99,7 @@ impl<C> TwineBlock for TwineContainer<C> where C: Clone + Serialize + for<'de> D
   /// Decode from a Block
   ///
   /// A block is a cid and DAG-CBOR bytes. CID is verified.
-  fn from_block<T: AsRef<[u8]>>(cid: Cid, bytes: T) -> Result<Self, ParseError> {
+  fn from_block<T: AsRef<[u8]>>(cid: Cid, bytes: T) -> Result<Self, VerificationError> {
     let hasher = get_hasher(&cid)?;
     let twine = Self::from_bytes_unchecked(hasher, bytes.as_ref().to_vec())?;
     twine.assert_cid(cid)?;

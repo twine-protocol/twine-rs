@@ -6,10 +6,10 @@ use libipld::multihash::Code;
 use libipld::store::StoreParams;
 use libipld::{Block, Cid};
 use serde::{Serialize, Deserialize};
-use super::{assert_cid, get_hasher, Strand};
-use super::Tixel;
+use crate::crypto::{assert_cid, get_hasher};
+use super::{Strand, Tixel};
 use super::TwineBlock;
-use super::errors::ParseError;
+use crate::errors::VerificationError;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
@@ -51,7 +51,7 @@ impl Twine {
     matches!(self, Twine::Tixel(_))
   }
 
-  fn assert_cid(&self, expected: Cid) -> Result<(), ParseError> {
+  fn assert_cid(&self, expected: Cid) -> Result<(), VerificationError> {
     assert_cid(expected, self.cid())
   }
 }
@@ -75,7 +75,7 @@ impl TwineBlock for Twine {
   /// Decode from DAG-JSON
   ///
   /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
-  fn from_dag_json<S: Display>(json: S) -> Result<Self, ParseError> {
+  fn from_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
     let str_json = json.to_string();
     // assume it's a Tixel first
     let tixel = Tixel::from_dag_json(&str_json);
@@ -87,11 +87,11 @@ impl TwineBlock for Twine {
     if strand.is_ok() {
       return Ok(Twine::Strand(strand.unwrap()));
     }
-    Err(ParseError("Failed to decode Twine from DAG-JSON".to_string()))
+    Err(VerificationError::InvalidTwineFormat)
   }
 
   /// Decode from raw bytes without checking CID
-  fn from_bytes_unchecked(hasher: Code, bytes: Vec<u8>) -> Result<Self, ParseError> {
+  fn from_bytes_unchecked(hasher: Code, bytes: Vec<u8>) -> Result<Self, VerificationError> {
     let tixel = Tixel::from_bytes_unchecked(hasher, bytes.clone());
     if tixel.is_ok() {
       return Ok(Twine::Tixel(tixel.unwrap()));
@@ -100,13 +100,13 @@ impl TwineBlock for Twine {
     if strand.is_ok() {
       return Ok(Twine::Strand(strand.unwrap()));
     }
-    Err(ParseError("Failed to decode Twine from bytes".to_string()))
+    Err(VerificationError::InvalidTwineFormat)
   }
 
   /// Decode from a Block
   ///
   /// A block is a cid and DAG-CBOR bytes. CID is verified.
-  fn from_block<T: AsRef<[u8]>>(cid: Cid, bytes: T) -> Result<Self, ParseError> {
+  fn from_block<T: AsRef<[u8]>>(cid: Cid, bytes: T) -> Result<Self, VerificationError> {
     let hasher = get_hasher(&cid)?;
     let twine = Self::from_bytes_unchecked(hasher, bytes.as_ref().to_vec())?;
     twine.assert_cid(cid)?;
