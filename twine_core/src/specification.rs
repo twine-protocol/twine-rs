@@ -21,9 +21,15 @@ impl VersionError {
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
-pub struct Specification<const V: u8>(pub String);
+pub struct Specification<const V: u8>(pub(crate) String);
 
 impl<const V: u8> Specification<V> {
+  pub fn from_string<S: Display>(s: S) -> Result<Self, VersionError> {
+    let spec = Specification(s.to_string());
+    spec.validate()?;
+    Ok(spec)
+  }
+
   pub fn parts(&self) -> (String, String, Option<Subspec>) {
     // has the form twine/1.0.x or twine/1.0.x/subspec/1.0.x
     let mut parts = self.0.splitn(3, '/');
@@ -63,9 +69,10 @@ impl<const V: u8> Specification<V> {
     Ok(())
   }
 
-  pub fn semver(&self) -> Result<Version, semver::Error> {
+  pub fn semver(&self) -> Version {
+    // at this point we know it's ok
     let (_, ver, _) = self.parts();
-    Version::parse(&ver)
+    Version::parse(&ver).unwrap()
   }
 
   pub fn subspec(&self) -> Option<Subspec> {
@@ -73,11 +80,9 @@ impl<const V: u8> Specification<V> {
     subspec
   }
 
-  pub fn satisfies<S: Display>(&self, req: S) -> bool {
-    if let Ok(version) = self.semver() {
-      let req = VersionReq::parse(&req.to_string()).unwrap();
-      req.matches(&version)
-    } else { false }
+  pub fn satisfies(&self, req: VersionReq) -> bool {
+    let version = self.semver();
+    req.matches(&version)
   }
 }
 
@@ -86,15 +91,21 @@ impl<'de, const V: u8> Deserialize<'de> for Specification<V> {
     where D: Deserializer<'de>
   {
     let s = String::deserialize(deserializer)?;
-    // ensure the version is correct
-    let spec = Specification(s);
-    spec.validate().map_err(D::Error::custom)?;
-    Ok(spec)
+    // ensures the version is correct
+    Ok(Specification::from_string(s).map_err(D::Error::custom)?)
+  }
+}
+
+impl<const V: u8> TryFrom<String> for Specification<V> {
+  type Error = VersionError;
+
+  fn try_from(s: String) -> Result<Self, Self::Error> {
+    Specification::from_string(s)
   }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Subspec(pub String);
+pub struct Subspec(pub(crate) String);
 
 impl Subspec {
   pub fn parts(&self) -> (String, String) {
@@ -140,34 +151,38 @@ mod test {
   #[test]
   fn test_versions() {
     // good
-    let spec = Specification::<1>("twine/1.0.x".to_string());
-    assert!(spec.validate().is_ok(), "{}", spec.validate().unwrap_err());
-    assert_eq!(spec.semver().unwrap(), Version::parse("1.0.0").unwrap());
+    let spec = Specification::<1>::from_string("twine/1.0.x");
+    assert!(spec.is_ok(), "{}", spec.unwrap_err());
+    let spec = spec.unwrap();
+    assert_eq!(spec.semver(), Version::parse("1.0.0").unwrap());
     assert_eq!(spec.subspec(), None);
 
-    let spec = Specification::<1>("twine/1.0.x/subspec/1.0.x".to_string());
-    assert!(spec.validate().is_ok(), "{}", spec.validate().unwrap_err());
-    assert_eq!(spec.semver().unwrap(), Version::parse("1.0.0").unwrap());
-    assert_eq!(spec.subspec(), Some(Subspec("subspec/1.0.0".to_string())));
+    let spec = Specification::<1>::from_string("twine/1.0.x/subspec/1.0.x");
+    assert!(spec.is_ok(), "{}", spec.unwrap_err());
+    let spec = spec.unwrap();
+    assert_eq!(spec.semver(), Version::parse("1.0.0").unwrap());
+    assert_eq!(spec.subspec(), Some(Subspec("subspec/1.0.0".into())));
 
-    let spec = Specification::<2>("twine/2.0.1".to_string());
-    assert!(spec.validate().is_ok(), "{}", spec.validate().unwrap_err());
-    assert_eq!(spec.semver().unwrap(), Version::parse("2.0.1").unwrap());
+    let spec = Specification::<2>::from_string("twine/2.0.1");
+    assert!(spec.is_ok(), "{}", spec.unwrap_err());
+    let spec = spec.unwrap();
+    assert_eq!(spec.semver(), Version::parse("2.0.1").unwrap());
     assert_eq!(spec.subspec(), None);
 
-    let spec = Specification::<2>("twine/2.0.1/subspec/2.0.1".to_string());
-    assert!(spec.validate().is_ok(), "{}", spec.validate().unwrap_err());
-    assert_eq!(spec.semver().unwrap(), Version::parse("2.0.1").unwrap());
-    assert_eq!(spec.subspec(), Some(Subspec("subspec/2.0.1".to_string())));
+    let spec = Specification::<2>::from_string("twine/2.0.1/subspec/2.0.1");
+    assert!(spec.is_ok(), "{}", spec.unwrap_err());
+    let spec = spec.unwrap();
+    assert_eq!(spec.semver(), Version::parse("2.0.1").unwrap());
+    assert_eq!(spec.subspec(), Some(Subspec("subspec/2.0.1".into())));
 
     // bad
-    let spec = Specification::<2>("twine/1.0.x".to_string());
-    assert!(spec.validate().is_err());
+    let spec = Specification::<2>::from_string("twine/1.0.x");
+    assert!(spec.is_err());
 
-    let spec = Specification::<2>("twine/2.0.1/subspec/1.0.0/garbage".to_string());
-    assert!(spec.validate().is_err());
+    let spec = Specification::<2>::from_string("twine/2.0.1/subspec/1.0.0/garbage");
+    assert!(spec.is_err());
 
-    let spec = Specification::<1>("twine/1.0.1//1.0.0".to_string());
-    assert!(spec.validate().is_err());
+    let spec = Specification::<1>::from_string("twine/1.0.1//1.0.0");
+    assert!(spec.is_err());
   }
 }

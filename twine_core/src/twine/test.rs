@@ -220,4 +220,19 @@ mod test {
     let res = strand.verify_signature(&tixel);
     assert!(res.is_err(), "Signature verification should have failed");
   }
+
+  #[test]
+  fn test_simple_payload_unpack(){
+    use serde::{Serialize, Deserialize};
+    #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+    struct Timestamped {
+      timestamp: String,
+    }
+
+    let strand = Strand::from_dag_json(STRANDJSON).unwrap();
+    let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+    let payload : Timestamped = tixel.unpack_payload(&strand).unwrap();
+    assert_eq!(payload.timestamp, "2023-10-26T21:25:56.936Z");
+  }
+
 }

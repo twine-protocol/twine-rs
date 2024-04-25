@@ -19,7 +19,6 @@ pub enum Twine {
 }
 
 impl Twine {
-
   pub fn cid(&self) -> Cid {
     match self {
       Twine::Strand(s) => s.cid(),
