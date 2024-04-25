@@ -108,6 +108,12 @@ impl<const V: u8> TryFrom<String> for Specification<V> {
 pub struct Subspec(pub(crate) String);
 
 impl Subspec {
+  pub fn from_string<S: Display>(s: S) -> Result<Self, VersionError> {
+    let spec = Subspec(s.to_string());
+    spec.validate()?;
+    Ok(spec)
+  }
+
   pub fn parts(&self) -> (String, String) {
     // has the form subspec/1.0.0
     let mut parts = self.0.splitn(2, '/');
@@ -125,16 +131,19 @@ impl Subspec {
     Ok(())
   }
 
-  pub fn semver(&self) -> Result<Version, semver::Error> {
-    let (_, ver) = self.parts();
-    Version::parse(&ver)
+  pub fn prefix(&self) -> String {
+    let (prefix, _) = self.parts();
+    prefix
   }
 
-  pub fn satisfies<S: Display>(&self, req: S) -> bool {
-    if let Ok(version) = self.semver() {
-      let req = VersionReq::parse(&req.to_string()).unwrap();
-      req.matches(&version)
-    } else { false }
+  pub fn semver(&self) -> Version {
+    let (_, ver) = self.parts();
+    Version::parse(&ver).unwrap()
+  }
+
+  pub fn satisfies(&self, req: VersionReq) -> bool {
+    let version = self.semver();
+    req.matches(&version)
   }
 }
 

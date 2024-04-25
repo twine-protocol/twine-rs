@@ -5,7 +5,11 @@ use super::*;
 #[cfg(test)]
 mod test {
 
-  use super::*;
+  use libipld::serde::from_ipld;
+use semver::VersionReq;
+use serde::Serialize;
+
+use super::*;
 
   const STRANDJSON: &'static str = r#"
     {
@@ -229,10 +233,9 @@ mod test {
       timestamp: String,
     }
 
-    let strand = Strand::from_dag_json(STRANDJSON).unwrap();
+    // let strand = Strand::from_dag_json(STRANDJSON).unwrap();
     let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
-    let payload : Timestamped = tixel.unpack_payload(&strand).unwrap();
-    assert_eq!(payload.timestamp, "2023-10-26T21:25:56.936Z");
+    let t: Timestamped = from_ipld(tixel.payload()).unwrap();
+    assert_eq!(t.timestamp, "2023-10-26T21:25:56.936Z");
   }
-
 }
