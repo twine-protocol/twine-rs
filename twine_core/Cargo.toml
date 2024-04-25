@@ -18,6 +18,7 @@ thiserror = "1.0.40"
 base64 = "0.22.0"
 ipld-core = "0.4"
 semver = "1.0"
+anyhow = "1.0"
 
 [dev-dependencies]
 # twine_builder = { path = "../twine_builder" }

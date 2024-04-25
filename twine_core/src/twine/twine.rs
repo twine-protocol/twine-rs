@@ -3,7 +3,8 @@ use core::str;
 
 use std::fmt::Display;
 use libipld::multihash::Code;
-use libipld::Cid;
+use libipld::store::StoreParams;
+use libipld::{Block, Cid};
 use serde::{Serialize, Deserialize};
 use super::{assert_cid, get_hasher, Strand};
 use super::Tixel;
@@ -23,6 +24,13 @@ impl Twine {
     match self {
       Twine::Strand(s) => s.cid(),
       Twine::Tixel(t) => t.cid(),
+    }
+  }
+
+  pub fn content_hash(&self) -> Vec<u8> {
+    match self {
+      Twine::Strand(s) => s.content_hash(),
+      Twine::Tixel(t) => t.content_hash(),
     }
   }
 
@@ -54,6 +62,12 @@ impl From<Twine> for Cid {
       Twine::Strand(s) => s.cid(),
       Twine::Tixel(t) => t.cid(),
     }
+  }
+}
+
+impl<S: StoreParams> From<Twine> for Block<S> {
+  fn from(t: Twine) -> Self {
+    Block::new_unchecked(t.cid(), t.bytes())
   }
 }
 

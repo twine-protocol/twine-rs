@@ -1,5 +1,8 @@
 use std::fmt::Display;
 use ipld_core::codec::Codec;
+use libipld::multihash::MultihashDigest;
+use libipld::store::StoreParams;
+use libipld::Block;
 use libipld::{Cid, multihash::Code};
 use serde_ipld_dagjson::codec::DagJsonCodec;
 use serde::{Serialize, Deserialize};
@@ -16,6 +19,7 @@ pub struct TwineContainer<C: Clone> {
   cid: Cid,
 
   content: C,
+  pub(super)
   signature: String,
 }
 
@@ -32,6 +36,10 @@ impl<C: Clone> TwineContainer<C> {
     &self.content
   }
 
+  pub fn hasher(&self) -> Code {
+    get_hasher(&self.cid).unwrap()
+  }
+
   pub fn signature(&self) -> &str {
     &self.signature
   }
@@ -43,6 +51,12 @@ impl<C: Clone> From<TwineContainer<C>> for Cid {
   }
 }
 
+impl<C: Clone, S: StoreParams> From<TwineContainer<C>> for Block<S> where C: Serialize + for<'de> Deserialize<'de> {
+  fn from(t: TwineContainer<C>) -> Self {
+    Block::new_unchecked(t.cid(), t.bytes())
+  }
+}
+
 impl<C> TwineContainer<C> where C: Clone + Serialize + for<'de> Deserialize<'de> {
   /// Instance a Twine from its content and signature
   fn new_from_parts(hasher: Code, content: C, signature: String) -> Self {
@@ -50,6 +64,11 @@ impl<C> TwineContainer<C> where C: Clone + Serialize + for<'de> Deserialize<'de>
     let dat = DagCborCodec::encode_to_vec(&twine).unwrap();
     twine.cid = get_cid(hasher, dat.as_slice());
     twine
+  }
+
+  pub fn content_hash(&self) -> Vec<u8> {
+    let bytes = DagCborCodec::encode_to_vec(self.content()).unwrap();
+    self.hasher().digest(&bytes).to_bytes()
   }
 }
 
