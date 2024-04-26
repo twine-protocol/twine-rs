@@ -24,6 +24,10 @@ impl Twine {
     &self.tixel
   }
 
+  pub fn radix(&self) -> u64 {
+    self.strand().radix()
+  }
+
   pub fn version(&self) -> Version {
     let strand_ver = self.strand().version();
     match strand_ver.major {

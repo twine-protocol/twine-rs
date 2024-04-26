@@ -27,6 +27,10 @@ impl Strand {
     self.content().subspec()
   }
 
+  pub fn radix(&self) -> u64 {
+    self.content().radix()
+  }
+
   pub fn verify_tixel(&self, tixel: &Tixel) -> Result<(), VerificationError> {
     // also verify that this tixel belongs to the strand
     if tixel.strand_cid() != self.cid() {
@@ -70,6 +74,12 @@ impl StrandContent {
   pub fn key(&self) -> Jwk {
     match self {
       StrandContent::V1(v) => v.key.clone(),
+    }
+  }
+
+  pub fn radix(&self) -> u64 {
+    match self {
+      StrandContent::V1(v) => v.links_radix as u64,
     }
   }
 
