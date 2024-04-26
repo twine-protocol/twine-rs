@@ -214,22 +214,22 @@ mod test {
 
   #[test]
   fn test_deserialize_generic() {
-    let twine = Twine::from_dag_json(STRANDJSON);
+    let twine = AnyTwine::from_dag_json(STRANDJSON);
     assert!(twine.is_ok(), "Failed to deserialize Strand: {:?}", twine.err());
     assert!(twine.unwrap().is_strand(), "Twine is not a Strand");
   }
 
   #[test]
   fn test_deserialize_generic_invalid() {
-    let twine = Twine::from_dag_json(BADSTRANDJSON);
+    let twine = AnyTwine::from_dag_json(BADSTRANDJSON);
     assert!(twine.is_err(), "Deserialization should have failed");
   }
 
   #[test]
   fn test_in_out_json(){
-    let twine = Twine::from_dag_json(TIXELJSON).unwrap();
+    let twine = AnyTwine::from_dag_json(TIXELJSON).unwrap();
     let json = twine.dag_json();
-    let twine2 = Twine::from_dag_json(&json).unwrap();
+    let twine2 = AnyTwine::from_dag_json(&json).unwrap();
     assert_eq!(twine, twine2, "Twine JSON roundtrip failed. Json: {}", json);
     assert!(twine2.is_tixel(), "Twine is not a Tixel");
   }

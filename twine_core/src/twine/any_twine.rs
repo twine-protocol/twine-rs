@@ -13,48 +13,48 @@ use crate::errors::VerificationError;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
-pub enum Twine {
+pub enum AnyTwine {
   Strand(Strand),
   Tixel(Tixel),
 }
 
-impl Twine {
+impl AnyTwine {
   pub fn cid(&self) -> Cid {
     match self {
-      Twine::Strand(s) => s.cid(),
-      Twine::Tixel(t) => t.cid(),
+      Self::Strand(s) => s.cid(),
+      Self::Tixel(t) => t.cid(),
     }
   }
 
   pub fn strand(&self) -> Cid {
     match self {
-      Twine::Strand(s) => s.cid(),
-      Twine::Tixel(t) => t.strand(),
+      Self::Strand(s) => s.cid(),
+      Self::Tixel(t) => t.strand(),
     }
   }
 
   pub fn content_hash(&self) -> Vec<u8> {
     match self {
-      Twine::Strand(s) => s.content_hash(),
-      Twine::Tixel(t) => t.content_hash(),
+      Self::Strand(s) => s.content_hash(),
+      Self::Tixel(t) => t.content_hash(),
     }
   }
 
   pub fn signature(&self) -> &str {
     match self {
-      Twine::Strand(s) => s.signature(),
-      Twine::Tixel(t) => t.signature(),
+      Self::Strand(s) => s.signature(),
+      Self::Tixel(t) => t.signature(),
     }
   }
 
   /// Is this twine a Strand?
   pub fn is_strand(&self) -> bool {
-    matches!(self, Twine::Strand(_))
+    matches!(self, Self::Strand(_))
   }
 
   /// Is this twine a Tixel?
   pub fn is_tixel(&self) -> bool {
-    matches!(self, Twine::Tixel(_))
+    matches!(self, Self::Tixel(_))
   }
 
   fn assert_cid(&self, expected: Cid) -> Result<(), VerificationError> {
@@ -62,22 +62,22 @@ impl Twine {
   }
 }
 
-impl From<Twine> for Cid {
-  fn from(t: Twine) -> Self {
+impl From<AnyTwine> for Cid {
+  fn from(t: AnyTwine) -> Self {
     match t {
-      Twine::Strand(s) => s.cid(),
-      Twine::Tixel(t) => t.cid(),
+      AnyTwine::Strand(s) => s.cid(),
+      AnyTwine::Tixel(t) => t.cid(),
     }
   }
 }
 
-impl<S: StoreParams> From<Twine> for Block<S> {
-  fn from(t: Twine) -> Self {
+impl<S: StoreParams> From<AnyTwine> for Block<S> {
+  fn from(t: AnyTwine) -> Self {
     Block::new_unchecked(t.cid(), t.bytes())
   }
 }
 
-impl TwineBlock for Twine {
+impl TwineBlock for AnyTwine {
   /// Decode from DAG-JSON
   ///
   /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
@@ -86,12 +86,12 @@ impl TwineBlock for Twine {
     // assume it's a Tixel first
     let tixel = Tixel::from_dag_json(&str_json);
     if tixel.is_ok() {
-      return Ok(Twine::Tixel(tixel.unwrap()));
+      return Ok(Self::Tixel(tixel.unwrap()));
     }
     // assume it's a Strand next
     let strand = Strand::from_dag_json(&str_json);
     if strand.is_ok() {
-      return Ok(Twine::Strand(strand.unwrap()));
+      return Ok(Self::Strand(strand.unwrap()));
     }
     let msg = format!("Undecodable structure because:\n{}\n{}", tixel.err().unwrap(), strand.err().unwrap());
     Err(VerificationError::InvalidTwineFormat(msg))
@@ -101,11 +101,11 @@ impl TwineBlock for Twine {
   fn from_bytes_unchecked(hasher: Code, bytes: Vec<u8>) -> Result<Self, VerificationError> {
     let tixel = Tixel::from_bytes_unchecked(hasher, bytes.clone());
     if tixel.is_ok() {
-      return Ok(Twine::Tixel(tixel.unwrap()));
+      return Ok(Self::Tixel(tixel.unwrap()));
     }
     let strand = Strand::from_bytes_unchecked(hasher, bytes);
     if strand.is_ok() {
-      return Ok(Twine::Strand(strand.unwrap()));
+      return Ok(Self::Strand(strand.unwrap()));
     }
     let msg = format!("Undecodable structure because:\n{}\n{}", tixel.err().unwrap(), strand.err().unwrap());
     Err(VerificationError::InvalidTwineFormat(msg))
@@ -124,25 +124,25 @@ impl TwineBlock for Twine {
   /// Encode to DAG-JSON
   fn dag_json(&self) -> String {
     match self {
-      Twine::Strand(s) => s.dag_json(),
-      Twine::Tixel(t) => t.dag_json(),
+      Self::Strand(s) => s.dag_json(),
+      Self::Tixel(t) => t.dag_json(),
     }
   }
 
   /// Encode to raw bytes
   fn bytes(&self) -> Vec<u8> {
     match self {
-      Twine::Strand(s) => s.bytes(),
-      Twine::Tixel(t) => t.bytes(),
+      Self::Strand(s) => s.bytes(),
+      Self::Tixel(t) => t.bytes(),
     }
   }
 }
 
-impl Display for Twine {
+impl Display for AnyTwine {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      Twine::Strand(s) => write!(f, "{}", s),
-      Twine::Tixel(t) => write!(f, "{}", t),
+      Self::Strand(s) => write!(f, "{}", s),
+      Self::Tixel(t) => write!(f, "{}", t),
     }
   }
 }
