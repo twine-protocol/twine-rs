@@ -1,7 +1,9 @@
+use crate::specification::Subspec;
 use crate::verify::Verifiable;
 use crate::{errors::VerificationError, schemas::v1};
 use libipld::Cid;
 use libipld::Ipld;
+use semver::Version;
 use serde::{Serialize, Deserialize};
 use super::container::TwineContent;
 use super::Stitch;
@@ -12,6 +14,18 @@ pub type Tixel = TwineContainer<TixelContent>;
 impl Tixel {
   pub fn strand_cid(&self) -> Cid {
     self.content().strand_cid()
+  }
+
+  pub fn index(&self) -> u64 {
+    self.content().index()
+  }
+
+  pub fn version(&self) -> Version {
+    self.content().version()
+  }
+
+  pub fn subspec(&self) -> Option<Subspec> {
+    self.content().subspec()
   }
 
   pub fn payload(&self) -> Ipld {
@@ -66,6 +80,24 @@ impl TixelContent {
   pub fn strand_cid(&self) -> Cid {
     match self {
       TixelContent::V1(v) => v.chain,
+    }
+  }
+
+  pub fn index(&self) -> u64 {
+    match self {
+      TixelContent::V1(v) => v.index as u64,
+    }
+  }
+
+  pub fn version(&self) -> Version {
+    match self {
+      TixelContent::V1(_) => Version::parse("1.0.0").unwrap(),
+    }
+  }
+
+  pub fn subspec(&self) -> Option<Subspec> {
+    match self {
+      TixelContent::V1(_) => None,
     }
   }
 
