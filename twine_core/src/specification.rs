@@ -26,7 +26,7 @@ pub struct Specification<const V: u8>(pub(crate) String);
 impl<const V: u8> Specification<V> {
   pub fn from_string<S: Display>(s: S) -> Result<Self, VersionError> {
     let spec = Specification(s.to_string());
-    spec.validate()?;
+    spec.verify()?;
     Ok(spec)
   }
 
@@ -51,7 +51,7 @@ impl<const V: u8> Specification<V> {
     (prefix.to_string(), version, subspec)
   }
 
-  pub fn validate(&self) -> Result<(), VersionError> {
+  pub fn verify(&self) -> Result<(), VersionError> {
     // ensure either 1 or three /
     let count = self.0.chars().filter(|&c| c == '/').count();
     if count != 1 && count != 3 {
@@ -65,7 +65,7 @@ impl<const V: u8> Specification<V> {
     if version.major != V as u64 {
       return Err(VersionError::new(format!("Expected different twine version. Expected: {}, Found: {}", V, version.major)));
     }
-    subspec.map_or(Ok(()), |s| s.validate())?;
+    subspec.map_or(Ok(()), |s| s.verify())?;
     Ok(())
   }
 
@@ -110,7 +110,7 @@ pub struct Subspec(pub(crate) String);
 impl Subspec {
   pub fn from_string<S: Display>(s: S) -> Result<Self, VersionError> {
     let spec = Subspec(s.to_string());
-    spec.validate()?;
+    spec.verify()?;
     Ok(spec)
   }
 
@@ -122,7 +122,7 @@ impl Subspec {
     (prefix.to_string(), version.to_string())
   }
 
-  pub fn validate(&self) -> Result<(), VersionError> {
+  pub fn verify(&self) -> Result<(), VersionError> {
     let (prefix, ver) = self.parts();
     if prefix.len() == 0 {
       return Err(VersionError::new("Subspec string does not have a prefix"));

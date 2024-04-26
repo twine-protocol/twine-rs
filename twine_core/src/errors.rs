@@ -4,8 +4,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum VerificationError {
-  #[error("The data structure does not conform to any known Twine format")]
-  InvalidTwineFormat,
+  #[error("The data structure does not conform to any known Twine format. {0}")]
+  InvalidTwineFormat(String),
   #[error("Problem parsing CBOR")]
   BadCbor(#[from] CborCodecError),
   #[error("Problem parsing JSON")]

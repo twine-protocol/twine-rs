@@ -1,8 +1,8 @@
-use crate::{crypto::verify_signature, schemas::v1, specification::{Specification, Subspec}};
+use crate::{crypto::verify_signature, schemas::v1, specification::Subspec};
 use josekit::jwk::Jwk;
 use semver::Version;
 use serde::{Serialize, Deserialize};
-use super::{container::TwineContainer, Tixel};
+use super::{container::{TwineContainer, TwineContent}, Stitch, Tixel};
 use crate::errors::VerificationError;
 
 pub type Strand = TwineContainer<StrandContent>;
@@ -20,6 +20,12 @@ impl Strand {
     self.content().subspec()
   }
 
+  pub fn verify(&self) -> Result<(), VerificationError> {
+    self.content().verify()?;
+    self.verify_own_signature()?;
+    Ok(())
+  }
+
   pub fn verify_signature(&self, tixel: &Tixel) -> Result<(), VerificationError> {
     self.content().verify_signature(tixel)
   }
@@ -33,6 +39,18 @@ impl Strand {
 #[serde(untagged)]
 pub enum StrandContent {
   V1(v1::ChainContentV1),
+}
+
+impl TwineContent for StrandContent {
+  fn loop_stitches(&self) -> Vec<Stitch> {
+    vec![]
+  }
+
+  fn cross_stitches(&self) -> Vec<Stitch> {
+    match self {
+      StrandContent::V1(v) => v.mixins.iter().cloned().collect(),
+    }
+  }
 }
 
 impl StrandContent {
@@ -54,7 +72,13 @@ impl StrandContent {
     }
   }
 
-  pub fn verify_signature<C: Clone + Serialize + for<'de> Deserialize<'de>>(&self, twine: &TwineContainer<C>) -> Result<(), VerificationError> {
+  pub fn verify(&self) -> Result<(), VerificationError> {
+    match self {
+      StrandContent::V1(v) => v.verify(),
+    }
+  }
+
+  pub fn verify_signature<C: TwineContent + Serialize + for<'de> Deserialize<'de>>(&self, twine: &TwineContainer<C>) -> Result<(), VerificationError> {
     verify_signature(self.key(), twine.signature(), twine.content_hash())
   }
 }

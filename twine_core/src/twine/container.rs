@@ -8,11 +8,16 @@ use serde_ipld_dagjson::codec::DagJsonCodec;
 use serde::{Serialize, Deserialize};
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use crate::crypto::{get_hasher, assert_cid, get_cid};
-use super::TwineBlock;
+use super::{Stitch, TwineBlock};
 use crate::errors::VerificationError;
 
+pub trait TwineContent: Clone {
+  fn loop_stitches(&self) -> Vec<Stitch>;
+  fn cross_stitches(&self) -> Vec<Stitch>;
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-pub struct TwineContainer<C: Clone> {
+pub struct TwineContainer<C: TwineContent> {
   #[serde(skip)]
   cid: Cid,
 
@@ -21,13 +26,21 @@ pub struct TwineContainer<C: Clone> {
   signature: String,
 }
 
-impl<C: Clone> TwineContainer<C> {
+impl<C: TwineContent> TwineContainer<C> {
   pub fn cid(&self) -> Cid {
     self.cid.clone()
   }
 
   fn assert_cid(&self, expected: Cid) -> Result<(), VerificationError> {
     assert_cid(expected, self.cid)
+  }
+
+  pub fn loop_stitches(&self) -> Vec<Stitch> {
+    self.content().loop_stitches()
+  }
+
+  pub fn cross_stitches(&self) -> Vec<Stitch> {
+    self.content().cross_stitches()
   }
 
   pub fn content(&self) -> &C {
@@ -43,19 +56,19 @@ impl<C: Clone> TwineContainer<C> {
   }
 }
 
-impl<C: Clone> From<TwineContainer<C>> for Cid {
+impl<C: TwineContent> From<TwineContainer<C>> for Cid {
   fn from(t: TwineContainer<C>) -> Self {
     t.cid()
   }
 }
 
-impl<C: Clone, S: StoreParams> From<TwineContainer<C>> for Block<S> where C: Serialize + for<'de> Deserialize<'de> {
+impl<C: TwineContent, S: StoreParams> From<TwineContainer<C>> for Block<S> where C: Serialize + for<'de> Deserialize<'de> {
   fn from(t: TwineContainer<C>) -> Self {
     Block::new_unchecked(t.cid(), t.bytes())
   }
 }
 
-impl<C> TwineContainer<C> where C: Clone + Serialize + for<'de> Deserialize<'de> {
+impl<C> TwineContainer<C> where C: TwineContent + Serialize + for<'de> Deserialize<'de> {
   /// Instance a Twine from its content and signature
   fn new_from_parts(hasher: Code, content: C, signature: String) -> Self {
     let mut twine = Self { cid: Cid::default(), content, signature };
@@ -70,14 +83,14 @@ impl<C> TwineContainer<C> where C: Clone + Serialize + for<'de> Deserialize<'de>
   }
 }
 
-impl<C> TwineBlock for TwineContainer<C> where C: Clone + Serialize + for<'de> Deserialize<'de> {
+impl<C> TwineBlock for TwineContainer<C> where C: TwineContent + Serialize + for<'de> Deserialize<'de> {
   /// Decode from DAG-JSON
   ///
   /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
   fn from_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
 
     #[derive(Serialize, Deserialize)]
-    struct TwineContainerJson<T: Clone> {
+    struct TwineContainerJson<T: TwineContent> {
       cid: Cid,
       data: TwineContainer<T>,
     }
@@ -121,8 +134,9 @@ impl<C> TwineBlock for TwineContainer<C> where C: Clone + Serialize + for<'de> D
   }
 }
 
-impl<C> Display for TwineContainer<C> where C: Clone + Serialize + for<'de> Deserialize<'de> {
+impl<C> Display for TwineContainer<C> where C: TwineContent + Serialize + for<'de> Deserialize<'de> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}", self.clone().to_dag_json_pretty())
   }
 }
+

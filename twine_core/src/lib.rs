@@ -7,7 +7,7 @@
 pub mod errors;
 pub mod crypto;
 pub mod twine;
-// pub mod verify;
+pub mod verify;
 // pub mod utils;
 pub mod specification;
 pub mod schemas;

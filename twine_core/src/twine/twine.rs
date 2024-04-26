@@ -26,6 +26,13 @@ impl Twine {
     }
   }
 
+  pub fn strand(&self) -> Cid {
+    match self {
+      Twine::Strand(s) => s.cid(),
+      Twine::Tixel(t) => t.strand(),
+    }
+  }
+
   pub fn content_hash(&self) -> Vec<u8> {
     match self {
       Twine::Strand(s) => s.content_hash(),
@@ -86,7 +93,7 @@ impl TwineBlock for Twine {
     if strand.is_ok() {
       return Ok(Twine::Strand(strand.unwrap()));
     }
-    Err(VerificationError::InvalidTwineFormat)
+    Err(VerificationError::InvalidTwineFormat("".into()))
   }
 
   /// Decode from raw bytes without checking CID
@@ -99,7 +106,7 @@ impl TwineBlock for Twine {
     if strand.is_ok() {
       return Ok(Twine::Strand(strand.unwrap()));
     }
-    Err(VerificationError::InvalidTwineFormat)
+    Err(VerificationError::InvalidTwineFormat("".into()))
   }
 
   /// Decode from a Block
