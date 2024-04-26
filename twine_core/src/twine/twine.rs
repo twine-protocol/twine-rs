@@ -93,7 +93,8 @@ impl TwineBlock for Twine {
     if strand.is_ok() {
       return Ok(Twine::Strand(strand.unwrap()));
     }
-    Err(VerificationError::InvalidTwineFormat("".into()))
+    let msg = format!("Undecodable structure because:\n{}\n{}", tixel.err().unwrap(), strand.err().unwrap());
+    Err(VerificationError::InvalidTwineFormat(msg))
   }
 
   /// Decode from raw bytes without checking CID
@@ -106,7 +107,8 @@ impl TwineBlock for Twine {
     if strand.is_ok() {
       return Ok(Twine::Strand(strand.unwrap()));
     }
-    Err(VerificationError::InvalidTwineFormat("".into()))
+    let msg = format!("Undecodable structure because:\n{}\n{}", tixel.err().unwrap(), strand.err().unwrap());
+    Err(VerificationError::InvalidTwineFormat(msg))
   }
 
   /// Decode from a Block

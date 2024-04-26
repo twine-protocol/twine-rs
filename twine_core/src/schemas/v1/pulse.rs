@@ -1,6 +1,6 @@
 use libipld::{Ipld, Cid};
 use serde::{Serialize, Deserialize};
-use crate::errors::VerificationError;
+use crate::{errors::VerificationError, verify::Verifiable};
 use super::Mixin;
 use crate::verify::is_all_unique;
 
@@ -14,8 +14,8 @@ pub struct PulseContentV1 {
   pub payload: Ipld,
 }
 
-impl PulseContentV1 {
-  pub fn verify(&self) -> Result<(), VerificationError> {
+impl Verifiable for PulseContentV1 {
+  fn verify(&self) -> Result<(), VerificationError> {
     if !is_all_unique(&self.mixins) {
       return Err(VerificationError::InvalidTwineFormat("Contains mixins with duplicate chains".into()));
     }

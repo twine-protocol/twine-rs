@@ -4,11 +4,11 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum VerificationError {
-  #[error("The data structure does not conform to any known Twine format. {0}")]
+  #[error("The data structure does not conform to any known Twine format {0}")]
   InvalidTwineFormat(String),
-  #[error("Problem parsing CBOR")]
+  #[error("Problem parsing CBOR because: {0}")]
   BadCbor(#[from] CborCodecError),
-  #[error("Problem parsing JSON")]
+  #[error("Problem parsing JSON because: {0}")]
   BadJson(#[from] JsonCodecError),
   #[error("Signature is invalid")]
   BadSignature,

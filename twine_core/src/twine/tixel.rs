@@ -1,3 +1,4 @@
+use crate::verify::Verifiable;
 use crate::{errors::VerificationError, schemas::v1};
 use libipld::Cid;
 use libipld::Ipld;
@@ -21,10 +22,8 @@ impl Tixel {
     self.content().source()
   }
 
-  pub fn verify(&self, strand: &Strand) -> Result<(), VerificationError> {
-    self.content().verify()?;
-    strand.verify_signature(self)?;
-    Ok(())
+  pub fn verify_signature(&self, strand: &Strand) -> Result<(), VerificationError> {
+    strand.verify_signature(self)
   }
 }
 
@@ -34,8 +33,16 @@ pub enum TixelContent {
   V1(v1::PulseContentV1),
 }
 
+impl Verifiable for TixelContent {
+  fn verify(&self) -> Result<(), VerificationError> {
+    match self {
+      TixelContent::V1(v) => v.verify(),
+    }
+  }
+}
+
 impl TwineContent for TixelContent {
-  fn loop_stitches(&self) -> Vec<Stitch> {
+  fn back_stitches(&self) -> Vec<Stitch> {
     let links: &Vec<Cid> = match self {
       TixelContent::V1(v) => &v.links,
     };
@@ -67,12 +74,6 @@ impl TixelContent {
   pub fn source(&self) -> String {
     match self {
       TixelContent::V1(v) => v.source.clone(),
-    }
-  }
-
-  pub fn verify(&self) -> Result<(), VerificationError> {
-    match self {
-      TixelContent::V1(v) => v.verify(),
     }
   }
 }

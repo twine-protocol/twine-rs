@@ -6,10 +6,10 @@ use super::*;
 mod test {
 
   use libipld::serde::from_ipld;
-use semver::VersionReq;
-use serde::Serialize;
+  use semver::VersionReq;
+  use serde::Serialize;
 
-use super::*;
+  use super::*;
 
   const STRANDJSON: &'static str = r#"
     {
@@ -95,6 +95,35 @@ use super::*;
       }
     }
   "#;
+
+  const BADSTRANDJSON: &'static str = r#"
+    {
+      "cid": {
+        "/": "bafyriqe3zxf5g4ifgqhea5zozxpdcfi5qcpkfpogtxzbizmmuxdjuzuq44a2cifbr7xplo4kcfsdz2c5pxfxektavrqxxb3nvbmclxz7qiz6e"
+      },
+      "data": {
+        "content": {
+          "key": {
+            "alg": "RS256",
+            "e": "AQAB",
+            "kty": "RSA",
+            "n": "zI7ywpS55pGdNZ3NwaWmFNVnYMeaxwNdAtfc8nTewwvkKJ4LE1wzYcWXebZjt_D9NtoB2BS9Lo_HYSIwfsIdTLymCdEn9iJvBANRU6ZjO_OeOIFTeCzBb-nZ7_XFXLUl8Xv2GGYFl1yZoKwWVwypcfWVKKDsUz9OxXKWZ4sq9ACwrLjY-w9U_EgqTbRSZvfZQOk1c6CbORjXNRaoVCgEU6_jzgHzWMMiDZIgTf_lRWy5vIiJJV-fd0c0XAJpAZjO1ZqzwaBMUe64KLjcLNxIV2VdeOrJbiis9s8QGVGZAYw40sk74B-OMssrftXD-_cRORR8FP4FMAaybuyQvDB8w0pqw5lHOZ3_2WkmS8tDm6X_CKFxBI6ZzO3Z4m8yEaSTK2-YrWchWlmQ4ADiGdpGCymoowEnv366zi86_Plqqla8e8vcCLkq9KGMOICVZsL4juvptOD_wEdLYBiHrSL8kLCyK7fJj2dT7eJ1S5H2UJ_SaI1jb5Y0zTY0fgHfatzmc2ZG8T0tobaC_1RtM4Y5bzm7eMqXt3S0vFlXdZhySw1_2bxW-rA1WcM2PUiIYqvaXtrHbAXDJCvZ_pLUdi98JA1TCzUuemKwu3kbROuwNiakev8vq7NDWBipo_cIOYs4GaXb3FhElzC7W4F22jHiNI_uT_wERSlQhzXnSxqIRYc"
+          },
+          "links_radix": 1,
+          "meta": {
+            "description": "Experiment status information",
+            "genesis": "2023-10-26T17:38:30.848Z",
+            "name": "NIST-bell-experiment"
+          },
+          "mixins": [
+
+          ],
+          "source": "random.colorado.edu",
+          "specification": "twine/1.0.x/bell/1.0.x"
+        },
+        "signature": "eyJhbGciOiJSUzI1NiJ9.FEARpnMB4MWvXMDIzMlU7DagYYKyLzHI7-TSj8Oq-VdrSCVS5PFty6U5QdkFWl3zp65R3aE54FTNkqsO2maRnC8K.H39yBRvIygMLalQIPQo84sypZuV5EnUvS5dplfRSC4Fk4Isy1xqIKcoAKT8FO9liDxZXelx27n9-e7tYivdq35fHnDWC3aH6dv72S_5Iy2e0zRJ25D-kHZoOOctLknbTAG6i-nLJZOrnfzHAIi8XOnK83TyMfIfBbnbUJvUMYvtYkYvRtkonAVvkFhWPg5o7ZFnbhu1XsWvY92PRQ-xzUbo0BY6nxNT7l6GAWKzyHeSCFrLFIC5AR4tEZ75lvWQnfTeUDcNds4w-SD7RmDZJ-3aBqSLS89uZoxh7UVKRWPxz80XJD3iveE2Kv3qLN9iqGFFPoActrECYusEUdbn12dHS2zgKLyDbOpxZFuSPI2DjFUmYLZpWK5WnuTI9KmE9t8dFtNZT-HB02C9iuO0K24AB5i59nq3TSpRTUjQMRBfK45N0tWN5wTukonKAxjxxZl-IBwka1fhA85C34XIsb7OuIp4OH9p_nUgchHg_jMc3IiwIRovlytd_l4fmxkKdmzr5qVl0B6xUJHXydIo77BCvDbv7OW3Hxrz9r73EidwINzH_yrAKyb4xV0xHKo_nHoFdpAd5sW7cxsF_USrfA5axuyGYRrsS_RjdhkDLseKRDxtYkM0nIuLwZogG6a5HJ1729kJiSEkNSrFhfYFmBh7hpLLAkzRqqc1bqha4xIQ"
+      }
+    }"#;
 
   const INVALID_TIXELJSON: &'static str = r#"
     {
@@ -184,10 +213,16 @@ use super::*;
   }
 
   #[test]
-  fn test_deserialize_arbitrary() {
+  fn test_deserialize_generic() {
     let twine = Twine::from_dag_json(STRANDJSON);
     assert!(twine.is_ok(), "Failed to deserialize Strand: {:?}", twine.err());
     assert!(twine.unwrap().is_strand(), "Twine is not a Strand");
+  }
+
+  #[test]
+  fn test_deserialize_generic_invalid() {
+    let twine = Twine::from_dag_json(BADSTRANDJSON);
+    assert!(twine.is_err(), "Deserialization should have failed");
   }
 
   #[test]

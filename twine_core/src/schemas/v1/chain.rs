@@ -1,7 +1,7 @@
 use libipld::Ipld;
 use serde::{Serialize, Deserialize};
 use josekit::jwk::Jwk;
-use crate::{errors::VerificationError, verify::is_all_unique};
+use crate::{errors::VerificationError, verify::{is_all_unique, Verifiable}};
 
 use super::{V1, Mixin};
 
@@ -15,8 +15,8 @@ pub struct ChainContentV1 {
   pub links_radix: u32,
 }
 
-impl ChainContentV1 {
-  pub fn verify(&self) -> Result<(), VerificationError> {
+impl Verifiable for ChainContentV1 {
+  fn verify(&self) -> Result<(), VerificationError> {
     if !is_all_unique(&self.mixins) {
       return Err(VerificationError::InvalidTwineFormat("Contains mixins with duplicate chains".into()));
     }

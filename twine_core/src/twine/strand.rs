@@ -1,4 +1,4 @@
-use crate::{crypto::verify_signature, schemas::v1, specification::Subspec};
+use crate::{crypto::verify_signature, schemas::v1, specification::Subspec, verify::Verifiable};
 use josekit::jwk::Jwk;
 use semver::Version;
 use serde::{Serialize, Deserialize};
@@ -6,6 +6,13 @@ use super::{container::{TwineContainer, TwineContent}, Stitch, Tixel};
 use crate::errors::VerificationError;
 
 pub type Strand = TwineContainer<StrandContent>;
+
+impl Verifiable for Strand {
+  fn verify(&self) -> Result<(), VerificationError> {
+    self.verify_own_signature()?;
+    Ok(())
+  }
+}
 
 impl Strand {
   pub fn key(&self) -> Jwk {
@@ -18,12 +25,6 @@ impl Strand {
 
   pub fn subspec(&self) -> Option<Subspec> {
     self.content().subspec()
-  }
-
-  pub fn verify(&self) -> Result<(), VerificationError> {
-    self.content().verify()?;
-    self.verify_own_signature()?;
-    Ok(())
   }
 
   pub fn verify_signature(&self, tixel: &Tixel) -> Result<(), VerificationError> {
@@ -41,8 +42,16 @@ pub enum StrandContent {
   V1(v1::ChainContentV1),
 }
 
+impl Verifiable for StrandContent {
+  fn verify(&self) -> Result<(), VerificationError> {
+    match self {
+      StrandContent::V1(v) => v.verify(),
+    }
+  }
+}
+
 impl TwineContent for StrandContent {
-  fn loop_stitches(&self) -> Vec<Stitch> {
+  fn back_stitches(&self) -> Vec<Stitch> {
     vec![]
   }
 
@@ -69,12 +78,6 @@ impl StrandContent {
   pub fn subspec(&self) -> Option<Subspec> {
     match self {
       StrandContent::V1(v) => v.specification.subspec(),
-    }
-  }
-
-  pub fn verify(&self) -> Result<(), VerificationError> {
-    match self {
-      StrandContent::V1(v) => v.verify(),
     }
   }
 

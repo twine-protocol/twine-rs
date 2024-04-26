@@ -8,11 +8,12 @@ use serde_ipld_dagjson::codec::DagJsonCodec;
 use serde::{Serialize, Deserialize};
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use crate::crypto::{get_hasher, assert_cid, get_cid};
+use crate::verify::{Verifiable, Verified};
 use super::{Stitch, TwineBlock};
 use crate::errors::VerificationError;
 
-pub trait TwineContent: Clone {
-  fn loop_stitches(&self) -> Vec<Stitch>;
+pub trait TwineContent: Clone + Verifiable {
+  fn back_stitches(&self) -> Vec<Stitch>;
   fn cross_stitches(&self) -> Vec<Stitch>;
 }
 
@@ -21,7 +22,7 @@ pub struct TwineContainer<C: TwineContent> {
   #[serde(skip)]
   cid: Cid,
 
-  content: C,
+  content: Verified<C>,
   pub(super)
   signature: String,
 }
@@ -31,12 +32,12 @@ impl<C: TwineContent> TwineContainer<C> {
     self.cid.clone()
   }
 
-  fn assert_cid(&self, expected: Cid) -> Result<(), VerificationError> {
+  fn verify_cid(&self, expected: Cid) -> Result<(), VerificationError> {
     assert_cid(expected, self.cid)
   }
 
-  pub fn loop_stitches(&self) -> Vec<Stitch> {
-    self.content().loop_stitches()
+  pub fn back_stitches(&self) -> Vec<Stitch> {
+    self.content().back_stitches()
   }
 
   pub fn cross_stitches(&self) -> Vec<Stitch> {
@@ -44,7 +45,7 @@ impl<C: TwineContent> TwineContainer<C> {
   }
 
   pub fn content(&self) -> &C {
-    &self.content
+    self.content.as_inner()
   }
 
   pub fn hasher(&self) -> Code {
@@ -70,7 +71,7 @@ impl<C: TwineContent, S: StoreParams> From<TwineContainer<C>> for Block<S> where
 
 impl<C> TwineContainer<C> where C: TwineContent + Serialize + for<'de> Deserialize<'de> {
   /// Instance a Twine from its content and signature
-  fn new_from_parts(hasher: Code, content: C, signature: String) -> Self {
+  fn new_from_parts(hasher: Code, content: Verified<C>, signature: String) -> Self {
     let mut twine = Self { cid: Cid::default(), content, signature };
     let dat = DagCborCodec::encode_to_vec(&twine).unwrap();
     twine.cid = get_cid(hasher, dat.as_slice());
@@ -80,6 +81,11 @@ impl<C> TwineContainer<C> where C: TwineContent + Serialize + for<'de> Deseriali
   pub fn content_hash(&self) -> Vec<u8> {
     let bytes = DagCborCodec::encode_to_vec(self.content()).unwrap();
     self.hasher().digest(&bytes).to_bytes()
+  }
+
+  fn compute_cid(&mut self, hasher: Code) {
+    let dat = DagCborCodec::encode_to_vec(self).unwrap();
+    self.cid = get_cid(hasher, dat.as_slice());
   }
 }
 
@@ -98,14 +104,14 @@ impl<C> TwineBlock for TwineContainer<C> where C: TwineContent + Serialize + for
     let j: TwineContainerJson<C> = DagJsonCodec::decode_from_slice(json.to_string().as_bytes())?;
     let hasher = get_hasher(&j.cid)?;
     let twine = Self::new_from_parts(hasher, j.data.content, j.data.signature);
-    twine.assert_cid(j.cid)?;
+    twine.verify_cid(j.cid)?;
     Ok(twine)
   }
 
   /// Decode from raw bytes without checking CID
   fn from_bytes_unchecked(hasher: Code, bytes: Vec<u8>) -> Result<Self, VerificationError> {
     let mut twine: Self = DagCborCodec::decode_from_slice(bytes.as_slice())?;
-    twine.cid = get_cid(hasher, bytes.as_slice());
+    twine.compute_cid(hasher);
     Ok(twine)
   }
 
@@ -115,7 +121,7 @@ impl<C> TwineBlock for TwineContainer<C> where C: TwineContent + Serialize + for
   fn from_block<T: AsRef<[u8]>>(cid: Cid, bytes: T) -> Result<Self, VerificationError> {
     let hasher = get_hasher(&cid)?;
     let twine = Self::from_bytes_unchecked(hasher, bytes.as_ref().to_vec())?;
-    twine.assert_cid(cid)?;
+    twine.verify_cid(cid)?;
     Ok(twine)
   }
 
