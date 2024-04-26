@@ -11,7 +11,7 @@ pub struct Stitch {
 impl From<Tixel> for Stitch {
   fn from(tixel: Tixel) -> Self {
     Stitch {
-      strand: tixel.strand(),
+      strand: tixel.strand_cid(),
       tixel: tixel.cid(),
     }
   }

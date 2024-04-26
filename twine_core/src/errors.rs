@@ -4,6 +4,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum VerificationError {
+  #[error("The tixel does not belong to the supplied strand")]
+  TixelNotOnStrand,
   #[error("The data structure does not conform to any known Twine format {0}")]
   InvalidTwineFormat(String),
   #[error("Problem parsing CBOR because: {0}")]

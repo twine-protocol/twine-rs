@@ -241,7 +241,7 @@ mod test {
     assert!(res.is_ok(), "Failed to verify signature: {:?}", res.err());
 
     let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
-    let res = strand.verify_signature(&tixel);
+    let res = strand.verify_tixel(&tixel);
     assert!(res.is_ok(), "Failed to verify signature: {:?}", res.err());
   }
 
@@ -256,7 +256,7 @@ mod test {
     let strand = Strand::from_dag_json(STRANDJSON).unwrap();
     let mut tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
     tixel.signature = tixel.signature.replace("jvap", "javp");
-    let res = strand.verify_signature(&tixel);
+    let res = strand.verify_tixel(&tixel);
     assert!(res.is_err(), "Signature verification should have failed");
   }
 
@@ -272,5 +272,13 @@ mod test {
     let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
     let t: Timestamped = from_ipld(tixel.payload()).unwrap();
     assert_eq!(t.timestamp, "2023-10-26T21:25:56.936Z");
+  }
+
+  #[test]
+  fn test_twine() {
+    let strand = Strand::from_dag_json(STRANDJSON).unwrap();
+    let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+    let twine = Twine::try_new(strand, tixel).unwrap();
+    assert_eq!(twine.previous(), twine.back_stitches().first().unwrap().to_owned());
   }
 }

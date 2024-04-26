@@ -10,8 +10,8 @@ use super::{container::TwineContainer, Strand};
 pub type Tixel = TwineContainer<TixelContent>;
 
 impl Tixel {
-  pub fn strand(&self) -> Cid {
-    self.content().strand()
+  pub fn strand_cid(&self) -> Cid {
+    self.content().strand_cid()
   }
 
   pub fn payload(&self) -> Ipld {
@@ -22,8 +22,12 @@ impl Tixel {
     self.content().source()
   }
 
-  pub fn verify_signature(&self, strand: &Strand) -> Result<(), VerificationError> {
-    strand.verify_signature(self)
+  pub fn verify_with(&self, strand: &Strand) -> Result<(), VerificationError> {
+    strand.verify_tixel(self)
+  }
+
+  pub fn previous(&self) -> Stitch {
+    self.back_stitches().first().unwrap().to_owned()
   }
 }
 
@@ -47,7 +51,7 @@ impl TwineContent for TixelContent {
       TixelContent::V1(v) => &v.links,
     };
 
-    let strand = self.strand();
+    let strand = self.strand_cid();
     links.iter().map(|&tixel| Stitch{ strand, tixel }).collect()
   }
 
@@ -59,7 +63,7 @@ impl TwineContent for TixelContent {
 }
 
 impl TixelContent {
-  pub fn strand(&self) -> Cid {
+  pub fn strand_cid(&self) -> Cid {
     match self {
       TixelContent::V1(v) => v.chain,
     }

@@ -26,10 +26,10 @@ impl AnyTwine {
     }
   }
 
-  pub fn strand(&self) -> Cid {
+  pub fn strand_cid(&self) -> Cid {
     match self {
       Self::Strand(s) => s.cid(),
-      Self::Tixel(t) => t.strand(),
+      Self::Tixel(t) => t.strand_cid(),
     }
   }
 

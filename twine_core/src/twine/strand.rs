@@ -27,7 +27,11 @@ impl Strand {
     self.content().subspec()
   }
 
-  pub fn verify_signature(&self, tixel: &Tixel) -> Result<(), VerificationError> {
+  pub fn verify_tixel(&self, tixel: &Tixel) -> Result<(), VerificationError> {
+    // also verify that this tixel belongs to the strand
+    if tixel.strand_cid() != self.cid() {
+      return Err(VerificationError::TixelNotOnStrand);
+    }
     self.content().verify_signature(tixel)
   }
 
