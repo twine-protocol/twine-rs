@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::sync::Arc;
 use ipld_core::codec::Codec;
 use libipld::multihash::MultihashDigest;
 use libipld::store::StoreParams;
@@ -11,8 +12,9 @@ use crate::crypto::{get_hasher, assert_cid, get_cid};
 use crate::verify::{Verifiable, Verified};
 use super::{Stitch, TwineBlock};
 use crate::errors::VerificationError;
+use crate::as_cid::AsCid;
 
-pub trait TwineContent: Clone + Verifiable {
+pub trait TwineContent: Clone + Verifiable + Send {
   fn back_stitches(&self) -> Vec<Stitch>;
   fn cross_stitches(&self) -> Vec<Stitch>;
 }
@@ -63,9 +65,15 @@ impl<C: TwineContent> From<TwineContainer<C>> for Cid {
   }
 }
 
+impl<C: TwineContent> AsCid for TwineContainer<C> {
+  fn as_cid(&self) -> &Cid {
+    &self.cid
+  }
+}
+
 impl<C: TwineContent, S: StoreParams> From<TwineContainer<C>> for Block<S> where C: Serialize + for<'de> Deserialize<'de> {
   fn from(t: TwineContainer<C>) -> Self {
-    Block::new_unchecked(t.cid(), t.bytes())
+    Block::new_unchecked(t.cid(), t.bytes().to_vec())
   }
 }
 
@@ -135,8 +143,8 @@ impl<C> TwineBlock for TwineContainer<C> where C: TwineContent + Serialize + for
   }
 
   /// Encode to raw bytes
-  fn bytes(&self) -> Vec<u8> {
-    DagCborCodec::encode_to_vec(self).unwrap()
+  fn bytes(&self) -> Arc<[u8]> {
+    DagCborCodec::encode_to_vec(self).unwrap().as_slice().into()
   }
 }
 

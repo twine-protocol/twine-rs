@@ -2,10 +2,12 @@ use core::str;
 /// Structs and traits common to both Chain's and Pulses
 
 use std::fmt::Display;
+use std::sync::Arc;
 use libipld::multihash::Code;
 use libipld::store::StoreParams;
 use libipld::{Block, Cid};
 use serde::{Serialize, Deserialize};
+use crate::as_cid::AsCid;
 use crate::crypto::{assert_cid, get_hasher};
 use super::{Strand, Tixel};
 use super::TwineBlock;
@@ -14,8 +16,8 @@ use crate::errors::VerificationError;
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
 pub enum AnyTwine {
-  Strand(Strand),
-  Tixel(Tixel),
+  Strand(Arc<Strand>),
+  Tixel(Arc<Tixel>),
 }
 
 impl AnyTwine {
@@ -62,6 +64,39 @@ impl AnyTwine {
   }
 }
 
+impl From<Strand> for AnyTwine {
+  fn from(s: Strand) -> Self {
+    Self::Strand(Arc::new(s))
+  }
+}
+
+impl From<Tixel> for AnyTwine {
+  fn from(t: Tixel) -> Self {
+    Self::Tixel(Arc::new(t))
+  }
+}
+
+impl From<Arc<Strand>> for AnyTwine {
+  fn from(s: Arc<Strand>) -> Self {
+    Self::Strand(s)
+  }
+}
+
+impl From<Arc<Tixel>> for AnyTwine {
+  fn from(t: Arc<Tixel>) -> Self {
+    Self::Tixel(t)
+  }
+}
+
+impl AsCid for AnyTwine {
+  fn as_cid(&self) -> &Cid {
+    match self {
+      Self::Strand(s) => s.as_cid(),
+      Self::Tixel(t) => t.as_cid(),
+    }
+  }
+}
+
 impl From<AnyTwine> for Cid {
   fn from(t: AnyTwine) -> Self {
     match t {
@@ -73,7 +108,7 @@ impl From<AnyTwine> for Cid {
 
 impl<S: StoreParams> From<AnyTwine> for Block<S> {
   fn from(t: AnyTwine) -> Self {
-    Block::new_unchecked(t.cid(), t.bytes())
+    Block::new_unchecked(t.cid(), t.bytes().to_vec())
   }
 }
 
@@ -86,12 +121,12 @@ impl TwineBlock for AnyTwine {
     // assume it's a Tixel first
     let tixel = Tixel::from_dag_json(&str_json);
     if tixel.is_ok() {
-      return Ok(Self::Tixel(tixel.unwrap()));
+      return Ok(Self::Tixel(tixel.unwrap().into()));
     }
     // assume it's a Strand next
     let strand = Strand::from_dag_json(&str_json);
     if strand.is_ok() {
-      return Ok(Self::Strand(strand.unwrap()));
+      return Ok(Self::Strand(strand.unwrap().into()));
     }
     let msg = format!("Undecodable structure because:\n{}\n{}", tixel.err().unwrap(), strand.err().unwrap());
     Err(VerificationError::InvalidTwineFormat(msg))
@@ -101,11 +136,11 @@ impl TwineBlock for AnyTwine {
   fn from_bytes_unchecked(hasher: Code, bytes: Vec<u8>) -> Result<Self, VerificationError> {
     let tixel = Tixel::from_bytes_unchecked(hasher, bytes.clone());
     if tixel.is_ok() {
-      return Ok(Self::Tixel(tixel.unwrap()));
+      return Ok(Self::Tixel(tixel.unwrap().into()));
     }
     let strand = Strand::from_bytes_unchecked(hasher, bytes);
     if strand.is_ok() {
-      return Ok(Self::Strand(strand.unwrap()));
+      return Ok(Self::Strand(strand.unwrap().into()));
     }
     let msg = format!("Undecodable structure because:\n{}\n{}", tixel.err().unwrap(), strand.err().unwrap());
     Err(VerificationError::InvalidTwineFormat(msg))
@@ -130,7 +165,7 @@ impl TwineBlock for AnyTwine {
   }
 
   /// Encode to raw bytes
-  fn bytes(&self) -> Vec<u8> {
+  fn bytes(&self) -> Arc<[u8]> {
     match self {
       Self::Strand(s) => s.bytes(),
       Self::Tixel(t) => t.bytes(),

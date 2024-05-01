@@ -2,7 +2,7 @@ use libipld::Cid;
 
 use super::Tixel;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Hash, Eq)]
 pub struct Stitch {
   pub strand: Cid,
   pub tixel: Cid,

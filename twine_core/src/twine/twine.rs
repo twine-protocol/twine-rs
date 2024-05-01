@@ -1,16 +1,27 @@
-use std::ops::Deref;
+use std::{ops::Deref, fmt::Display};
+use libipld::Cid;
 use semver::Version;
+use std::sync::Arc;
 
-use crate::{prelude::VerificationError, specification::Subspec, twine::{Strand, Tixel}, verify::Verifiable};
+use crate::{as_cid::AsCid, prelude::VerificationError, specification::Subspec, twine::{Strand, Tixel}, verify::Verifiable};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Twine {
-  strand: Strand,
-  tixel: Tixel,
+  // so we have the option of not duplicating immutable data
+  strand: Arc<Strand>,
+  tixel: Arc<Tixel>,
 }
 
 impl Twine {
   pub fn try_new(strand: Strand, tixel: Tixel) -> Result<Self, VerificationError> {
+    strand.verify()?;
+    strand.verify_tixel(&tixel)?;
+    let strand = Arc::new(strand);
+    let tixel = Arc::new(tixel);
+    Ok(Self { strand, tixel })
+  }
+
+  pub fn try_new_from_shared(strand: Arc<Strand>, tixel: Arc<Tixel>) -> Result<Self, VerificationError> {
     strand.verify()?;
     strand.verify_tixel(&tixel)?;
     Ok(Self { strand, tixel })
@@ -50,5 +61,23 @@ impl Deref for Twine {
 
   fn deref(&self) -> &Self::Target {
     self.tixel()
+  }
+}
+
+impl From<Twine> for Cid {
+  fn from(twine: Twine) -> Self {
+    twine.tixel().cid()
+  }
+}
+
+impl AsCid for Twine {
+  fn as_cid(&self) -> &Cid {
+    self.tixel().as_cid()
+  }
+}
+
+impl Display for Twine {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}", self.tixel)
   }
 }

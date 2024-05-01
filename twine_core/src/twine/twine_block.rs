@@ -1,5 +1,5 @@
 use libipld::Cid;
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 use crate::errors::VerificationError;
 use libipld::multihash::Code;
 
@@ -21,7 +21,7 @@ pub trait TwineBlock where Self: Sized {
   fn dag_json(&self) -> String;
 
   /// Encode to raw bytes
-  fn bytes(&self) -> Vec<u8>;
+  fn bytes(&self) -> Arc<[u8]>;
 
   /// Encode to pretty dag-json
   fn to_dag_json_pretty(&self) -> String {

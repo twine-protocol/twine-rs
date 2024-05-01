@@ -18,6 +18,7 @@ edition = "2021"
 members = [
   "./twine_core",
   "./twine_builder",
+  "./twine_http_resolver",
   "./test_apis"
 ]
 
