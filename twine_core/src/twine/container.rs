@@ -9,7 +9,9 @@ use serde_ipld_dagjson::codec::DagJsonCodec;
 use serde::{Serialize, Deserialize};
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use crate::crypto::{get_hasher, assert_cid, get_cid};
+use crate::twine;
 use crate::verify::{Verifiable, Verified};
+use super::dag_json::TwineContainerJson;
 use super::{Stitch, TwineBlock};
 use crate::errors::VerificationError;
 use crate::as_cid::AsCid;
@@ -97,22 +99,24 @@ impl<C> TwineContainer<C> where C: TwineContent + Serialize + for<'de> Deseriali
   }
 }
 
+impl<T> TryFrom<TwineContainerJson<T>> for TwineContainer<T> where T: TwineContent + Serialize + for<'de> Deserialize<'de> {
+  type Error = VerificationError;
+
+  fn try_from(j: TwineContainerJson<T>) -> Result<Self, Self::Error> {
+    let hasher = get_hasher(&j.cid)?;
+    let twine = Self::new_from_parts(hasher, j.data.content, j.data.signature);
+    twine.verify_cid(j.cid)?;
+    Ok(twine)
+  }
+}
+
 impl<C> TwineBlock for TwineContainer<C> where C: TwineContent + Serialize + for<'de> Deserialize<'de> {
   /// Decode from DAG-JSON
   ///
   /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
   fn from_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
-
-    #[derive(Serialize, Deserialize)]
-    struct TwineContainerJson<T: TwineContent> {
-      cid: Cid,
-      data: TwineContainer<T>,
-    }
-
     let j: TwineContainerJson<C> = DagJsonCodec::decode_from_slice(json.to_string().as_bytes())?;
-    let hasher = get_hasher(&j.cid)?;
-    let twine = Self::new_from_parts(hasher, j.data.content, j.data.signature);
-    twine.verify_cid(j.cid)?;
+    let twine = TwineContainer::try_from(j)?;
     Ok(twine)
   }
 

@@ -9,9 +9,12 @@ use libipld::{Block, Cid};
 use serde::{Serialize, Deserialize};
 use crate::as_cid::AsCid;
 use crate::crypto::{assert_cid, get_hasher};
-use super::{Strand, Tixel};
+use super::container::{TwineContainer, TwineContent};
+use super::dag_json::TwineContainerJson;
+use super::{Strand, StrandContent, Tixel, TixelContent};
 use super::TwineBlock;
 use crate::errors::VerificationError;
+use std::convert::TryFrom;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
@@ -61,6 +64,22 @@ impl AnyTwine {
 
   fn assert_cid(&self, expected: Cid) -> Result<(), VerificationError> {
     assert_cid(expected, self.cid())
+  }
+}
+
+impl TryFrom<TwineContainerJson<TixelContent>> for AnyTwine {
+  type Error = VerificationError;
+
+  fn try_from(j: TwineContainerJson<TixelContent>) -> Result<Self, Self::Error> {
+    Tixel::try_from(j).map(|t| t.into())
+  }
+}
+
+impl TryFrom<TwineContainerJson<StrandContent>> for AnyTwine {
+  type Error = VerificationError;
+
+  fn try_from(j: TwineContainerJson<StrandContent>) -> Result<Self, Self::Error> {
+    Strand::try_from(j).map(|s| s.into())
   }
 }
 
