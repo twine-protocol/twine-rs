@@ -65,21 +65,60 @@ impl AnyTwine {
   fn assert_cid(&self, expected: Cid) -> Result<(), VerificationError> {
     assert_cid(expected, self.cid())
   }
-}
 
-impl TryFrom<TwineContainerJson<TixelContent>> for AnyTwine {
-  type Error = VerificationError;
+  pub fn from_dag_json_array<S: AsRef<str>>(json: S) -> Result<Vec<Self>, VerificationError> {
+    let strings = super::dag_json::split_json_objects(json)
+      .map_err(|e| VerificationError::InvalidTwineFormat(e.to_string()))?;
 
-  fn try_from(j: TwineContainerJson<TixelContent>) -> Result<Self, Self::Error> {
-    Tixel::try_from(j).map(|t| t.into())
+    strings.iter().map(|s| {
+      Self::from_dag_json(s)
+    }).collect()
   }
 }
 
-impl TryFrom<TwineContainerJson<StrandContent>> for AnyTwine {
+impl TryFrom<AnyTwine> for Arc<Tixel> {
   type Error = VerificationError;
 
-  fn try_from(j: TwineContainerJson<StrandContent>) -> Result<Self, Self::Error> {
-    Strand::try_from(j).map(|s| s.into())
+  fn try_from(t: AnyTwine) -> Result<Self, Self::Error> {
+    match t {
+      AnyTwine::Tixel(t) => Ok(t),
+      _ => Err(VerificationError::WrongType {
+        expected: "Tixel".to_string(),
+        found: "Strand".to_string(),
+      }),
+    }
+  }
+}
+
+impl TryFrom<AnyTwine> for Tixel {
+  type Error = VerificationError;
+
+  fn try_from(t: AnyTwine) -> Result<Self, Self::Error> {
+    let t = Arc::<Tixel>::try_from(t)?;
+    Ok(t.as_ref().clone())
+  }
+}
+
+impl TryFrom<AnyTwine> for Arc<Strand> {
+  type Error = VerificationError;
+
+  fn try_from(s: AnyTwine) -> Result<Self, Self::Error> {
+    match s {
+      AnyTwine::Strand(s) => Ok(s),
+      _ => Err(VerificationError::WrongType {
+        expected: "Strand".to_string(),
+        found: "Tixel".to_string(),
+      }),
+    }
+  }
+}
+
+impl TryFrom<AnyTwine> for Strand {
+  type Error = VerificationError;
+
+  fn try_from(s: AnyTwine) -> Result<Self, Self::Error> {
+    let s = Arc::<Strand>::try_from(s)?;
+    Ok(s.as_ref().clone())
   }
 }
 
@@ -147,7 +186,7 @@ impl TwineBlock for AnyTwine {
     if strand.is_ok() {
       return Ok(Self::Strand(strand.unwrap().into()));
     }
-    let msg = format!("Undecodable structure because:\n{}\n{}", tixel.err().unwrap(), strand.err().unwrap());
+    let msg = format!("Undecodable structure:\n{}\n{}", tixel.err().unwrap(), strand.err().unwrap());
     Err(VerificationError::InvalidTwineFormat(msg))
   }
 

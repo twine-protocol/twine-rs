@@ -9,6 +9,7 @@ reqwest = { version = "0.12", features = ["stream", "brotli"] }
 futures = "0.3"
 async-trait = "0.1"
 rs-car = "0.4"
+serde = { version = "1.0" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

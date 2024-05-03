@@ -3,19 +3,15 @@ use futures::{stream::once, Stream, TryStreamExt};
 use thiserror::Error;
 use libipld::Cid;
 use async_trait::async_trait;
+use std::pin::Pin;
 use crate::{prelude::{AnyTwine, Stitch, Strand, Tixel, Twine, VerificationError}, as_cid::AsCid};
 
 #[derive(Error, Debug)]
 pub enum ResolutionError {
   #[error("Twine not found")]
   NotFound,
-  #[error("Twine is invalid")]
+  #[error("Twine is invalid: {0}")]
   Invalid(#[from] VerificationError),
-  #[error("Twine has wrong type: expected {expected}, found {found}")]
-  WrongType {
-    expected: String,
-    found: String,
-  },
   #[error("Bad data: {0}")]
   BadData(String),
   #[error("Problem fetching data: {0}")]
@@ -161,7 +157,7 @@ impl RangeQuery {
   // 2.. -> 2 to 0
   // 4..1 -> 4 to 2
   // 2..=4 -> 4 to 2 again
-  // -1.. -> latest to 0
+  // -1..5 -> latest to 6
   // ..=-2 -> latest to (latest - 1)
   pub fn from_range_bounds<C: AsCid, T: RangeBounds<i64>>(strand: C, range: T) -> Self {
     let lower = match range.end_bound() {
@@ -223,6 +219,14 @@ impl RangeQuery {
   pub fn is_definite(&self) -> bool {
     matches!(self, Self::Definite(_))
   }
+
+  pub fn strand_cid(&self) -> &Cid {
+    match self {
+      Self::Definite(range) => &range.strand,
+      Self::Indefinite(strand, _) => strand,
+      Self::Relative(strand, _) => strand,
+    }
+  }
 }
 
 impl<C, R> From<(C, R)> for RangeQuery where R: RangeBounds<i64>, C: AsCid {
@@ -253,32 +257,21 @@ pub trait Resolver: Clone + Send + Sync {
 
   async fn resolve_tixel<C: AsCid + Send>(&self, tixel: C) -> Result<Arc<Tixel>, ResolutionError> {
     let twine = self.resolve_cid(tixel).await?;
-    match twine {
-      AnyTwine::Tixel(tixel) => Ok(tixel),
-      AnyTwine::Strand(_) => Err(ResolutionError::WrongType {
-        expected: "Tixel".to_string(),
-        found: "Strand".to_string(),
-      }),
-    }
+    Ok(twine.try_into()?)
   }
 
   async fn resolve_strand<C: AsCid + Send>(&self, strand: C) -> Result<Arc<Strand>, ResolutionError> {
     let task = self.resolve_cid(strand);
     let twine = task.await?;
-    match twine {
-      AnyTwine::Strand(strand) => Ok(strand),
-      AnyTwine::Tixel(_) => Err(ResolutionError::WrongType {
-        expected: "Strand".to_string(),
-        found: "Twine".to_string(),
-      }),
-    }
+    Ok(twine.try_into()?)
   }
 
-  fn resolve_range<'a, R: Into<RangeQuery> + Send>(&'a self, range: R) -> impl Stream<Item = Result<Twine, ResolutionError>> + 'a {
+  async fn resolve_range<'a, R: Into<RangeQuery> + Send>(&'a self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + 'a>>, ResolutionError> {
     let range = range.into();
     use futures::stream::StreamExt;
-    range.to_stream(self)
-      .then(|q| async { self.resolve(q?).await })
+    let stream = range.to_stream(self)
+      .then(|q| async { self.resolve(q?).await });
+    Ok(stream.boxed())
   }
 }
 
@@ -308,3 +301,25 @@ pub trait Resolver: Clone + Send + Sync {
 //     self.as_ref().resolve_range(strand, range)
 //   }
 // }
+
+#[cfg(test)]
+mod test {
+  use super::*;
+
+  #[test]
+  fn test_range_query_bounds() {
+    let cid = Cid::default();
+    let range = RangeQuery::from_range_bounds(&cid, 0..2);
+    assert_eq!(range, RangeQuery::Definite(DefiniteRange::new(cid, 1, 0)));
+    let range = RangeQuery::from_range_bounds(&cid, 2..);
+    assert_eq!(range, RangeQuery::Definite(DefiniteRange::new(cid, 2, 0)));
+    let range = RangeQuery::from_range_bounds(&cid, 4..1);
+    assert_eq!(range, RangeQuery::Definite(DefiniteRange::new(cid, 4, 2)));
+    let range = RangeQuery::from_range_bounds(&cid, 2..=4);
+    assert_eq!(range, RangeQuery::Definite(DefiniteRange::new(cid, 4, 2)));
+    let range = RangeQuery::from_range_bounds(&cid, -1..);
+    assert_eq!(range, RangeQuery::Indefinite(cid, 1));
+    let range = RangeQuery::from_range_bounds(&cid, ..=-2);
+    assert_eq!(range, RangeQuery::Indefinite(cid, 2));
+  }
+}

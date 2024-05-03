@@ -9,7 +9,6 @@ use serde_ipld_dagjson::codec::DagJsonCodec;
 use serde::{Serialize, Deserialize};
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use crate::crypto::{get_hasher, assert_cid, get_cid};
-use crate::twine;
 use crate::verify::{Verifiable, Verified};
 use super::dag_json::TwineContainerJson;
 use super::{Stitch, TwineBlock};

@@ -27,4 +27,9 @@ pub enum VerificationError {
     expected: String,
     actual: String,
   },
+  #[error("Twine has wrong type: expected {expected}, found {found}")]
+  WrongType {
+    expected: String,
+    found: String,
+  },
 }

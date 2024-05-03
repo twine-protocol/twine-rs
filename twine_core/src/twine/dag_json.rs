@@ -1,11 +1,10 @@
-use crate::errors::VerificationError;
 use crate::twine::container::TwineContainer;
 use crate::twine::container::TwineContent;
 use ipld_core::codec::Codec;
-use serde_ipld_dagjson::codec::DagJsonCodec;
-use libipld::Cid;
+use libipld::{Cid, Ipld};
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use serde_ipld_dagjson::codec::DagJsonCodec;
+use crate::errors::VerificationError;
 
 #[derive(Serialize, Deserialize)]
 pub struct TwineContainerJson<T: TwineContent> {
@@ -13,13 +12,9 @@ pub struct TwineContainerJson<T: TwineContent> {
   pub data: TwineContainer<T>,
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum DagJsonDecodeResult<T: TwineContent> {
-  One(TwineContainerJson<T>),
-  Many(Vec<TwineContainerJson<T>>),
-}
-
-pub fn decode_dag_json<T: TwineContent + Serialize + for<'de> Deserialize<'de>, S: Display>(json: S) -> Result<DagJsonDecodeResult<T>, VerificationError> {
-  Ok(DagJsonCodec::decode_from_slice(json.to_string().as_bytes())?)
+pub fn split_json_objects<S: AsRef<str>>(json: S) -> Result<Vec<String>, VerificationError> {
+  let objects: Vec<Ipld> = DagJsonCodec::decode_from_slice(json.as_ref().as_bytes())?;
+  objects.into_iter()
+    .map(|object| Ok(String::from_utf8(DagJsonCodec::encode_to_vec(&object)?).unwrap()))
+    .collect()
 }

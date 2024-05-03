@@ -5,7 +5,7 @@ mod strand;
 mod tixel;
 mod any_twine;
 mod twine;
-mod dag_json;
+pub mod dag_json;
 // mod payload;
 
 pub use twine_block::*;

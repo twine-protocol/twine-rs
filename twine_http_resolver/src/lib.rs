@@ -1,10 +1,10 @@
 use async_trait::async_trait;
-use futures::Stream;
+use futures::{Stream, TryStreamExt};
 use reqwest::{header::{ACCEPT, CONTENT_TYPE}, StatusCode, Url};
-use rs_car::{car_read_all, CarReader};
-use std::sync::Arc;
+use rs_car::car_read_all;
+use std::{pin::Pin, sync::Arc};
 use std::time::Duration;
-use twine_core::prelude::*;
+use twine_core::{prelude::*, twine::TwineBlock};
 use twine_core::resolver::{Resolver, ResolutionError};
 
 pub use reqwest;
@@ -77,7 +77,7 @@ impl HttpResolver {
     }
     let tp = response.headers().get(CONTENT_TYPE).map(|h| h.to_str().unwrap_or("")).unwrap_or("");
     match tp {
-      "application/vnd.ipld.car" => {
+      "application/vnd.ipld.car"|"application/octet-stream" => {
         let bytes = response.bytes().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
         let (blocks, header) = car_read_all(&mut bytes.as_ref(), false).await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
         let root = header.roots.first().ok_or(ResolutionError::Fetch("No roots found".to_string()))?;
@@ -108,15 +108,48 @@ impl HttpResolver {
     let (strand, response) = futures::future::join(strand, response).await;
     let strand = strand?;
     let response = response.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-    let tixel = match self.parse(response).await? {
-      AnyTwine::Tixel(tixel) => tixel,
-      AnyTwine::Strand(_) => return Err(ResolutionError::WrongType {
-        expected: "Tixel".to_string(),
-        found: "Strand".to_string(),
-      }),
-    };
+    let tixel = self.parse(response).await?.try_into()?;
     let twine = Twine::try_new_from_shared(strand, tixel)?;
     Ok(twine)
+  }
+
+  async fn fetch_tixel_range(&self, range: DefiniteRange) -> Result<reqwest::Response, ResolutionError> {
+    let path = format!("chains/{}/pulses/{}-{}", range.strand.as_cid(), range.upper, range.lower);
+    let response = self.req(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+    match response.error_for_status_ref() {
+      Ok(_) => {},
+      Err(e) => {
+        if let Some(StatusCode::NOT_FOUND) = e.status() {
+          return Err(ResolutionError::NotFound);
+        }
+        return Err(ResolutionError::Fetch(e.to_string()));
+      },
+    }
+    Ok(response)
+  }
+
+  async fn parse_collection_response(&self, response: reqwest::Response) -> Result<impl Stream<Item = Result<AnyTwine, ResolutionError>>, ResolutionError> {
+    let tp = response.headers().get(CONTENT_TYPE).map(|h| h.to_str().unwrap_or("")).unwrap_or("");
+    use futures::stream::StreamExt;
+    match tp {
+      "application/vnd.ipld.car"|"application/octet-stream" => {
+        let bytes = response.bytes().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+        // TODO: I'd love to use CarReader and stream this but it only borrows,
+        // so I can't give it ownership of the bytes
+        let (blocks, _) = car_read_all(&mut bytes.as_ref(), false).await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+        let stream = futures::stream::iter(blocks)
+          .then(|(cid, bytes)| async move {
+            AnyTwine::from_block(cid, bytes).map_err(|e| ResolutionError::Invalid(e))
+          });
+        Ok(stream.boxed())
+      },
+      _ => {
+        let json = response.text().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+        let twines = AnyTwine::from_dag_json_array(json).map_err(|e| ResolutionError::Invalid(e))?;
+        let stream = futures::stream::iter(twines.into_iter()).map(|t| Ok(t.clone()));
+        Ok(stream.boxed())
+      },
+    }
   }
 }
 
@@ -130,13 +163,7 @@ impl Resolver for HttpResolver {
     let cid = strand.as_cid();
     let path = format!("chains/{}", cid);
     let response = self.req(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-    match self.parse_expect(cid, response).await? {
-      AnyTwine::Strand(strand) => Ok(strand),
-      AnyTwine::Tixel(_) => Err(ResolutionError::WrongType {
-        expected: "Strand".to_string(),
-        found: "Tixel".to_string(),
-      }),
-    }
+    Ok(self.parse_expect(cid, response).await?.try_into()?)
   }
 
   async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError> {
@@ -154,7 +181,23 @@ impl Resolver for HttpResolver {
     Ok(twine)
   }
 
-  async fn resolve_range<C: AsCid + Send, R: RangeBounds<u64> + Send>(&self, strand: C, range: R) -> Result<Vec<Twine>, ResolutionError> {
-    todo!()
+  async fn resolve_range<R: Into<RangeQuery> + Send>(&self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + '_>>, ResolutionError> {
+    let range = range.into();
+    use futures::stream::StreamExt;
+    let strand = self.resolve_strand(range.strand_cid()).await?;
+    let stream = range.to_batch_stream(self, 100)
+      .then(|range| async {
+        let response = self.fetch_tixel_range(range?).await;
+        self.parse_collection_response(response?).await
+      })
+      .try_flatten()
+      .then(move |t| {
+        let strand = strand.clone();
+        async move {
+          let tixel = Arc::<Tixel>::try_from(t?)?;
+          Ok(Twine::try_new_from_shared(strand, tixel)?)
+        }
+      });
+    Ok(stream.boxed())
   }
 }

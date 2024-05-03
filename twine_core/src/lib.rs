@@ -16,6 +16,7 @@ pub mod resolver;
 
 pub use semver;
 pub use libipld;
+pub use twine::dag_json;
 
 pub mod prelude {
   pub use super::errors::VerificationError;
