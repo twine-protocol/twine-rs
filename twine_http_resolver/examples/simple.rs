@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let latest = resolver.resolve_latest(&twine).await?;
   println!("latest: {}", latest);
 
-  resolver.resolve_range((&twine, 100..3)).await?
+  resolver.resolve_range((&twine, 1800..1100)).await?
     .inspect_ok(|twine| println!("index: {}, cid: {}", twine.index(), twine.cid()))
     .inspect_err(|err| eprintln!("error: {}", err))
     .for_each(|_| async {}).await;

@@ -81,13 +81,13 @@ impl PartialOrd for Query {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct DefiniteRange {
+pub struct AbsoluteRange {
   pub strand: Cid,
   pub upper: u64,
   pub lower: u64,
 }
 
-impl DefiniteRange {
+impl AbsoluteRange {
   pub fn new(strand: Cid, upper: u64, lower: u64) -> Self {
     let upper = upper.max(lower);
     let lower = lower.min(upper);
@@ -98,7 +98,7 @@ impl DefiniteRange {
     let mut batches = Vec::new();
     let mut upper = self.upper;
     while upper > self.lower {
-      let lower = (upper + 1).saturating_sub(size);
+      let lower = (upper + 1).saturating_sub(size).max(self.lower);
       batches.push(Self::new(self.strand.clone(), upper, lower));
       upper = lower.saturating_sub(1);
     }
@@ -107,27 +107,27 @@ impl DefiniteRange {
 }
 
 #[derive(Debug, Clone)]
-pub struct DefiniteRangeIter {
-  range: DefiniteRange,
+pub struct AbsoluteRangeIter {
+  range: AbsoluteRange,
   current: u64,
 }
 
-impl IntoIterator for DefiniteRange {
+impl IntoIterator for AbsoluteRange {
   type Item = Query;
-  type IntoIter = DefiniteRangeIter;
+  type IntoIter = AbsoluteRangeIter;
 
   fn into_iter(self) -> Self::IntoIter {
-    DefiniteRangeIter::new(self)
+    AbsoluteRangeIter::new(self)
   }
 }
 
-impl DefiniteRangeIter {
-  pub fn new(range: DefiniteRange) -> Self {
+impl AbsoluteRangeIter {
+  pub fn new(range: AbsoluteRange) -> Self {
     Self { current: range.upper + 1, range }
   }
 }
 
-impl Iterator for DefiniteRangeIter {
+impl Iterator for AbsoluteRangeIter {
   type Item = Query;
 
   fn next(&mut self) -> Option<Self::Item> {
@@ -142,60 +142,78 @@ impl Iterator for DefiniteRangeIter {
 
 /// A range of indices on a strand
 ///
-/// The range can be definite, meaning the indices are known,
-/// or indefinite, meaning the range begins at the latest index to a known index,
-/// or relative, meaning the range begins at the latest index and goes back a certain number of indices.
+/// The range can be absolute, meaning the indices are known,
+/// or relative, meaning the range is somehow relative to the latest index.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum RangeQuery {
-  Definite(DefiniteRange),
-  Indefinite(Cid, u64),
-  Relative(Cid, u64),
+  Absolute(AbsoluteRange),
+  Relative(Cid, i64, i64),
 }
 
 impl RangeQuery {
-  // ..2 -> latest to 2
-  // 2.. -> 2 to 0
-  // 4..1 -> 4 to 2
-  // 2..=4 -> 4 to 2 again
-  // -1..5 -> latest to 6
-  // ..=-2 -> latest to (latest - 1)
+  // ..2 -> latest to 2 (relative)
+  // 2.. -> 2 to 0 (absolute)
+  // 4..1 -> 4 to 2 (absolute)
+  // 2..=4 -> 4 to 2 again (absolute)
+  // -1..5 -> latest to 6 (relative)
+  // ..=-2 -> latest to (latest - 1) (relative)
   pub fn from_range_bounds<C: AsCid, T: RangeBounds<i64>>(strand: C, range: T) -> Self {
-    let lower = match range.end_bound() {
-      std::ops::Bound::Included(u) => *u,
-      std::ops::Bound::Excluded(u) => u + 1,
-      std::ops::Bound::Unbounded => 0,
+    use std::ops::Bound;
+    let dir = |start: i64, end: i64| (end - start).signum();
+    let start = match range.start_bound() {
+      Bound::Unbounded => Bound::Included(&-1i64),
+      start@_ => start,
     };
-    let upper = match range.start_bound() {
-      std::ops::Bound::Included(u) => *u,
-      std::ops::Bound::Excluded(u) => u - 1,
-      std::ops::Bound::Unbounded => -1,
+    let end = match range.end_bound() {
+      Bound::Unbounded => Bound::Included(&0i64),
+      end@_ => end,
     };
+    let (start, end) = match (start, end) {
+      (Bound::Included(s), Bound::Included(e)) => (*s, *e),
+      (Bound::Included(s), Bound::Excluded(e)) => (*s, e - dir(*s, *e)),
+      (Bound::Excluded(s), Bound::Included(e)) => (s + dir(*s, *e), *e),
+      (Bound::Excluded(s), Bound::Excluded(e)) => (s + dir(*s, *e), e - dir(*s, *e)),
+      _ => unreachable!(),
+    };
+    let (upper, lower) = (start.max(end), start.min(end));
     match (upper, lower) {
-      (u, l) if u < 0 && l < 0 => Self::Relative(strand.as_cid().clone(), (-l) as u64),
-      (u, l) if u < 0 => Self::Indefinite(strand.as_cid().clone(), l as u64),
-      (u, l) if l < 0 => Self::Definite(DefiniteRange::new(strand.as_cid().clone(), u as u64, 0)),
-      (u, l) => Self::Definite(DefiniteRange::new(strand.as_cid().clone(), u as u64, l as u64)),
+      (u, l) if u >= 0 && l >= 0 => Self::Absolute(AbsoluteRange::new(strand.as_cid().clone(), u as u64, l as u64)),
+      (u, l) if u >= 0 => Self::Relative(strand.as_cid().clone(), l, u),
+      (u, l) => Self::Relative(strand.as_cid().clone(), u, l),
     }
   }
 
-  pub fn to_definite(self, latest: u64) -> DefiniteRange {
+  pub fn to_definite(self, latest: u64) -> AbsoluteRange {
     match self {
-      Self::Definite(range) => range,
-      Self::Indefinite(_, l) => DefiniteRange::new(Cid::default(), latest, l),
-      Self::Relative(_, l) => DefiniteRange::new(Cid::default(), latest, (latest + 1).saturating_sub(l)),
-    }
-  }
-
-  pub async fn try_to_definite<R: Resolver>(self, resolver: &R) -> Result<DefiniteRange, ResolutionError> {
-    match self {
-      Self::Definite(range) => Ok(range),
-      Self::Indefinite(strand, l) => {
-        let latest = resolver.resolve_latest(strand).await?.index();
-        Ok(DefiniteRange::new(strand, latest, l))
+      Self::Absolute(range) => range,
+      Self::Relative(cid, u, l) => {
+        let (u, l) = match (u, l) {
+          // this shouldn't happen.. but anyway..
+          (u, l) if u >= 0 && l >= 0 => ((u as u64).max(l as u64), (u as u64).min(l as u64)),
+          // if they are both less than zero, they are both relative
+          (u, l) if u < 0 && l < 0 =>
+            (
+              (latest + 1).saturating_sub(-u as u64),
+              (latest + 1).saturating_sub(-l as u64)
+            ),
+          // otherwise the first is relative and the second is absolute
+          (u, l) => (
+            (latest + 1).saturating_sub(-u as u64),
+            l as u64
+          ),
+        };
+        // ensure that the lower bound is less than or equal to the upper bound
+        AbsoluteRange::new(cid, u, l.min(u))
       }
-      Self::Relative(strand, l) => {
+    }
+  }
+
+  pub async fn try_to_definite<R: Resolver>(self, resolver: &R) -> Result<AbsoluteRange, ResolutionError> {
+    match self {
+      Self::Absolute(range) => Ok(range),
+      Self::Relative(strand, _, _) => {
         let latest = resolver.resolve_latest(strand).await?.index();
-        Ok(DefiniteRange::new(strand, latest, (latest + 1).saturating_sub(l)))
+        Ok(self.to_definite(latest))
       }
     }
   }
@@ -208,7 +226,7 @@ impl RangeQuery {
       .try_flatten()
   }
 
-  pub fn to_batch_stream<'a, R: Resolver>(self, resolver: &'a R, size: u64) -> impl Stream<Item = Result<DefiniteRange, ResolutionError>> + 'a {
+  pub fn to_batch_stream<'a, R: Resolver>(self, resolver: &'a R, size: u64) -> impl Stream<Item = Result<AbsoluteRange, ResolutionError>> + 'a {
     use futures::stream::StreamExt;
     once(async move {
       self.try_to_definite(resolver).await
@@ -216,15 +234,14 @@ impl RangeQuery {
     }).try_flatten()
   }
 
-  pub fn is_definite(&self) -> bool {
-    matches!(self, Self::Definite(_))
+  pub fn is_absolute(&self) -> bool {
+    matches!(self, Self::Absolute(_))
   }
 
   pub fn strand_cid(&self) -> &Cid {
     match self {
-      Self::Definite(range) => &range.strand,
-      Self::Indefinite(strand, _) => strand,
-      Self::Relative(strand, _) => strand,
+      Self::Absolute(range) => &range.strand,
+      Self::Relative(strand, _, _) => strand,
     }
   }
 }
@@ -310,16 +327,28 @@ mod test {
   fn test_range_query_bounds() {
     let cid = Cid::default();
     let range = RangeQuery::from_range_bounds(&cid, 0..2);
-    assert_eq!(range, RangeQuery::Definite(DefiniteRange::new(cid, 1, 0)));
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 1, 0)));
     let range = RangeQuery::from_range_bounds(&cid, 2..);
-    assert_eq!(range, RangeQuery::Definite(DefiniteRange::new(cid, 2, 0)));
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 2, 0)));
     let range = RangeQuery::from_range_bounds(&cid, 4..1);
-    assert_eq!(range, RangeQuery::Definite(DefiniteRange::new(cid, 4, 2)));
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 4, 2)));
     let range = RangeQuery::from_range_bounds(&cid, 2..=4);
-    assert_eq!(range, RangeQuery::Definite(DefiniteRange::new(cid, 4, 2)));
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 4, 2)));
+    let range = RangeQuery::from_range_bounds(&cid, 3..=1);
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 3, 1)));
     let range = RangeQuery::from_range_bounds(&cid, -1..);
-    assert_eq!(range, RangeQuery::Indefinite(cid, 1));
+    assert_eq!(range, RangeQuery::Relative(cid, -1, 0));
     let range = RangeQuery::from_range_bounds(&cid, ..=-2);
-    assert_eq!(range, RangeQuery::Indefinite(cid, 2));
+    assert_eq!(range, RangeQuery::Relative(cid, -1, -2));
+    let range = RangeQuery::from_range_bounds(&cid, ..);
+    assert_eq!(range, RangeQuery::Relative(cid, -1, 0));
+    let range = RangeQuery::from_range_bounds(&cid, -1..-1);
+    assert_eq!(range, RangeQuery::Relative(cid, -1, -1));
+    let range = RangeQuery::from_range_bounds(&cid, -1..=-2);
+    assert_eq!(range, RangeQuery::Relative(cid, -1, -2));
+    let range = RangeQuery::from_range_bounds(&cid, ..=2);
+    assert_eq!(range, RangeQuery::Relative(cid, -1, 2));
+    let range = RangeQuery::from_range_bounds(&cid, -3..-1);
+    assert_eq!(range, RangeQuery::Relative(cid, -2, -3));
   }
 }

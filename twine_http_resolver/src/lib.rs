@@ -13,6 +13,7 @@ pub use reqwest;
 pub struct HttpResolverOptions {
   pub url: Url,
   pub timeout: Duration,
+  pub buffer_size: usize,
 }
 
 impl Default for HttpResolverOptions {
@@ -20,6 +21,7 @@ impl Default for HttpResolverOptions {
     Self {
       url: "http://localhost:8080".parse().unwrap(),
       timeout: Duration::from_secs(30),
+      buffer_size: 4,
     }
   }
 }
@@ -32,6 +34,11 @@ impl HttpResolverOptions {
 
   pub fn timeout(mut self, timeout: Duration) -> Self {
     self.timeout = timeout;
+    self
+  }
+
+  pub fn buffer_size(mut self, buffer_size: usize) -> Self {
+    self.buffer_size = buffer_size;
     self
   }
 }
@@ -113,7 +120,7 @@ impl HttpResolver {
     Ok(twine)
   }
 
-  async fn fetch_tixel_range(&self, range: DefiniteRange) -> Result<reqwest::Response, ResolutionError> {
+  async fn fetch_tixel_range(&self, range: AbsoluteRange) -> Result<reqwest::Response, ResolutionError> {
     let path = format!("chains/{}/pulses/{}-{}", range.strand.as_cid(), range.upper, range.lower);
     let response = self.req(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
     match response.error_for_status_ref() {
@@ -186,10 +193,11 @@ impl Resolver for HttpResolver {
     use futures::stream::StreamExt;
     let strand = self.resolve_strand(range.strand_cid()).await?;
     let stream = range.to_batch_stream(self, 100)
-      .then(|range| async {
+      .map(|range| async {
         let response = self.fetch_tixel_range(range?).await;
         self.parse_collection_response(response?).await
       })
+      .buffered(self.options.buffer_size)
       .try_flatten()
       .then(move |t| {
         let strand = strand.clone();
