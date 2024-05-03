@@ -12,3 +12,4 @@ rs-car = "0.4"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
+futures-time = "3.0"

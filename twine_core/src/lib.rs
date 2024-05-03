@@ -21,6 +21,6 @@ pub mod prelude {
   pub use super::errors::VerificationError;
   pub use libipld::Cid;
   pub use super::twine::{Twine, AnyTwine, Strand, Tixel, Stitch, TwineBlock};
-  pub use super::resolver::{Resolver, Query, ResolutionError};
+  pub use super::resolver::*;
   pub use super::as_cid::AsCid;
 }

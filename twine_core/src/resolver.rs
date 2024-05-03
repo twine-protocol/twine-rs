@@ -1,5 +1,5 @@
 use std::{ops::RangeBounds, sync::Arc};
-use futures::{stream::Iter, Stream};
+use futures::{stream::once, Stream, TryStreamExt};
 use thiserror::Error;
 use libipld::Cid;
 use async_trait::async_trait;
@@ -85,13 +85,13 @@ impl PartialOrd for Query {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct StrandRange {
+pub struct DefiniteRange {
   pub strand: Cid,
   pub upper: u64,
   pub lower: u64,
 }
 
-impl StrandRange {
+impl DefiniteRange {
   pub fn new(strand: Cid, upper: u64, lower: u64) -> Self {
     let upper = upper.max(lower);
     let lower = lower.min(upper);
@@ -111,27 +111,27 @@ impl StrandRange {
 }
 
 #[derive(Debug, Clone)]
-pub struct StrandRangeIter {
-  range: StrandRange,
+pub struct DefiniteRangeIter {
+  range: DefiniteRange,
   current: u64,
 }
 
-impl IntoIterator for StrandRange {
+impl IntoIterator for DefiniteRange {
   type Item = Query;
-  type IntoIter = StrandRangeIter;
+  type IntoIter = DefiniteRangeIter;
 
   fn into_iter(self) -> Self::IntoIter {
-    StrandRangeIter::new(self)
+    DefiniteRangeIter::new(self)
   }
 }
 
-impl StrandRangeIter {
-  pub fn new(range: StrandRange) -> Self {
-    Self { range, current: range.upper + 1 }
+impl DefiniteRangeIter {
+  pub fn new(range: DefiniteRange) -> Self {
+    Self { current: range.upper + 1, range }
   }
 }
 
-impl Iterator for StrandRangeIter {
+impl Iterator for DefiniteRangeIter {
   type Item = Query;
 
   fn next(&mut self) -> Option<Self::Item> {
@@ -151,7 +151,7 @@ impl Iterator for StrandRangeIter {
 /// or relative, meaning the range begins at the latest index and goes back a certain number of indices.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum RangeQuery {
-  Definite(StrandRange),
+  Definite(DefiniteRange),
   Indefinite(Cid, u64),
   Relative(Cid, u64),
 }
@@ -177,17 +177,47 @@ impl RangeQuery {
     match (upper, lower) {
       (u, l) if u < 0 && l < 0 => Self::Relative(strand.as_cid().clone(), (-l) as u64),
       (u, l) if u < 0 => Self::Indefinite(strand.as_cid().clone(), l as u64),
-      (u, l) if l < 0 => Self::Definite(StrandRange::new(strand.as_cid().clone(), u as u64, 0)),
-      (u, l) => Self::Definite(StrandRange::new(strand.as_cid().clone(), u as u64, l as u64)),
+      (u, l) if l < 0 => Self::Definite(DefiniteRange::new(strand.as_cid().clone(), u as u64, 0)),
+      (u, l) => Self::Definite(DefiniteRange::new(strand.as_cid().clone(), u as u64, l as u64)),
     }
   }
 
-  pub fn to_definite(self, latest: u64) -> StrandRange {
+  pub fn to_definite(self, latest: u64) -> DefiniteRange {
     match self {
       Self::Definite(range) => range,
-      Self::Indefinite(_, l) => StrandRange::new(Cid::default(), latest, l),
-      Self::Relative(_, l) => StrandRange::new(Cid::default(), latest, (latest + 1).saturating_sub(l)),
+      Self::Indefinite(_, l) => DefiniteRange::new(Cid::default(), latest, l),
+      Self::Relative(_, l) => DefiniteRange::new(Cid::default(), latest, (latest + 1).saturating_sub(l)),
     }
+  }
+
+  pub async fn try_to_definite<R: Resolver>(self, resolver: &R) -> Result<DefiniteRange, ResolutionError> {
+    match self {
+      Self::Definite(range) => Ok(range),
+      Self::Indefinite(strand, l) => {
+        let latest = resolver.resolve_latest(strand).await?.index();
+        Ok(DefiniteRange::new(strand, latest, l))
+      }
+      Self::Relative(strand, l) => {
+        let latest = resolver.resolve_latest(strand).await?.index();
+        Ok(DefiniteRange::new(strand, latest, (latest + 1).saturating_sub(l)))
+      }
+    }
+  }
+
+  pub fn to_stream<'a, R: Resolver>(self, resolver: &'a R) -> impl Stream<Item = Result<Query, ResolutionError>> + 'a {
+    once(async move {
+      self.try_to_definite(resolver).await
+        .map(|result| futures::stream::iter(result.into_iter().map(Ok)))
+    })
+      .try_flatten()
+  }
+
+  pub fn to_batch_stream<'a, R: Resolver>(self, resolver: &'a R, size: u64) -> impl Stream<Item = Result<DefiniteRange, ResolutionError>> + 'a {
+    use futures::stream::StreamExt;
+    once(async move {
+      self.try_to_definite(resolver).await
+        .map(|result| futures::stream::iter(result.batches(size)).map(Ok))
+    }).try_flatten()
   }
 
   pub fn is_definite(&self) -> bool {
@@ -195,8 +225,14 @@ impl RangeQuery {
   }
 }
 
+impl<C, R> From<(C, R)> for RangeQuery where R: RangeBounds<i64>, C: AsCid {
+  fn from((strand, range): (C, R)) -> Self {
+    Self::from_range_bounds(strand.as_cid(), range)
+  }
+}
+
 #[async_trait]
-pub trait Resolver {
+pub trait Resolver: Clone + Send + Sync {
   async fn resolve_cid<C: AsCid + Send>(&self, cid: C) -> Result<AnyTwine, ResolutionError>;
   async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError>;
   async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<Twine, ResolutionError>;
@@ -214,6 +250,7 @@ pub trait Resolver {
       Query::Latest(strand) => self.resolve_latest(strand).await,
     }
   }
+
   async fn resolve_tixel<C: AsCid + Send>(&self, tixel: C) -> Result<Arc<Tixel>, ResolutionError> {
     let twine = self.resolve_cid(tixel).await?;
     match twine {
@@ -224,6 +261,7 @@ pub trait Resolver {
       }),
     }
   }
+
   async fn resolve_strand<C: AsCid + Send>(&self, strand: C) -> Result<Arc<Strand>, ResolutionError> {
     let task = self.resolve_cid(strand);
     let twine = task.await?;
@@ -236,6 +274,37 @@ pub trait Resolver {
     }
   }
 
-  async fn resolve_range<C: AsCid + Send, R: RangeBounds<u64> + Send>(&self, strand: C, range: R) -> Result<Vec<Twine>, ResolutionError>;
+  fn resolve_range<'a, R: Into<RangeQuery> + Send>(&'a self, range: R) -> impl Stream<Item = Result<Twine, ResolutionError>> + 'a {
+    let range = range.into();
+    use futures::stream::StreamExt;
+    range.to_stream(self)
+      .then(|q| async { self.resolve(q?).await })
+  }
 }
 
+// #[async_trait]
+// impl<T> Resolver for Arc<T> where T: Resolver {
+//   async fn resolve_cid<C: AsCid + Send>(&self, cid: C) -> Result<AnyTwine, ResolutionError> {
+//     self.as_ref().resolve_cid(cid).await
+//   }
+
+//   async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError> {
+//     self.as_ref().resolve_index(strand, index).await
+//   }
+
+//   async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<Twine, ResolutionError> {
+//     self.as_ref().resolve_latest(strand).await
+//   }
+
+//   async fn resolve_tixel<C: AsCid + Send>(&self, tixel: C) -> Result<Arc<Tixel>, ResolutionError> {
+//     self.as_ref().resolve_tixel(tixel).await
+//   }
+
+//   async fn resolve_strand<C: AsCid + Send>(&self, strand: C) -> Result<Arc<Strand>, ResolutionError> {
+//     self.as_ref().resolve_strand(strand).await
+//   }
+
+//   fn resolve_range<C: AsCid + Send, R: RangeBounds<i64> + Send>(&self, strand: C, range: R) -> impl Stream<Item = Result<Twine, ResolutionError>> where Self: Sized + Sync {
+//     self.as_ref().resolve_range(strand, range)
+//   }
+// }

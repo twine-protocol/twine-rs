@@ -1,5 +1,9 @@
+use futures::{StreamExt, TryStreamExt};
 use twine_http_resolver::*;
 use twine_core::prelude::*;
+use futures_time::prelude::*;
+use futures_time::time::Duration;
+use futures_time::stream;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -13,8 +17,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let tenth = resolver.resolve_index(&twine, 10).await?;
   println!("tenth: {}", tenth);
 
-  let latest = resolver.resolve_latest(twine).await?;
+  let latest = resolver.resolve_latest(&twine).await?;
   println!("latest: {}", latest);
+
+  resolver.resolve_range((twine, 100..3))
+    .inspect_ok(|twine| println!("index: {}, cid: {}", twine.index(), twine.cid()))
+    .inspect_err(|err| eprintln!("error: {}", err))
+    .for_each(|_| async {}).await;
 
   Ok(())
 }

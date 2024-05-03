@@ -1,7 +1,8 @@
 use async_trait::async_trait;
+use futures::Stream;
 use reqwest::{header::{ACCEPT, CONTENT_TYPE}, StatusCode, Url};
-use rs_car::car_read_all;
-use std::{ops::RangeBounds, sync::Arc};
+use rs_car::{car_read_all, CarReader};
+use std::sync::Arc;
 use std::time::Duration;
 use twine_core::prelude::*;
 use twine_core::resolver::{Resolver, ResolutionError};
