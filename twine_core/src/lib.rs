@@ -13,6 +13,7 @@ pub mod verify;
 pub mod specification;
 pub mod schemas;
 pub mod resolver;
+pub mod store;
 
 pub use semver;
 pub use libipld;
@@ -23,5 +24,6 @@ pub mod prelude {
   pub use libipld::Cid;
   pub use super::twine::{Twine, AnyTwine, Strand, Tixel, Stitch, TwineBlock};
   pub use super::resolver::*;
+  pub use super::store::*;
   pub use super::as_cid::AsCid;
 }

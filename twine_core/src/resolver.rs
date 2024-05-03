@@ -18,7 +18,6 @@ pub enum ResolutionError {
   Fetch(String),
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum Query {
   Stitch(Stitch),
@@ -257,6 +256,10 @@ pub trait Resolver: Clone + Send + Sync {
   async fn resolve_cid<C: AsCid + Send>(&self, cid: C) -> Result<AnyTwine, ResolutionError>;
   async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError>;
   async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<Twine, ResolutionError>;
+
+  async fn has<C: AsCid + Send>(&self, cid: C) -> bool {
+    self.resolve_cid(cid).await.is_ok()
+  }
 
   async fn resolve<Q: Into<Query> + Send>(&self, query: Q) -> Result<Twine, ResolutionError> {
     let query = query.into();
