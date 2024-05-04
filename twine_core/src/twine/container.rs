@@ -157,3 +157,17 @@ impl<C> Display for TwineContainer<C> where C: TwineContent + Serialize + for<'d
   }
 }
 
+#[cfg(test)]
+mod test {
+  use crate::prelude::*;
+  use crate::test::*;
+
+  #[test]
+  fn test_invalid_signature(){
+    let strand = Strand::from_dag_json(STRANDJSON).unwrap();
+    let mut tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+    tixel.signature = tixel.signature.replace("jvap", "javp");
+    let res = strand.verify_tixel(&tixel);
+    assert!(res.is_err(), "Signature verification should have failed");
+  }
+}

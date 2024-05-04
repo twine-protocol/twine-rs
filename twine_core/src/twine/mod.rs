@@ -16,5 +16,3 @@ pub use any_twine::AnyTwine;
 pub use twine::*;
 // pub use payload::*;
 
-// just tests
-mod test;

@@ -9,7 +9,6 @@ pub mod crypto;
 pub mod as_cid;
 pub mod twine;
 pub mod verify;
-// pub mod utils;
 pub mod specification;
 pub mod schemas;
 pub mod resolver;
@@ -27,3 +26,7 @@ pub mod prelude {
   pub use super::store::*;
   pub use super::as_cid::AsCid;
 }
+
+#[cfg(test)]
+mod test;
+
