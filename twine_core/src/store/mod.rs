@@ -1,4 +1,4 @@
 mod store;
-use store::*;
+pub use store::*;
 mod memory_store;
-use memory_store::*;
+pub use memory_store::*;

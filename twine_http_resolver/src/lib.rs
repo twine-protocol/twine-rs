@@ -166,6 +166,17 @@ impl Resolver for HttpResolver {
     unimplemented!()
   }
 
+  async fn strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + '_>>, ResolutionError> {
+    let response = self.req("chains").send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+    use futures::stream::StreamExt;
+    let stream = self.parse_collection_response(response).await?;
+    let stream = stream.map(|t| {
+      let strand = Arc::<Strand>::try_from(t?)?;
+      Ok(strand)
+    });
+    Ok(stream.boxed())
+  }
+
   async fn resolve_strand<C: AsCid + Send>(&self, strand: C) -> Result<Arc<Strand>, ResolutionError> {
     let cid = strand.as_cid();
     let path = format!("chains/{}", cid);

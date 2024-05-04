@@ -42,6 +42,13 @@ impl MemoryStore {
 
 #[async_trait]
 impl Resolver for MemoryStore {
+  async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + 'a>>, ResolutionError> {
+    let iter = self.strands.values().map(|s| Ok(s.strand.clone()));
+    use futures::stream::StreamExt;
+    let stream = futures::stream::iter(iter);
+    Ok(stream.boxed())
+  }
+
   async fn resolve_cid<'a, C: AsCid + Send>(&'a self, cid: C) -> Result<AnyTwine, ResolutionError> {
     let cid = cid.as_cid();
     if let Some(tixel) = self.tixels.get(&cid) {
@@ -115,12 +122,14 @@ impl Store for MemoryStore {
         self.strands.entry(strand.cid()).or_insert(StrandMap::new(strand));
       },
       AnyTwine::Tixel(tixel) => {
-        let strand_cid = tixel.strand_cid();
-        if let Some(strand) = self.strands.get_mut(&strand_cid) {
-          strand.by_index.insert(tixel.index(), tixel.clone());
-          self.tixels.insert(tixel.cid(), tixel);
-        } else {
-          return Err("Strand not found".into());
+        if let None = self.tixels.get(&tixel.cid()) {
+          let strand_cid = tixel.strand_cid();
+          if let Some(strand) = self.strands.get_mut(&strand_cid) {
+            strand.by_index.insert(tixel.index(), tixel.clone());
+            self.tixels.insert(tixel.cid(), tixel);
+          } else {
+            return Err("Strand not found".into());
+          }
         }
       },
     }
@@ -146,5 +155,57 @@ impl Store for MemoryStore {
       }
     }
     Ok(())
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use super::*;
+  use crate::prelude::*;
+  use crate::test::*;
+
+  #[tokio::test]
+  async fn test_memory_store() {
+    let mut store = MemoryStore::new();
+    let strand = Strand::from_dag_json(STRANDJSON).unwrap();
+    let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+    store.save(strand.clone()).await.unwrap();
+    store.save(tixel.clone()).await.unwrap();
+    let strand2 = store.resolve_cid(strand.cid()).await.unwrap();
+    let tixel2 = store.resolve_cid(tixel.cid()).await.unwrap();
+    assert_eq!(strand, strand2);
+    assert_eq!(tixel, tixel2);
+    store.delete(strand.cid()).await.unwrap();
+    store.delete(tixel.cid()).await.unwrap();
+    assert!(store.resolve_cid(strand.cid()).await.is_err());
+    assert!(store.resolve_cid(tixel.cid()).await.is_err());
+  }
+
+  #[tokio::test]
+  async fn test_memory_store_save_many() {
+    let mut store = MemoryStore::new();
+    let strand = Strand::from_dag_json(STRANDJSON).unwrap();
+    let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+    let things: Vec<AnyTwine> = vec![strand.clone().into(), tixel.clone().into()];
+    store.save_many(things).await.unwrap();
+    let strand2 = store.resolve_cid(strand.cid()).await.unwrap();
+    let tixel2 = store.resolve_cid(tixel.cid()).await.unwrap();
+    assert_eq!(strand, strand2);
+    assert_eq!(tixel, tixel2);
+    store.delete(strand.cid()).await.unwrap();
+    store.delete(tixel.cid()).await.unwrap();
+    assert!(store.resolve_cid(strand.cid()).await.is_err());
+    assert!(store.resolve_cid(tixel.cid()).await.is_err());
+  }
+
+  #[tokio::test]
+  async fn test_memory_store_strand_list() {
+    let mut store = MemoryStore::new();
+    let strand = Strand::from_dag_json(STRANDJSON).unwrap();
+    store.save(strand.clone()).await.unwrap();
+    let mut stream = store.strands().await.unwrap();
+    use futures::stream::TryStreamExt;
+    let strand2 = stream.try_next().await.unwrap().unwrap();
+    assert_eq!(strand, *strand2);
   }
 }

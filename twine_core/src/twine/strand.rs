@@ -1,6 +1,7 @@
 use crate::{crypto::verify_signature, schemas::v1, specification::Subspec, verify::Verifiable};
 use josekit::jwk::Jwk;
 use semver::Version;
+use libipld::ipld::Ipld;
 use serde::{Serialize, Deserialize};
 use super::{container::{TwineContainer, TwineContent}, Stitch, Tixel};
 use crate::errors::VerificationError;
@@ -29,6 +30,10 @@ impl Strand {
 
   pub fn radix(&self) -> u64 {
     self.content().radix()
+  }
+
+  pub fn details(&self) -> Ipld {
+    self.content().details()
   }
 
   pub fn verify_tixel(&self, tixel: &Tixel) -> Result<(), VerificationError> {
@@ -92,6 +97,12 @@ impl StrandContent {
   pub fn subspec(&self) -> Option<Subspec> {
     match self {
       StrandContent::V1(v) => v.specification.subspec(),
+    }
+  }
+
+  pub fn details(&self) -> Ipld {
+    match self {
+      StrandContent::V1(v) => v.meta.clone(),
     }
   }
 

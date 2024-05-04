@@ -74,6 +74,36 @@ impl AnyTwine {
   }
 }
 
+impl PartialEq<Tixel> for AnyTwine {
+  fn eq(&self, other: &Tixel) -> bool {
+    match self {
+      Self::Tixel(t) => **t == *other,
+      _ => false,
+    }
+  }
+}
+
+impl PartialEq<AnyTwine> for Tixel {
+  fn eq(&self, other: &AnyTwine) -> bool {
+    other == self
+  }
+}
+
+impl PartialEq<Strand> for AnyTwine {
+  fn eq(&self, other: &Strand) -> bool {
+    match self {
+      Self::Strand(s) => **s == *other,
+      _ => false,
+    }
+  }
+}
+
+impl PartialEq<AnyTwine> for Strand {
+  fn eq(&self, other: &AnyTwine) -> bool {
+    other == self
+  }
+}
+
 impl TryFrom<AnyTwine> for Arc<Tixel> {
   type Error = VerificationError;
 

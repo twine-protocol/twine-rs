@@ -257,6 +257,8 @@ pub trait Resolver: Clone + Send + Sync {
   async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError>;
   async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<Twine, ResolutionError>;
 
+  async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + 'a>>, ResolutionError>;
+
   async fn has<C: AsCid + Send>(&self, cid: C) -> bool {
     self.resolve_cid(cid).await.is_ok()
   }
