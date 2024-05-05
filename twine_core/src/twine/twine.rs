@@ -70,6 +70,12 @@ impl From<Twine> for Cid {
   }
 }
 
+impl AsRef<Cid> for Twine {
+  fn as_ref(&self) -> &Cid {
+    self.tixel.as_cid()
+  }
+}
+
 impl AsCid for Twine {
   fn as_cid(&self) -> &Cid {
     self.tixel.as_cid()
@@ -78,7 +84,7 @@ impl AsCid for Twine {
 
 impl PartialEq<Tixel> for Twine {
   fn eq(&self, other: &Tixel) -> bool {
-    self.eq(other)
+    (*self.tixel).eq(other)
   }
 }
 
