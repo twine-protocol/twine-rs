@@ -9,6 +9,8 @@ use std::error::Error;
 use crate::as_cid::AsCid;
 use crate::twine::AnyTwine;
 use async_trait::async_trait;
+// use async_std::sync::RwLock;
+use std::sync::RwLock;
 
 #[derive(Debug, Clone)]
 struct StrandMap {
@@ -27,15 +29,15 @@ impl StrandMap {
 
 #[derive(Debug, Default, Clone)]
 pub struct MemoryStore {
-  tixels: HashMap<Cid, Arc<Tixel>>,
-  strands: HashMap<Cid, StrandMap>,
+  tixels: Arc<RwLock<HashMap<Cid, Arc<Tixel>>>>,
+  strands: Arc<RwLock<HashMap<Cid, StrandMap>>>,
 }
 
 impl MemoryStore {
   pub fn new() -> Self {
     Self {
-      tixels: HashMap::new(),
-      strands: HashMap::new(),
+      tixels: Arc::new(RwLock::new(HashMap::new())),
+      strands: Arc::new(RwLock::new(HashMap::new())),
     }
   }
 }
@@ -43,7 +45,11 @@ impl MemoryStore {
 #[async_trait]
 impl Resolver for MemoryStore {
   async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
-    let iter = self.strands.values().map(|s| Ok(s.strand.clone()));
+    let iter = self.strands.read().unwrap()
+      .values()
+      .map(|s| Ok(s.strand.clone()))
+      .collect::<Vec<Result<Arc<Strand>, ResolutionError>>>();
+
     use futures::stream::StreamExt;
     let stream = futures::stream::iter(iter);
     Ok(stream.boxed())
@@ -51,9 +57,9 @@ impl Resolver for MemoryStore {
 
   async fn resolve_cid<'a, C: AsCid + Send>(&'a self, cid: C) -> Result<AnyTwine, ResolutionError> {
     let cid = cid.as_cid();
-    if let Some(tixel) = self.tixels.get(&cid) {
+    if let Some(tixel) = self.tixels.read().unwrap().get(&cid) {
       Ok(AnyTwine::Tixel(tixel.clone()))
-    } else if let Some(strand) = self.strands.get(&cid) {
+    } else if let Some(strand) = self.strands.read().unwrap().get(&cid) {
       Ok(AnyTwine::Strand(strand.strand.clone()))
     } else {
       Err(ResolutionError::NotFound)
@@ -62,7 +68,7 @@ impl Resolver for MemoryStore {
 
   async fn resolve_strand<C: AsCid + Send>(&self, strand: C) -> Result<Arc<Strand>, ResolutionError> {
     let cid = strand.as_cid();
-    if let Some(s) = self.strands.get(&cid) {
+    if let Some(s) = self.strands.read().unwrap().get(&cid) {
       Ok(s.strand.clone())
     } else {
       Err(ResolutionError::NotFound)
@@ -71,7 +77,7 @@ impl Resolver for MemoryStore {
 
   async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError> {
     let cid = strand.as_cid();
-    if let Some(s) = self.strands.get(&cid) {
+    if let Some(s) = self.strands.read().unwrap().get(&cid) {
       if let Some(tixel) = s.by_index.get(&index) {
         Ok(Twine::try_new_from_shared(s.strand.clone(), tixel.clone())?)
       } else {
@@ -84,7 +90,7 @@ impl Resolver for MemoryStore {
 
   async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<Twine, ResolutionError> {
     let cid = strand.as_cid();
-    if let Some(s) = self.strands.get(&cid) {
+    if let Some(s) = self.strands.read().unwrap().get(&cid) {
       if let Some((_index, tixel)) = s.by_index.last_key_value() {
         Ok(Twine::try_new_from_shared(s.strand.clone(), tixel.clone())?)
       } else {
@@ -98,15 +104,16 @@ impl Resolver for MemoryStore {
   async fn resolve_range<R: Into<RangeQuery> + Send>(&self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + Send + '_>>, ResolutionError> {
     let range = range.into();
     let range = range.try_to_definite(self).await?;
-    use futures::stream::StreamExt;
     let strand = self.resolve_strand(range.strand).await?;
-    if let Some(entry) = self.strands.get(&strand.cid()) {
-      let iter = entry.by_index.values()
-        .skip(range.lower as usize)
-        .take((range.upper - range.lower) as usize)
+    use futures::stream::StreamExt;
+    if let Some(entry) = self.strands.read().unwrap().get(&range.strand) {
+      let list = (range.lower..=range.upper)
+        .map(|i| entry.by_index.get(&i).cloned())
+        .map(|t| t.ok_or(ResolutionError::NotFound))
+        .map(|t| Ok(Twine::try_new_from_shared(strand.clone(), t?)?))
         .rev()
-        .map(move |t| Ok(Twine::try_new_from_shared(strand.clone(), t.clone())?));
-      let stream = futures::stream::iter(iter);
+        .collect::<Vec<Result<Twine, ResolutionError>>>();
+      let stream = futures::stream::iter(list);
       Ok(stream.boxed())
     } else {
       Err(ResolutionError::NotFound)
@@ -116,17 +123,18 @@ impl Resolver for MemoryStore {
 
 #[async_trait]
 impl Store for MemoryStore {
-  async fn save<T: Into<AnyTwine> + Send + Sync>(&mut self, twine: T) -> Result<(), Box<dyn Error>> {
+  async fn save<T: Into<AnyTwine> + Send + Sync>(&self, twine: T) -> Result<(), Box<dyn Error>> {
     match twine.into() {
       AnyTwine::Strand(strand) => {
-        self.strands.entry(strand.cid()).or_insert(StrandMap::new(strand));
+        self.strands.write().unwrap().entry(strand.cid()).or_insert(StrandMap::new(strand));
       },
       AnyTwine::Tixel(tixel) => {
-        if let None = self.tixels.get(&tixel.cid()) {
+        let mut tixels = self.tixels.write().unwrap();
+        if let None = { tixels.get(&tixel.cid()) } {
           let strand_cid = tixel.strand_cid();
-          if let Some(strand) = self.strands.get_mut(&strand_cid) {
+          if let Some(strand) = self.strands.write().unwrap().get_mut(&strand_cid) {
             strand.by_index.insert(tixel.index(), tixel.clone());
-            self.tixels.insert(tixel.cid(), tixel);
+            tixels.insert(tixel.cid(), tixel);
           } else {
             return Err("Strand not found".into());
           }
@@ -136,21 +144,26 @@ impl Store for MemoryStore {
     Ok(())
   }
 
-  async fn save_many<T: Into<AnyTwine> + Send + Sync>(&mut self, twines: Vec<T>) -> Result<(), Box<dyn Error>> {
-    for twine in twines {
-      self.save(twine).await?;
-    }
+  async fn save_many<I: Into<AnyTwine> + Send + Sync, T: Stream<Item = I> + Send + Sync>(&self, twines: T) -> Result<(), Box<dyn Error>> {
+    use futures::stream::{StreamExt, TryStreamExt};
+    twines
+      .then(|twine| async {
+        self.save(twine).await?;
+        Ok::<(), Box<dyn Error>>(())
+      })
+      .try_all(|_| async { true })
+      .await?;
     Ok(())
   }
 
-  async fn delete<C: AsCid + Send + Sync>(&mut self, cid: C) -> Result<(), Box<dyn Error>> {
+  async fn delete<C: AsCid + Send + Sync>(&self, cid: C) -> Result<(), Box<dyn Error>> {
     let cid = cid.as_cid();
-    if let Some(s) = self.strands.remove(&cid) {
+    if let Some(s) = self.strands.write().unwrap().remove(&cid) {
       for tixel in s.by_index.values() {
-        self.tixels.remove(&tixel.cid());
+        self.tixels.write().unwrap().remove(&tixel.cid());
       }
-    } else if let Some(tixel) = self.tixels.remove(&cid) {
-      if let Some(strand) = self.strands.get_mut(&tixel.strand_cid()) {
+    } else if let Some(tixel) = self.tixels.write().unwrap().remove(&cid) {
+      if let Some(strand) = self.strands.write().unwrap().get_mut(&tixel.strand_cid()) {
         strand.by_index.remove(&tixel.index());
       }
     }

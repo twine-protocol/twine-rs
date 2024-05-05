@@ -88,6 +88,12 @@ impl PartialEq<Tixel> for Twine {
   }
 }
 
+impl PartialEq<Twine> for Tixel {
+  fn eq(&self, other: &Twine) -> bool {
+    self.eq(&*other.tixel)
+  }
+}
+
 impl Display for Twine {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}", self.tixel)

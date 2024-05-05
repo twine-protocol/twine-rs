@@ -28,4 +28,3 @@ impl<T> AsCid for Box<T> where T: AsCid {
     self.as_ref().as_cid()
   }
 }
-
