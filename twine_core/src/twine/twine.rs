@@ -27,12 +27,12 @@ impl Twine {
     Ok(Self { strand, tixel })
   }
 
-  pub fn strand(&self) -> &Strand {
-    &self.strand
+  pub fn strand(&self) -> Arc<Strand> {
+    self.strand.clone()
   }
 
-  pub fn tixel(&self) -> &Tixel {
-    &self.tixel
+  pub fn tixel(&self) -> Arc<Tixel> {
+    self.tixel.clone()
   }
 
   pub fn radix(&self) -> u64 {
@@ -60,7 +60,7 @@ impl Deref for Twine {
   type Target = Tixel;
 
   fn deref(&self) -> &Self::Target {
-    self.tixel()
+    &self.tixel
   }
 }
 
@@ -72,7 +72,13 @@ impl From<Twine> for Cid {
 
 impl AsCid for Twine {
   fn as_cid(&self) -> &Cid {
-    self.tixel().as_cid()
+    self.tixel.as_cid()
+  }
+}
+
+impl PartialEq<Tixel> for Twine {
+  fn eq(&self, other: &Tixel) -> bool {
+    self.eq(other)
   }
 }
 

@@ -166,7 +166,7 @@ impl Resolver for HttpResolver {
     unimplemented!()
   }
 
-  async fn strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + '_>>, ResolutionError> {
+  async fn strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
     let response = self.req("chains").send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
     use futures::stream::StreamExt;
     let stream = self.parse_collection_response(response).await?;
@@ -199,7 +199,7 @@ impl Resolver for HttpResolver {
     Ok(twine)
   }
 
-  async fn resolve_range<R: Into<RangeQuery> + Send>(&self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + '_>>, ResolutionError> {
+  async fn resolve_range<R: Into<RangeQuery> + Send>(&self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + Send + '_>>, ResolutionError> {
     let range = range.into();
     use futures::stream::StreamExt;
     let strand = self.resolve_strand(range.strand_cid()).await?;

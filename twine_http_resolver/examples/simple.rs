@@ -10,6 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let cfg = HttpResolverOptions::default()
     .url("https://random.colorado.edu/api");
   let resolver = HttpResolver::new(reqwest::Client::new(), cfg);
+  let resolver = MemoryCache::new(resolver);
 
   println!("strands:");
   let strands = resolver.strands().await?;

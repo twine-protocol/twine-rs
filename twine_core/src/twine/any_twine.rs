@@ -9,7 +9,7 @@ use libipld::{Block, Cid};
 use serde::{Serialize, Deserialize};
 use crate::as_cid::AsCid;
 use crate::crypto::{assert_cid, get_hasher};
-use super::{Strand, Tixel};
+use super::{Strand, Tixel, Twine};
 use super::TwineBlock;
 use crate::errors::VerificationError;
 use std::convert::TryFrom;
@@ -153,6 +153,12 @@ impl TryFrom<AnyTwine> for Strand {
 impl From<Strand> for AnyTwine {
   fn from(s: Strand) -> Self {
     Self::Strand(Arc::new(s))
+  }
+}
+
+impl From<Twine> for AnyTwine {
+  fn from(t: Twine) -> Self {
+    Self::Tixel(t.tixel())
   }
 }
 

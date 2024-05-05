@@ -42,7 +42,7 @@ impl MemoryStore {
 
 #[async_trait]
 impl Resolver for MemoryStore {
-  async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + 'a>>, ResolutionError> {
+  async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
     let iter = self.strands.values().map(|s| Ok(s.strand.clone()));
     use futures::stream::StreamExt;
     let stream = futures::stream::iter(iter);
@@ -95,7 +95,7 @@ impl Resolver for MemoryStore {
     }
   }
 
-  async fn resolve_range<R: Into<RangeQuery> + Send>(&self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + '_>>, ResolutionError> {
+  async fn resolve_range<R: Into<RangeQuery> + Send>(&self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + Send + '_>>, ResolutionError> {
     let range = range.into();
     let range = range.try_to_definite(self).await?;
     use futures::stream::StreamExt;
@@ -157,6 +157,7 @@ impl Store for MemoryStore {
     Ok(())
   }
 }
+
 
 #[cfg(test)]
 mod test {

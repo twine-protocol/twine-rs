@@ -257,7 +257,7 @@ pub trait Resolver: Clone + Send + Sync {
   async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError>;
   async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<Twine, ResolutionError>;
 
-  async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + 'a>>, ResolutionError>;
+  async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError>;
 
   async fn has<C: AsCid + Send>(&self, cid: C) -> bool {
     self.resolve_cid(cid).await.is_ok()
@@ -288,7 +288,7 @@ pub trait Resolver: Clone + Send + Sync {
     Ok(twine.try_into()?)
   }
 
-  async fn resolve_range<'a, R: Into<RangeQuery> + Send>(&'a self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + 'a>>, ResolutionError> {
+  async fn resolve_range<'a, R: Into<RangeQuery> + Send>(&'a self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + Send + 'a>>, ResolutionError> {
     let range = range.into();
     use futures::stream::StreamExt;
     let stream = range.to_stream(self)
