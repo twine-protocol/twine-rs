@@ -13,6 +13,7 @@ pub mod specification;
 pub mod schemas;
 pub mod resolver;
 pub mod store;
+pub mod car;
 
 pub use semver;
 pub use libipld;

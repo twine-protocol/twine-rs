@@ -205,6 +205,10 @@ impl<S: StoreParams> From<AnyTwine> for Block<S> {
 }
 
 impl TwineBlock for AnyTwine {
+
+  fn cid(&self) -> Cid {
+    self.cid()
+  }
   /// Decode from DAG-JSON
   ///
   /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.

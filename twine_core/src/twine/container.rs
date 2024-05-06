@@ -62,7 +62,7 @@ impl<C: TwineContent> TwineContainer<C> {
 
 impl<C: TwineContent> From<TwineContainer<C>> for Cid {
   fn from(t: TwineContainer<C>) -> Self {
-    t.cid()
+    t.cid
   }
 }
 
@@ -110,6 +110,10 @@ impl<T> TryFrom<TwineContainerJson<T>> for TwineContainer<T> where T: TwineConte
 }
 
 impl<C> TwineBlock for TwineContainer<C> where C: TwineContent + Serialize + for<'de> Deserialize<'de> {
+
+  fn cid(&self) -> Cid {
+    self.cid()
+  }
   /// Decode from DAG-JSON
   ///
   /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.

@@ -25,4 +25,5 @@ async-std = "1.12"
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full"] }
+rs-car = "0.4"
 # twine_builder = { path = "../twine_builder" }

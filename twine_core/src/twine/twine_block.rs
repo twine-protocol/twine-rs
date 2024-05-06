@@ -4,6 +4,7 @@ use crate::errors::VerificationError;
 use libipld::multihash::Code;
 
 pub trait TwineBlock where Self: Sized {
+  fn cid(&self) -> Cid;
   /// Decode from DAG-JSON
   ///
   /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
