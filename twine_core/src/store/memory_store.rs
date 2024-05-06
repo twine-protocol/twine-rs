@@ -144,7 +144,11 @@ impl Store for MemoryStore {
     Ok(())
   }
 
-  async fn save_many<I: Into<AnyTwine> + Send + Sync, T: Stream<Item = I> + Send + Sync>(&self, twines: T) -> Result<(), Box<dyn Error>> {
+  async fn save_many<I: Into<AnyTwine> + Send + Sync, S: Iterator<Item = I> + Send + Sync, T: IntoIterator<Item = I, IntoIter = S> + Send + Sync>(&self, twines: T) -> Result<(), Box<dyn Error>> {
+    self.save_stream(futures::stream::iter(twines.into_iter())).await
+  }
+
+  async fn save_stream<I: Into<AnyTwine> + Send + Sync, T: Stream<Item = I> + Send + Sync>(&self, twines: T) -> Result<(), Box<dyn Error>> {
     use futures::stream::{StreamExt, TryStreamExt};
     twines
       .then(|twine| async {
@@ -180,7 +184,7 @@ mod test {
 
   #[tokio::test]
   async fn test_memory_store() {
-    let mut store = MemoryStore::new();
+    let store = MemoryStore::new();
     let strand = Strand::from_dag_json(STRANDJSON).unwrap();
     let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
     store.save(strand.clone()).await.unwrap();
@@ -197,7 +201,7 @@ mod test {
 
   #[tokio::test]
   async fn test_memory_store_save_many() {
-    let mut store = MemoryStore::new();
+    let store = MemoryStore::new();
     let strand = Strand::from_dag_json(STRANDJSON).unwrap();
     let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
     let things: Vec<AnyTwine> = vec![strand.clone().into(), tixel.clone().into()];
@@ -214,7 +218,7 @@ mod test {
 
   #[tokio::test]
   async fn test_memory_store_strand_list() {
-    let mut store = MemoryStore::new();
+    let store = MemoryStore::new();
     let strand = Strand::from_dag_json(STRANDJSON).unwrap();
     store.save(strand.clone()).await.unwrap();
     let mut stream = store.strands().await.unwrap();

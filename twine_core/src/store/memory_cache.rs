@@ -6,7 +6,6 @@ use crate::as_cid::AsCid;
 use crate::twine::Strand;
 use std::sync::Arc;
 use std::pin::Pin;
-use futures::lock::Mutex;
 use futures::stream::Stream;
 use async_trait::async_trait;
 use futures::stream::{TryStreamExt, StreamExt};
@@ -86,5 +85,23 @@ impl<T: Resolver> Resolver for MemoryCache<T> {
         .boxed()
     )
   }
+}
 
+#[async_trait]
+impl<R: Resolver> Store for MemoryCache<R> {
+  async fn save<T: Into<AnyTwine> + Send + Sync>(&self, twine: T) -> Result<(), Box<dyn std::error::Error>> {
+    self.save(twine).await
+  }
+
+  async fn save_many<I: Into<AnyTwine> + Send + Sync, S: Iterator<Item = I> + Send + Sync, T: IntoIterator<Item = I, IntoIter = S> + Send + Sync>(&self, twines: T) -> Result<(), Box<dyn std::error::Error>> {
+    self.save_many(twines).await
+  }
+
+  async fn save_stream<I: Into<AnyTwine> + Send + Sync, T: Stream<Item = I> + Send + Sync>(&self, twines: T) -> Result<(), Box<dyn std::error::Error>> {
+    self.save_stream(twines).await
+  }
+
+  async fn delete<C: AsCid + Send + Sync>(&self, cid: C) -> Result<(), Box<dyn std::error::Error>> {
+    self.delete(cid).await
+  }
 }
