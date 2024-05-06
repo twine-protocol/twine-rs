@@ -1,11 +1,12 @@
 use async_trait::async_trait;
 use futures::{Stream, TryStreamExt};
-use reqwest::{header::{ACCEPT, CONTENT_TYPE}, StatusCode, Url};
+use reqwest::{header::{ACCEPT, CONTENT_TYPE}, Body, StatusCode, Url};
 use rs_car::car_read_all;
-use std::{pin::Pin, sync::Arc};
+use std::{pin::{self, Pin}, sync::Arc};
 use std::time::Duration;
 use twine_core::{prelude::*, twine::TwineBlock};
 use twine_core::resolver::{Resolver, ResolutionError};
+use std::error::Error;
 
 pub use reqwest;
 
@@ -69,6 +70,12 @@ impl HttpResolver {
   fn req(&self, path: &str) -> reqwest::RequestBuilder {
     self.client.get(self.options.url.join(&path).expect("Invalid path"))
       .header(ACCEPT, "application/vnd.ipld.car, application/json;q=0.5")
+      .timeout(self.options.timeout)
+  }
+
+  fn send(&self, path: &str) -> reqwest::RequestBuilder {
+    self.client.post(self.options.url.join(&path).expect("Invalid path"))
+      .header(CONTENT_TYPE, "application/vnd.ipld.car")
       .timeout(self.options.timeout)
   }
 
@@ -162,8 +169,11 @@ impl HttpResolver {
 
 #[async_trait]
 impl Resolver for HttpResolver {
-  async fn resolve_cid<'a, C: AsCid + Send>(&'a self, _cid: C) -> Result<AnyTwine, ResolutionError> {
-    unimplemented!()
+  async fn resolve_cid<'a, C: AsCid + Send>(&'a self, cid: C) -> Result<AnyTwine, ResolutionError> {
+    let cid = cid.as_cid();
+    let path = format!("cid/{}", cid);
+    let response = self.req(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+    Ok(self.parse_expect(cid, response).await?)
   }
 
   async fn strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
@@ -218,5 +228,62 @@ impl Resolver for HttpResolver {
         }
       });
     Ok(stream.boxed())
+  }
+}
+
+#[async_trait]
+impl Store for HttpResolver {
+  async fn save<T: Into<AnyTwine> + Send + Sync>(&self, twine: T) -> Result<(), Box<dyn Error>> {
+    let twine = twine.into();
+    let strand_cid = twine.strand_cid();
+    let root = twine.cid();
+    use twine_core::car::to_car_stream;
+    use futures::stream::StreamExt;
+    let data = to_car_stream(futures::stream::iter(vec![twine]), vec![root]);
+    let vec = data.collect::<Vec<_>>().await.concat();
+    let path = format!("chains/{}/pulses", strand_cid);
+    self.send(&path)
+      .body(vec)
+      .send()
+      .await?;
+    Ok(())
+  }
+
+  async fn save_many<I: Into<AnyTwine> + Send + Sync, S: Iterator<Item = I> + Send + Sync, T: IntoIterator<Item = I, IntoIter = S> + Send + Sync>(&self, twines: T) -> Result<(), Box<dyn Error>> {
+    let iter = twines.into_iter();
+    let twines = iter.map(|t| t.into());
+    use twine_core::car::to_car_stream;
+    use futures::stream::StreamExt;
+    let twines: Vec<AnyTwine> = twines.collect();
+    let (cid, strand_cid) = match twines.first() {
+      Some(t) => (t.cid(), t.strand_cid()),
+      None => {
+        return Ok(());
+      }
+    };
+    let roots = vec![cid];
+    let data = to_car_stream(futures::stream::iter(twines), roots);
+    let vec = data.collect::<Vec<_>>().await.concat();
+    let path = format!("chains/{}/pulses", strand_cid);
+    self.send(&path)
+      .body(vec)
+      .send()
+      .await?;
+    Ok(())
+  }
+
+  async fn save_stream<I: Into<AnyTwine> + Send + Sync, T: Stream<Item = I> + Send + Sync + Unpin>(&self, twines: T) -> Result<(), Box<dyn Error>> {
+    use futures::stream::StreamExt;
+    self.save_many(twines.collect::<Vec<_>>().await).await?;
+    Ok(())
+  }
+
+  async fn delete<C: AsCid + Send + Sync>(&self, cid: C) -> Result<(), Box<dyn Error>> {
+    self.client.delete(
+      self.options.url.join(&format!("cid/{}", cid.as_cid())).expect("Invalid path")
+    )
+      .send()
+      .await?;
+    Ok(())
   }
 }

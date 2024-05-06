@@ -97,7 +97,7 @@ impl<R: Resolver> Store for MemoryCache<R> {
     self.save_many(twines).await
   }
 
-  async fn save_stream<I: Into<AnyTwine> + Send + Sync, T: Stream<Item = I> + Send + Sync>(&self, twines: T) -> Result<(), Box<dyn std::error::Error>> {
+  async fn save_stream<I: Into<AnyTwine> + Send + Sync, T: Stream<Item = I> + Send + Sync + Unpin>(&self, twines: T) -> Result<(), Box<dyn std::error::Error>> {
     self.save_stream(twines).await
   }
 

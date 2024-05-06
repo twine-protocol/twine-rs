@@ -1,4 +1,3 @@
-use std::error::Error;
 use futures::Stream;
 use futures::stream::StreamExt;
 use libipld::Cid;
@@ -33,7 +32,7 @@ pub struct CarHeader {
   pub roots: Vec<Cid>,
 }
 
-pub fn write_car_stream<I: TwineBlock, S: Stream<Item=I>>(stream: S, roots: Vec<Cid>) -> impl Stream<Item=Vec<u8>> {
+pub fn to_car_stream<I: TwineBlock, S: Stream<Item=I>>(stream: S, roots: Vec<Cid>) -> impl Stream<Item=Vec<u8>> {
   let header = CarHeader {
     version: 1,
     roots,
@@ -63,16 +62,17 @@ pub fn write_car_stream<I: TwineBlock, S: Stream<Item=I>>(stream: S, roots: Vec<
 mod test {
   use super::*;
   use async_std::io::Cursor;
-use rs_car::CarReader;
+  use std::error::Error;
+  use rs_car::CarReader;
   use crate::prelude::*;
   use crate::test::STRANDJSON;
 
   #[tokio::test]
-  async fn test_write_car_stream() -> Result<(), Box<dyn Error>> {
+  async fn test_to_car_stream() -> Result<(), Box<dyn Error>> {
     let twine = Strand::from_dag_json(STRANDJSON).unwrap();
     let stream = futures::stream::iter(vec![twine.clone()]);
     let roots = vec![twine.cid()];
-    let car_stream = write_car_stream(stream, roots.clone());
+    let car_stream = to_car_stream(stream, roots.clone());
     let car_bytes = car_stream.collect::<Vec<_>>().await.concat();
     let mut cursor = Cursor::new(car_bytes);
     let mut reader = CarReader::new(&mut cursor, false).await?;
