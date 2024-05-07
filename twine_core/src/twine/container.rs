@@ -163,7 +163,7 @@ impl<C> Display for TwineContainer<C> where C: TwineContent + Serialize + for<'d
 
 #[cfg(test)]
 mod test {
-  use crate::prelude::*;
+  use crate::twine::*;
   use crate::test::*;
 
   #[test]

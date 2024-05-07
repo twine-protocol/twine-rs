@@ -3,7 +3,7 @@ use libipld::Cid;
 use semver::Version;
 use std::sync::Arc;
 
-use crate::{as_cid::AsCid, prelude::VerificationError, specification::Subspec, twine::{Strand, Tixel}, verify::Verifiable};
+use crate::{as_cid::AsCid, errors::VerificationError, specification::Subspec, twine::{Strand, Tixel}, verify::Verifiable};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Twine {

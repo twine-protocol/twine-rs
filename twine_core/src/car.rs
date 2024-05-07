@@ -4,7 +4,7 @@ use libipld::Cid;
 use ipld_core::codec::Codec;
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use serde::{Deserialize, Serialize};
-use crate::prelude::TwineBlock;
+use crate::twine::TwineBlock;
 
 // Max size of u64 varint
 const U64_LEN: usize = 10;
@@ -64,7 +64,7 @@ mod test {
   use async_std::io::Cursor;
   use std::error::Error;
   use rs_car::CarReader;
-  use crate::prelude::*;
+  use crate::twine::*;
   use crate::test::STRANDJSON;
 
   #[tokio::test]

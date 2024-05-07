@@ -1,9 +1,9 @@
 use futures::{StreamExt, TryStreamExt};
 use twine_http_resolver::*;
 use twine_core::prelude::*;
-use futures_time::prelude::*;
-use futures_time::time::Duration;
-use futures_time::stream;
+// use futures_time::prelude::*;
+// use futures_time::time::Duration;
+// use futures_time::stream;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -181,7 +181,7 @@ impl Store for MemoryStore {
 #[cfg(test)]
 mod test {
   use super::*;
-  use crate::prelude::*;
+  use crate::twine::*;
   use crate::test::*;
 
   #[tokio::test]

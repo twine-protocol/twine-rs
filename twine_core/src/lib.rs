@@ -19,14 +19,8 @@ pub use semver;
 pub use libipld;
 pub use twine::dag_json;
 
-pub mod prelude {
-  pub use super::errors::*;
-  pub use libipld::Cid;
-  pub use super::twine::{Twine, AnyTwine, Strand, Tixel, Stitch, TwineBlock};
-  pub use super::resolver::*;
-  pub use super::store::*;
-  pub use super::as_cid::AsCid;
-}
+pub use libipld::Cid;
+pub use libipld::Ipld;
 
 #[cfg(test)]
 mod test;

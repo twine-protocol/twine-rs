@@ -4,7 +4,7 @@ use reqwest::{header::{ACCEPT, CONTENT_TYPE}, StatusCode, Url};
 use rs_car::car_read_all;
 use std::{pin::Pin, sync::Arc};
 use std::time::Duration;
-use twine_core::{prelude::*, twine::TwineBlock};
+use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, resolver::RangeQuery, Cid, resolver::AbsoluteRange};
 use twine_core::resolver::Resolver;
 use std::error::Error;
 

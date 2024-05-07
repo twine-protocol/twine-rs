@@ -1,7 +1,7 @@
 use libipld::serde::from_ipld;
 use serde::Serialize;
 
-use crate::prelude::*;
+use crate::twine::*;
 use super::*;
 
 #[test]
