@@ -99,6 +99,10 @@ impl AbsoluteRange {
     while upper > self.lower {
       let lower = (upper + 1).saturating_sub(size).max(self.lower);
       batches.push(Self::new(self.strand.clone(), upper, lower));
+      if lower - self.lower < size {
+        batches.push(Self::new(self.strand.clone(), lower.saturating_sub(1), self.lower));
+        break;
+      }
       upper = lower.saturating_sub(1);
     }
     batches
@@ -355,5 +359,15 @@ mod test {
     assert_eq!(range, RangeQuery::Relative(cid, -1, 2));
     let range = RangeQuery::from_range_bounds(&cid, -3..-1);
     assert_eq!(range, RangeQuery::Relative(cid, -2, -3));
+  }
+
+  #[test]
+  fn test_batches(){
+    let range = AbsoluteRange::new(Cid::default(), 100, 0);
+    let batches = range.batches(100);
+    let cid = Cid::default();
+    assert_eq!(batches.len(), 2);
+    assert_eq!(batches[0], AbsoluteRange::new(cid.clone(), 100, 1));
+    assert_eq!(batches[1], AbsoluteRange::new(cid, 0, 0));
   }
 }
