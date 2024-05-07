@@ -20,7 +20,7 @@ pub use libipld;
 pub use twine::dag_json;
 
 pub mod prelude {
-  pub use super::errors::VerificationError;
+  pub use super::errors::*;
   pub use libipld::Cid;
   pub use super::twine::{Twine, AnyTwine, Strand, Tixel, Stitch, TwineBlock};
   pub use super::resolver::*;

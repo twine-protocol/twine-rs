@@ -5,7 +5,7 @@ use crate::{errors::VerificationError, verify::{is_all_unique, Verifiable}};
 
 use super::{V1, Mixin};
 
-#[derive(Debug, Serialize, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone,  PartialEq)]
 pub struct ChainContentV1 {
   pub specification: V1,
   pub key: Jwk,
@@ -27,6 +27,10 @@ impl Verifiable for ChainContentV1 {
 
     if self.key.parameter("d").is_some() {
       return Err(VerificationError::InvalidTwineFormat("Can not use a private key".into()));
+    }
+
+    if self.key.parameter("alg").is_none() {
+      return Err(VerificationError::InvalidTwineFormat("Missing key algorithm".into()));
     }
 
     Ok(())

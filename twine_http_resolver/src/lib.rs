@@ -1,11 +1,11 @@
 use async_trait::async_trait;
 use futures::{Stream, TryStreamExt};
-use reqwest::{header::{ACCEPT, CONTENT_TYPE}, Body, StatusCode, Url};
+use reqwest::{header::{ACCEPT, CONTENT_TYPE}, StatusCode, Url};
 use rs_car::car_read_all;
-use std::{pin::{self, Pin}, sync::Arc};
+use std::{pin::Pin, sync::Arc};
 use std::time::Duration;
 use twine_core::{prelude::*, twine::TwineBlock};
-use twine_core::resolver::{Resolver, ResolutionError};
+use twine_core::resolver::Resolver;
 use std::error::Error;
 
 pub use reqwest;

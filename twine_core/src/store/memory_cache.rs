@@ -1,4 +1,5 @@
-use crate::resolver::{Resolver, ResolutionError};
+use crate::resolver::Resolver;
+use crate::errors::ResolutionError;
 use super::memory_store::MemoryStore;
 use super::Store;
 use crate::twine::{Twine, AnyTwine};

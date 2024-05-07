@@ -1,4 +1,4 @@
-use libipld::{Ipld, Cid};
+use libipld::{Cid, Ipld};
 use serde::{Serialize, Deserialize};
 use crate::{errors::VerificationError, verify::Verifiable};
 use super::Mixin;

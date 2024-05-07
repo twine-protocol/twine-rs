@@ -33,3 +33,16 @@ pub enum VerificationError {
     found: String,
   },
 }
+
+
+#[derive(Error, Debug)]
+pub enum ResolutionError {
+  #[error("Twine not found")]
+  NotFound,
+  #[error("Twine is invalid: {0}")]
+  Invalid(#[from] VerificationError),
+  #[error("Bad data: {0}")]
+  BadData(String),
+  #[error("Problem fetching data: {0}")]
+  Fetch(String),
+}

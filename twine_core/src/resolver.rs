@@ -1,22 +1,11 @@
 use std::{ops::RangeBounds, sync::Arc};
 use futures::{stream::once, Stream, TryStreamExt};
-use thiserror::Error;
 use libipld::Cid;
 use async_trait::async_trait;
 use std::pin::Pin;
-use crate::{prelude::{AnyTwine, Stitch, Strand, Tixel, Twine, VerificationError}, as_cid::AsCid};
-
-#[derive(Error, Debug)]
-pub enum ResolutionError {
-  #[error("Twine not found")]
-  NotFound,
-  #[error("Twine is invalid: {0}")]
-  Invalid(#[from] VerificationError),
-  #[error("Bad data: {0}")]
-  BadData(String),
-  #[error("Problem fetching data: {0}")]
-  Fetch(String),
-}
+use crate::as_cid::AsCid;
+use crate::twine::{AnyTwine, Stitch, Strand, Tixel, Twine};
+use crate::errors::ResolutionError;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum Query {
