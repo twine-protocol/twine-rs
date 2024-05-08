@@ -38,6 +38,12 @@ impl<C> From<(C, u64)> for Query where C: AsCid {
   }
 }
 
+impl From<Cid> for Query {
+  fn from(cid: Cid) -> Self {
+    Self::Latest(cid)
+  }
+}
+
 impl PartialOrd for Query {
   fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
     match (self, other) {

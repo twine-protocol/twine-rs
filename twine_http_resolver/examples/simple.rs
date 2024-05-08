@@ -1,6 +1,8 @@
 use futures::{StreamExt, TryStreamExt};
 use twine_http_resolver::*;
-use twine_core::prelude::*;
+use twine_core::resolver::*;
+use twine_core::Cid;
+use twine_core::store::MemoryCache;
 // use futures_time::prelude::*;
 // use futures_time::time::Duration;
 // use futures_time::stream;
