@@ -3,7 +3,7 @@ use josekit::jwk::Jwk;
 use semver::Version;
 use libipld::ipld::Ipld;
 use serde::{Serialize, Deserialize};
-use super::{container::{TwineContainer, TwineContent}, Stitch, Tixel};
+use super::{container::{TwineContainer, TwineContent}, CrossStitches, Stitch, Tixel};
 use crate::errors::VerificationError;
 
 pub type Strand = TwineContainer<StrandContent>;
@@ -68,9 +68,11 @@ impl TwineContent for StrandContent {
     vec![]
   }
 
-  fn cross_stitches(&self) -> Vec<Stitch> {
+  fn cross_stitches(&self) -> CrossStitches {
     match self {
-      StrandContent::V1(v) => v.mixins.iter().cloned().collect(),
+      StrandContent::V1(v) => CrossStitches::new(
+        v.mixins.iter().cloned().collect::<Vec<Stitch>>()
+      ),
     }
   }
 }

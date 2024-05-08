@@ -6,7 +6,7 @@ use libipld::Ipld;
 use semver::Version;
 use serde::{Serialize, Deserialize};
 use super::container::TwineContent;
-use super::Stitch;
+use super::{CrossStitches, Stitch};
 use super::{container::TwineContainer, Strand};
 
 pub type Tixel = TwineContainer<TixelContent>;
@@ -69,9 +69,11 @@ impl TwineContent for TixelContent {
     links.iter().map(|&tixel| Stitch{ strand, tixel }).collect()
   }
 
-  fn cross_stitches(&self) -> Vec<Stitch> {
+  fn cross_stitches(&self) -> CrossStitches {
     match self {
-      TixelContent::V1(v) => v.mixins.iter().cloned().collect(),
+      TixelContent::V1(v) => CrossStitches::new(
+        v.mixins.iter().cloned().collect::<Vec<Stitch>>()
+      ),
     }
   }
 }

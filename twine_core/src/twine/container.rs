@@ -11,13 +11,13 @@ use serde_ipld_dagcbor::codec::DagCborCodec;
 use crate::crypto::{get_hasher, assert_cid, get_cid};
 use crate::verify::{Verifiable, Verified};
 use super::dag_json::TwineContainerJson;
-use super::{Stitch, TwineBlock};
+use super::{CrossStitches, Stitch, TwineBlock};
 use crate::errors::VerificationError;
 use crate::as_cid::AsCid;
 
 pub trait TwineContent: Clone + Verifiable + Send {
   fn back_stitches(&self) -> Vec<Stitch>;
-  fn cross_stitches(&self) -> Vec<Stitch>;
+  fn cross_stitches(&self) -> CrossStitches;
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -43,7 +43,7 @@ impl<C: TwineContent> TwineContainer<C> {
     self.content().back_stitches()
   }
 
-  pub fn cross_stitches(&self) -> Vec<Stitch> {
+  pub fn cross_stitches(&self) -> CrossStitches {
     self.content().cross_stitches()
   }
 
