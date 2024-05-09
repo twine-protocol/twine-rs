@@ -1,6 +1,7 @@
 use serde_ipld_dagjson::error::CodecError as JsonCodecError;
 use serde_ipld_dagcbor::error::CodecError as CborCodecError;
 use thiserror::Error;
+use std::fmt::Display;
 
 #[derive(Debug, Error)]
 pub enum VerificationError {
@@ -12,10 +13,8 @@ pub enum VerificationError {
   BadCbor(#[from] CborCodecError),
   #[error("Problem parsing JSON because: {0}")]
   BadJson(#[from] JsonCodecError),
-  #[error("Signature is invalid")]
-  BadSignature,
-  #[error("Bad signature format")]
-  BadSignatureFormat,
+  #[error("Signature is invalid: {0}")]
+  BadSignature(String),
   #[error("Unsupported key algorithm")]
   UnsupportedKeyAlgorithm,
   #[error("Malformed JWK")]
@@ -32,6 +31,8 @@ pub enum VerificationError {
     expected: String,
     found: String,
   },
+  #[error("Bad Specification: {0}")]
+  BadSpecification(#[from] SpecificationError),
 }
 
 
@@ -45,4 +46,19 @@ pub enum ResolutionError {
   BadData(String),
   #[error("Problem fetching data: {0}")]
   Fetch(String),
+}
+
+#[derive(Debug, Error)]
+pub struct SpecificationError(pub String);
+
+impl std::fmt::Display for SpecificationError {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    write!(f, "SpecificationError: {}", self.0)
+  }
+}
+
+impl SpecificationError {
+  pub fn new<S: Display>(message: S) -> Self {
+    Self(message.to_string())
+  }
 }

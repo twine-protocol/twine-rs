@@ -2,29 +2,15 @@ use std::fmt::Display;
 use serde::{Serialize, Deserialize, Deserializer};
 use serde::de::Error;
 use semver::{Version, VersionReq};
+use crate::errors::SpecificationError;
 
 const PREFIX: &str = "twine";
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct VersionError(pub String);
-
-impl std::fmt::Display for VersionError {
-  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-    write!(f, "VersionError: {}", self.0)
-  }
-}
-
-impl VersionError {
-  pub fn new<S: Display>(message: S) -> VersionError {
-    VersionError(message.to_string())
-  }
-}
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct Specification<const V: u8>(pub(crate) String);
 
 impl<const V: u8> Specification<V> {
-  pub fn from_string<S: Display>(s: S) -> Result<Self, VersionError> {
+  pub fn from_string<S: Display>(s: S) -> Result<Self, SpecificationError> {
     let spec = Specification(s.to_string());
     spec.verify()?;
     Ok(spec)
@@ -51,19 +37,19 @@ impl<const V: u8> Specification<V> {
     (prefix.to_string(), version, subspec)
   }
 
-  pub fn verify(&self) -> Result<(), VersionError> {
+  pub fn verify(&self) -> Result<(), SpecificationError> {
     // ensure either 1 or three /
     let count = self.0.chars().filter(|&c| c == '/').count();
     if count != 1 && count != 3 {
-      return Err(VersionError::new("Specification string does not have the correct number of /"));
+      return Err(SpecificationError::new("Specification string does not have the correct number of /"));
     }
     let (prefix, ver, subspec) = self.parts();
     if prefix != PREFIX {
-      return Err(VersionError::new(format!("Specification string does not start with '{}'", PREFIX)));
+      return Err(SpecificationError::new(format!("Specification string does not start with '{}'", PREFIX)));
     }
-    let version = Version::parse(&ver).map_err(VersionError::new)?;
+    let version = Version::parse(&ver).map_err(SpecificationError::new)?;
     if version.major != V as u64 {
-      return Err(VersionError::new(format!("Expected different twine version. Expected: {}, Found: {}", V, version.major)));
+      return Err(SpecificationError::new(format!("Expected different twine version. Expected: {}, Found: {}", V, version.major)));
     }
     subspec.map_or(Ok(()), |s| s.verify())?;
     Ok(())
@@ -97,7 +83,7 @@ impl<'de, const V: u8> Deserialize<'de> for Specification<V> {
 }
 
 impl<const V: u8> TryFrom<String> for Specification<V> {
-  type Error = VersionError;
+  type Error = SpecificationError;
 
   fn try_from(s: String) -> Result<Self, Self::Error> {
     Specification::from_string(s)
@@ -108,7 +94,7 @@ impl<const V: u8> TryFrom<String> for Specification<V> {
 pub struct Subspec(pub(crate) String);
 
 impl Subspec {
-  pub fn from_string<S: Display>(s: S) -> Result<Self, VersionError> {
+  pub fn from_string<S: Display>(s: S) -> Result<Self, SpecificationError> {
     let spec = Subspec(s.to_string());
     spec.verify()?;
     Ok(spec)
@@ -122,12 +108,12 @@ impl Subspec {
     (prefix.to_string(), version.to_string())
   }
 
-  pub fn verify(&self) -> Result<(), VersionError> {
+  pub fn verify(&self) -> Result<(), SpecificationError> {
     let (prefix, ver) = self.parts();
     if prefix.len() == 0 {
-      return Err(VersionError::new("Subspec string does not have a prefix"));
+      return Err(SpecificationError::new("Subspec string does not have a prefix"));
     }
-    Version::parse(&ver).map_err(VersionError::new)?;
+    Version::parse(&ver).map_err(SpecificationError::new)?;
     Ok(())
   }
 
