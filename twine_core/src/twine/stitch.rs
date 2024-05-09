@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use libipld::Cid;
 
+use crate::{errors::ResolutionError, resolver::Resolver};
+
 use super::{Tixel, Twine};
 
 #[derive(Clone, Copy, Debug, PartialEq, Hash, Eq)]
@@ -47,6 +49,22 @@ impl CrossStitches {
   pub fn into_inner(self) -> HashMap<Cid, Stitch> {
     self.0
   }
+
+  pub async fn refresh<R: Resolver>(self, resolver: R) -> Result<Self, ResolutionError> {
+    let mut new_stitches = HashMap::new();
+    for (strand, stitch) in self {
+      use futures::join;
+      let (old, new) = match join!(resolver.resolve(stitch), resolver.resolve(strand)) {
+        (Ok(old), Ok(new)) => (old, new),
+        (Err(e), _) | (_, Err(e)) => return Err(e),
+      };
+      if old.index() > new.index() {
+        return Err(ResolutionError::BadData("Latest tixel in resolver is behind recorded stitch".into()));
+      }
+      new_stitches.insert(strand, new.into());
+    }
+    Ok(Self(new_stitches))
+  }
 }
 
 impl IntoIterator for CrossStitches {
@@ -63,3 +81,4 @@ impl From<Vec<Stitch>> for CrossStitches {
     Self::new(stitches)
   }
 }
+
