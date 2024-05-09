@@ -29,10 +29,6 @@ impl Verifiable for ChainContentV1 {
       return Err(VerificationError::InvalidTwineFormat("Can not use a private key".into()));
     }
 
-    if self.key.parameter("alg").is_none() {
-      return Err(VerificationError::InvalidTwineFormat("Missing key algorithm".into()));
-    }
-
     Ok(())
   }
 }
