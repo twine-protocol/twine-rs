@@ -18,6 +18,7 @@ use crate::as_cid::AsCid;
 pub trait TwineContent: Clone + Verifiable + Send {
   fn back_stitches(&self) -> Vec<Stitch>;
   fn cross_stitches(&self) -> CrossStitches;
+  fn bytes(&self) -> Vec<u8>;
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -80,7 +81,8 @@ impl<C: TwineContent, S: StoreParams> From<TwineContainer<C>> for Block<S> where
 
 impl<C> TwineContainer<C> where C: TwineContent + Serialize + for<'de> Deserialize<'de> {
   /// Instance a Twine from its content and signature
-  fn new_from_parts(hasher: Code, content: Verified<C>, signature: String) -> Self {
+  /// Does not check CID
+  pub fn new_from_parts(hasher: Code, content: Verified<C>, signature: String) -> Self {
     let mut twine = Self { cid: Cid::default(), content, signature };
     let dat = DagCborCodec::encode_to_vec(&twine).unwrap();
     twine.cid = get_cid(hasher, dat.as_slice());
@@ -88,7 +90,7 @@ impl<C> TwineContainer<C> where C: TwineContent + Serialize + for<'de> Deseriali
   }
 
   pub fn content_hash(&self) -> Vec<u8> {
-    let bytes = DagCborCodec::encode_to_vec(self.content()).unwrap();
+    let bytes = self.content().bytes();
     self.hasher().digest(&bytes).to_bytes()
   }
 

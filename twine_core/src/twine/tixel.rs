@@ -5,6 +5,8 @@ use libipld::Cid;
 use libipld::Ipld;
 use semver::Version;
 use serde::{Serialize, Deserialize};
+use ipld_core::codec::Codec;
+use serde_ipld_dagcbor::codec::DagCborCodec;
 use super::container::TwineContent;
 use super::{CrossStitches, Stitch};
 use super::{container::TwineContainer, Strand};
@@ -76,6 +78,10 @@ impl TwineContent for TixelContent {
       ),
     }
   }
+
+  fn bytes(&self) -> Vec<u8> {
+    DagCborCodec::encode_to_vec(self).unwrap()
+  }
 }
 
 impl TixelContent {
@@ -113,5 +119,11 @@ impl TixelContent {
     match self {
       TixelContent::V1(v) => v.source.clone(),
     }
+  }
+}
+
+impl From<v1::PulseContentV1> for TixelContent {
+  fn from(content: v1::PulseContentV1) -> Self {
+    TixelContent::V1(content)
   }
 }

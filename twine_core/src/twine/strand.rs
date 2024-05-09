@@ -3,6 +3,8 @@ use josekit::jwk::Jwk;
 use semver::Version;
 use libipld::ipld::Ipld;
 use serde::{Serialize, Deserialize};
+use ipld_core::codec::Codec;
+use serde_ipld_dagcbor::codec::DagCborCodec;
 use super::{container::{TwineContainer, TwineContent}, CrossStitches, Stitch, Tixel};
 use crate::errors::VerificationError;
 
@@ -75,6 +77,10 @@ impl TwineContent for StrandContent {
       ),
     }
   }
+
+  fn bytes(&self) -> Vec<u8> {
+    DagCborCodec::encode_to_vec(self).unwrap()
+  }
 }
 
 impl StrandContent {
@@ -109,7 +115,12 @@ impl StrandContent {
   }
 
   pub fn verify_signature<C: TwineContent + Serialize + for<'de> Deserialize<'de>>(&self, twine: &TwineContainer<C>) -> Result<(), VerificationError> {
-    verify_signature(self.key(), twine.signature(), twine.content_hash())
+    verify_signature(&self.key(), twine.signature(), twine.content_hash())
   }
 }
 
+impl From<v1::ChainContentV1> for StrandContent {
+  fn from(v: v1::ChainContentV1) -> Self {
+    StrandContent::V1(v)
+  }
+}
