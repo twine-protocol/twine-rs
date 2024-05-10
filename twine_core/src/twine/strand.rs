@@ -30,7 +30,7 @@ impl Strand {
     self.content().subspec()
   }
 
-  pub fn radix(&self) -> u64 {
+  pub fn radix(&self) -> u8 {
     self.content().radix()
   }
 
@@ -90,9 +90,9 @@ impl StrandContent {
     }
   }
 
-  pub fn radix(&self) -> u64 {
+  pub fn radix(&self) -> u8 {
     match self {
-      StrandContent::V1(v) => v.links_radix as u64,
+      StrandContent::V1(v) => v.links_radix as u8,
     }
   }
 

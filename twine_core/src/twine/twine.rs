@@ -35,7 +35,7 @@ impl Twine {
     self.tixel.clone()
   }
 
-  pub fn radix(&self) -> u64 {
+  pub fn radix(&self) -> u8 {
     self.strand().radix()
   }
 
