@@ -10,13 +10,13 @@ use twine_core::resolver::Resolver;
 pub use reqwest;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct HttpResolverOptions {
+pub struct HttpStoreOptions {
   pub url: Url,
   pub timeout: Duration,
   pub buffer_size: usize,
 }
 
-impl Default for HttpResolverOptions {
+impl Default for HttpStoreOptions {
   fn default() -> Self {
     Self {
       url: "http://localhost:8080".parse().unwrap(),
@@ -26,7 +26,7 @@ impl Default for HttpResolverOptions {
   }
 }
 
-impl HttpResolverOptions {
+impl HttpStoreOptions {
   pub fn url(mut self, url: &str) -> Self {
     self.url = format!("{}/", url).parse().expect("Invalid URL");
     self
@@ -44,16 +44,16 @@ impl HttpResolverOptions {
 }
 
 #[derive(Debug, Clone)]
-pub struct HttpResolver {
+pub struct HttpStore {
   client: reqwest::Client,
-  pub options: HttpResolverOptions,
+  pub options: HttpStoreOptions,
 }
 
-impl Default for HttpResolver {
+impl Default for HttpStore {
   fn default() -> Self {
     Self::new(
       reqwest::Client::new(),
-      HttpResolverOptions::default()
+      HttpStoreOptions::default()
     )
   }
 }
@@ -73,8 +73,8 @@ async fn handle_save_result(res: Result<reqwest::Response, reqwest::Error>) -> R
   }
 }
 
-impl HttpResolver {
-  pub fn new(client: reqwest::Client, options: HttpResolverOptions) -> Self {
+impl HttpStore {
+  pub fn new(client: reqwest::Client, options: HttpStoreOptions) -> Self {
     Self {
       client,
       options,
@@ -188,7 +188,7 @@ impl HttpResolver {
 }
 
 #[async_trait]
-impl Resolver for HttpResolver {
+impl Resolver for HttpStore {
   async fn resolve_cid<'a, C: AsCid + Send>(&'a self, cid: C) -> Result<AnyTwine, ResolutionError> {
     let cid = cid.as_cid();
     let path = format!("cid/{}", cid);
@@ -252,7 +252,7 @@ impl Resolver for HttpResolver {
 }
 
 #[async_trait]
-impl Store for HttpResolver {
+impl Store for HttpStore {
   async fn save<T: Into<AnyTwine> + Send>(&self, twine: T) -> Result<(), StoreError> {
     let twine = twine.into();
     let strand_cid = twine.strand_cid();

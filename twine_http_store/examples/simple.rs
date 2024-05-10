@@ -1,6 +1,6 @@
 use futures::{StreamExt, TryStreamExt};
 use tokio::pin;
-use twine_http_resolver::*;
+use twine_http_store::*;
 use twine_core::resolver::*;
 use twine_core::Cid;
 use twine_core::store::MemoryCache;
@@ -11,13 +11,13 @@ use twine_core::store::Store;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-  let cfg = HttpResolverOptions::default()
+  let cfg = HttpStoreOptions::default()
     .url("https://random.colorado.edu/api");
-  let resolver = HttpResolver::new(reqwest::Client::new(), cfg);
+  let resolver = HttpStore::new(reqwest::Client::new(), cfg);
   let resolver = MemoryCache::new(resolver);
-  let store = HttpResolver::new(
+  let store = HttpStore::new(
     reqwest::Client::new(),
-    HttpResolverOptions::default().url("http://192.168.68.58:8787")
+    HttpStoreOptions::default().url("http://192.168.68.58:8787")
   );
 
   println!("strands:");
