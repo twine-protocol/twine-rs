@@ -14,6 +14,7 @@ pub mod schemas;
 pub mod resolver;
 pub mod store;
 pub mod car;
+pub mod skiplist;
 
 pub use semver;
 pub use libipld;
