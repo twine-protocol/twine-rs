@@ -1,8 +1,10 @@
 use futures::{StreamExt, TryStreamExt};
+use tokio::pin;
 use twine_http_resolver::*;
 use twine_core::resolver::*;
 use twine_core::Cid;
 use twine_core::store::MemoryCache;
+use twine_core::store::Store;
 // use futures_time::prelude::*;
 // use futures_time::time::Duration;
 // use futures_time::stream;
@@ -13,6 +15,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .url("https://random.colorado.edu/api");
   let resolver = HttpResolver::new(reqwest::Client::new(), cfg);
   let resolver = MemoryCache::new(resolver);
+  let store = HttpResolver::new(
+    reqwest::Client::new(),
+    HttpResolverOptions::default().url("http://192.168.68.58:8787")
+  );
 
   println!("strands:");
   let strands = resolver.strands().await?;
@@ -31,16 +37,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let twine = resolver.resolve_strand(cid).await?;
   println!("specific strand resolved: {}", twine.cid());
 
+  store.save(twine.clone()).await?;
+  println!("saved twine");
+
   let tenth = resolver.resolve_index(&twine, 10).await?;
   println!("tenth: {}", tenth.cid());
 
   let latest = resolver.resolve_latest(&twine).await?;
   println!("latest: {}", latest.cid());
 
-  resolver.resolve_range((&twine, 100..)).await?
+  let twine_stream = resolver.resolve_range((&twine, 100..)).await?
     .inspect_ok(|twine| println!("index: {}, cid: {}", twine.index(), twine.cid()))
     .inspect_err(|err| eprintln!("error: {}", err))
-    .for_each(|_| async {}).await;
+    .filter_map(|twine| async {
+      twine.ok()
+    });
+
+  pin!(twine_stream);
+
+  store.save_stream(twine_stream).await?;
 
   Ok(())
 }

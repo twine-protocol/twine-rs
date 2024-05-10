@@ -1,5 +1,5 @@
 use crate::resolver::Resolver;
-use crate::errors::ResolutionError;
+use crate::errors::{ResolutionError, StoreError};
 use super::memory_store::MemoryStore;
 use super::Store;
 use crate::twine::{Twine, AnyTwine};
@@ -90,19 +90,19 @@ impl<T: Resolver> Resolver for MemoryCache<T> {
 
 #[async_trait]
 impl<R: Resolver> Store for MemoryCache<R> {
-  async fn save<T: Into<AnyTwine> + Send + Sync>(&self, twine: T) -> Result<(), Box<dyn std::error::Error>> {
+  async fn save<T: Into<AnyTwine> + Send>(&self, twine: T) -> Result<(), StoreError> {
     self.save(twine).await
   }
 
-  async fn save_many<I: Into<AnyTwine> + Send + Sync, S: Iterator<Item = I> + Send + Sync, T: IntoIterator<Item = I, IntoIter = S> + Send + Sync>(&self, twines: T) -> Result<(), Box<dyn std::error::Error>> {
+  async fn save_many<I: Into<AnyTwine> + Send, S: Iterator<Item = I> + Send, T: IntoIterator<Item = I, IntoIter = S> + Send>(&self, twines: T) -> Result<(), StoreError> {
     self.save_many(twines).await
   }
 
-  async fn save_stream<I: Into<AnyTwine> + Send + Sync, T: Stream<Item = I> + Send + Sync + Unpin>(&self, twines: T) -> Result<(), Box<dyn std::error::Error>> {
+  async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send + Unpin>(&self, twines: T) -> Result<(), StoreError> {
     self.save_stream(twines).await
   }
 
-  async fn delete<C: AsCid + Send + Sync>(&self, cid: C) -> Result<(), Box<dyn std::error::Error>> {
+  async fn delete<C: AsCid + Send>(&self, cid: C) -> Result<(), StoreError> {
     self.delete(cid).await
   }
 }

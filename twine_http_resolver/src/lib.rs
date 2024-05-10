@@ -6,7 +6,6 @@ use std::{pin::Pin, sync::Arc};
 use std::time::Duration;
 use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, resolver::RangeQuery, Cid, resolver::AbsoluteRange};
 use twine_core::resolver::Resolver;
-use std::error::Error;
 
 pub use reqwest;
 
@@ -59,6 +58,21 @@ impl Default for HttpResolver {
   }
 }
 
+async fn handle_save_result(res: Result<reqwest::Response, reqwest::Error>) -> Result<(), StoreError> {
+  let res = res.map_err(|e| StoreError::Saving(e.to_string()))?;
+  match res.error_for_status_ref() {
+    Ok(_) => Ok::<(), StoreError>(()),
+    Err(e) => {
+      match res.json::<serde_json::Value>().await {
+        Ok(j) => {
+          Err(StoreError::Saving(j.get("error").map(|e| e.to_string()).unwrap_or(e.to_string())))
+        },
+        Err(_) => Err(StoreError::Saving(e.to_string())),
+      }
+    },
+  }
+}
+
 impl HttpResolver {
   pub fn new(client: reqwest::Client, options: HttpResolverOptions) -> Self {
     Self {
@@ -73,9 +87,15 @@ impl HttpResolver {
       .timeout(self.options.timeout)
   }
 
-  fn send(&self, path: &str) -> reqwest::RequestBuilder {
+  fn post(&self, path: &str) -> reqwest::RequestBuilder {
     self.client.post(self.options.url.join(&path).expect("Invalid path"))
       .header(CONTENT_TYPE, "application/vnd.ipld.car")
+      .timeout(self.options.timeout)
+  }
+
+  fn post_json(&self, path: &str) -> reqwest::RequestBuilder {
+    self.client.post(self.options.url.join(&path).expect("Invalid path"))
+      .header(CONTENT_TYPE, "application/json")
       .timeout(self.options.timeout)
   }
 
@@ -233,57 +253,72 @@ impl Resolver for HttpResolver {
 
 #[async_trait]
 impl Store for HttpResolver {
-  async fn save<T: Into<AnyTwine> + Send + Sync>(&self, twine: T) -> Result<(), Box<dyn Error>> {
+  async fn save<T: Into<AnyTwine> + Send>(&self, twine: T) -> Result<(), StoreError> {
     let twine = twine.into();
     let strand_cid = twine.strand_cid();
-    let root = twine.cid();
-    use twine_core::car::to_car_stream;
-    use futures::stream::StreamExt;
-    let data = to_car_stream(futures::stream::iter(vec![twine]), vec![root]);
-    let vec = data.collect::<Vec<_>>().await.concat();
-    let path = format!("chains/{}/pulses", strand_cid);
-    self.send(&path)
-      .body(vec)
-      .send()
-      .await?;
-    Ok(())
-  }
-
-  async fn save_many<I: Into<AnyTwine> + Send + Sync, S: Iterator<Item = I> + Send + Sync, T: IntoIterator<Item = I, IntoIter = S> + Send + Sync>(&self, twines: T) -> Result<(), Box<dyn Error>> {
-    let iter = twines.into_iter();
-    let twines = iter.map(|t| t.into());
-    use twine_core::car::to_car_stream;
-    use futures::stream::StreamExt;
-    let twines: Vec<AnyTwine> = twines.collect();
-    let (cid, strand_cid) = match twines.first() {
-      Some(t) => (t.cid(), t.strand_cid()),
-      None => {
-        return Ok(());
-      }
+    let path = match twine {
+      AnyTwine::Tixel(_) => format!("chains/{}/pulses", strand_cid),
+      AnyTwine::Strand(_) => format!("chains"),
     };
-    let roots = vec![cid];
-    let data = to_car_stream(futures::stream::iter(twines), roots);
-    let vec = data.collect::<Vec<_>>().await.concat();
-    let path = format!("chains/{}/pulses", strand_cid);
-    self.send(&path)
-      .body(vec)
+    let res = self.post_json(&path)
+      .body(twine.dag_json())
       .send()
-      .await?;
+      .await;
+    handle_save_result(res).await
+  }
+
+  async fn save_many<I: Into<AnyTwine> + Send, S: Iterator<Item = I> + Send, T: IntoIterator<Item = I, IntoIter = S> + Send>(&self, twines: T) -> Result<(), StoreError> {
+    use twine_core::car::to_car_stream;
+    use futures::stream::StreamExt;
+    let twines: Vec<AnyTwine> = twines.into_iter().map(|t| t.into()).collect();
+    let (strands, tixels): (Vec<_>, Vec<_>) = twines.into_iter().partition(|t| matches!(t, AnyTwine::Strand(_)));
+    if strands.len() > 0 {
+      futures::stream::iter(strands).map(|strand| async move {
+        self.save(strand).await
+      })
+      .buffered(self.options.buffer_size)
+      .try_collect::<Vec<()>>().await?;
+    }
+    if tixels.len() > 0 {
+      use itertools::Itertools;
+      let groups_by_strand = tixels.iter()
+        .map(|t| Tixel::try_from(t.to_owned()).unwrap())
+        .group_by(|t| t.strand_cid().clone())
+        .into_iter()
+        .map(|(cid, it)|
+          (
+            cid,
+            it.sorted_by(|a, b| a.index().cmp(&b.index()))
+              .collect()
+          )
+        )
+        .collect::<Vec<(_, Vec<Tixel>)>>();
+      futures::stream::iter(groups_by_strand).then(|(strand_cid, group)| async move {
+        let roots = vec![group.first().unwrap().cid()];
+        let data = to_car_stream(futures::stream::iter(group), roots);
+        // let vec = data.collect::<Vec<_>>().await;
+        let path = format!("chains/{}/pulses", strand_cid);
+        let res = self.post(&path)
+          .body(reqwest::Body::wrap_stream(data.map(|b| Ok::<_, reqwest::Error>(b))))
+          .send()
+          .await;
+        handle_save_result(res).await
+      })
+      .try_collect().await?;
+    }
     Ok(())
   }
 
-  async fn save_stream<I: Into<AnyTwine> + Send + Sync, T: Stream<Item = I> + Send + Sync + Unpin>(&self, twines: T) -> Result<(), Box<dyn Error>> {
+  async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send + Unpin>(&self, twines: T) -> Result<(), StoreError> {
     use futures::stream::StreamExt;
     self.save_many(twines.collect::<Vec<_>>().await).await?;
     Ok(())
   }
 
-  async fn delete<C: AsCid + Send + Sync>(&self, cid: C) -> Result<(), Box<dyn Error>> {
-    self.client.delete(
+  async fn delete<C: AsCid + Send>(&self, cid: C) -> Result<(), StoreError> {
+    let res = self.client.delete(
       self.options.url.join(&format!("cid/{}", cid.as_cid())).expect("Invalid path")
-    )
-      .send()
-      .await?;
-    Ok(())
+    ).send().await;
+    handle_save_result(res).await
   }
 }

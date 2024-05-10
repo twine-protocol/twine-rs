@@ -3,11 +3,10 @@ use std::pin::Pin;
 use std::{collections::HashMap, sync::Arc};
 use futures::Stream;
 use libipld::Cid;
-use crate::errors::ResolutionError;
+use crate::errors::{ResolutionError, StoreError};
 use crate::resolver::{RangeQuery, Resolver};
 use crate::twine::{Strand, Tixel, Twine};
 use super::Store;
-use std::error::Error;
 use crate::as_cid::AsCid;
 use crate::twine::AnyTwine;
 use async_trait::async_trait;
@@ -125,7 +124,7 @@ impl Resolver for MemoryStore {
 
 #[async_trait]
 impl Store for MemoryStore {
-  async fn save<T: Into<AnyTwine> + Send + Sync>(&self, twine: T) -> Result<(), Box<dyn Error>> {
+  async fn save<T: Into<AnyTwine> + Send>(&self, twine: T) -> Result<(), StoreError> {
     match twine.into() {
       AnyTwine::Strand(strand) => {
         self.strands.write().unwrap().entry(strand.cid()).or_insert(StrandMap::new(strand));
@@ -138,7 +137,7 @@ impl Store for MemoryStore {
             strand.by_index.insert(tixel.index(), tixel.clone());
             tixels.insert(tixel.cid(), tixel);
           } else {
-            return Err("Strand not found".into());
+            return Err(StoreError::Saving("Strand not found".into()));
           }
         }
       },
@@ -146,23 +145,23 @@ impl Store for MemoryStore {
     Ok(())
   }
 
-  async fn save_many<I: Into<AnyTwine> + Send + Sync, S: Iterator<Item = I> + Send + Sync, T: IntoIterator<Item = I, IntoIter = S> + Send + Sync>(&self, twines: T) -> Result<(), Box<dyn Error>> {
+  async fn save_many<I: Into<AnyTwine> + Send, S: Iterator<Item = I> + Send, T: IntoIterator<Item = I, IntoIter = S> + Send>(&self, twines: T) -> Result<(), StoreError> {
     self.save_stream(futures::stream::iter(twines.into_iter())).await
   }
 
-  async fn save_stream<I: Into<AnyTwine> + Send + Sync, T: Stream<Item = I> + Send + Sync>(&self, twines: T) -> Result<(), Box<dyn Error>> {
+  async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send>(&self, twines: T) -> Result<(), StoreError> {
     use futures::stream::{StreamExt, TryStreamExt};
     twines
       .then(|twine| async {
         self.save(twine).await?;
-        Ok::<(), Box<dyn Error>>(())
+        Ok::<(), StoreError>(())
       })
       .try_all(|_| async { true })
       .await?;
     Ok(())
   }
 
-  async fn delete<C: AsCid + Send + Sync>(&self, cid: C) -> Result<(), Box<dyn Error>> {
+  async fn delete<C: AsCid + Send>(&self, cid: C) -> Result<(), StoreError> {
     let cid = cid.as_cid();
     if let Some(s) = self.strands.write().unwrap().remove(&cid) {
       for tixel in s.by_index.values() {

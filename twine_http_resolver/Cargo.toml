@@ -5,11 +5,13 @@ edition = "2021"
 
 [dependencies]
 twine_core = { path = "../twine_core" }
-reqwest = { version = "0.12", features = ["stream", "brotli"] }
+reqwest = { version = "0.12", features = ["stream", "brotli", "json"] }
 futures = "0.3"
 async-trait = "0.1"
 rs-car = "0.4"
 serde = { version = "1.0" }
+itertools = "0.12"
+serde_json = "1.0"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

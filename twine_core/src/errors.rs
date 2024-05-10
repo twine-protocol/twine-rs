@@ -48,6 +48,14 @@ pub enum ResolutionError {
   Fetch(String),
 }
 
+#[derive(Error, Debug)]
+pub enum StoreError {
+  #[error("Twine is invalid: {0}")]
+  Invalid(#[from] VerificationError),
+  #[error("Problem saving data: {0}")]
+  Saving(String),
+}
+
 #[derive(Debug, Error)]
 pub struct SpecificationError(pub String);
 
