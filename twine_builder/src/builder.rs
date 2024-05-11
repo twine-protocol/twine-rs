@@ -17,11 +17,11 @@ pub enum BuildError {
   IndexMaximum,
 }
 
-pub struct Builder<S: Signer> {
+pub struct TwineBuilder<S: Signer> {
   signer: S,
 }
 
-impl <S: Signer> Builder<S> {
+impl <S: Signer> TwineBuilder<S> {
   pub fn new(signer: S) -> Self {
     Self {
       signer,
@@ -254,7 +254,7 @@ mod test {
   #[test]
   fn test_build_p256() {
     let signer = jwk::Jwk::generate_ec_key(jwk::alg::ec::EcCurve::P256).unwrap();
-    let builder = Builder::new(signer);
+    let builder = TwineBuilder::new(signer);
     let strand = builder.build_strand()
       .version("1.0.0".to_string())
       .details(ipld!({
@@ -269,7 +269,7 @@ mod test {
   #[test]
   fn test_build_p384() {
     let signer = jwk::Jwk::generate_ec_key(jwk::alg::ec::EcCurve::P384).unwrap();
-    let builder = Builder::new(signer);
+    let builder = TwineBuilder::new(signer);
     let strand = builder.build_strand()
       .version("1.0.0".to_string())
       .details(ipld!({
@@ -284,7 +284,7 @@ mod test {
   #[test]
   fn test_build_p521() {
     let signer = jwk::Jwk::generate_ec_key(jwk::alg::ec::EcCurve::P521).unwrap();
-    let builder = Builder::new(signer);
+    let builder = TwineBuilder::new(signer);
     let strand = builder.build_strand()
       .version("1.0.0".to_string())
       .details(ipld!({
@@ -299,7 +299,7 @@ mod test {
   #[test]
   fn test_build_ed25519() {
     let signer = jwk::Jwk::generate_ed_key(jwk::alg::ed::EdCurve::Ed25519).unwrap();
-    let builder = Builder::new(signer);
+    let builder = TwineBuilder::new(signer);
     let strand = builder.build_strand()
       .version("1.0.0".to_string())
       .details(ipld!({
@@ -314,7 +314,7 @@ mod test {
   #[test]
   fn test_build_ed448() {
     let signer = jwk::Jwk::generate_ed_key(jwk::alg::ed::EdCurve::Ed448).unwrap();
-    let builder = Builder::new(signer);
+    let builder = TwineBuilder::new(signer);
     let strand = builder.build_strand()
       .version("1.0.0".to_string())
       .details(ipld!({
@@ -329,7 +329,7 @@ mod test {
   #[test]
   fn test_build_rsa() {
     let signer = jwk::Jwk::generate_rsa_key(2048).unwrap();
-    let builder = Builder::new(signer);
+    let builder = TwineBuilder::new(signer);
     let strand = builder.build_strand()
       .version("1.0.0".to_string())
       .details(ipld!({
@@ -344,7 +344,7 @@ mod test {
   #[test]
   fn text_build_tixels() {
     let signer = jwk::Jwk::generate_ed_key(jwk::alg::ed::EdCurve::Ed25519).unwrap();
-    let builder = Builder::new(signer);
+    let builder = TwineBuilder::new(signer);
     let strand = builder.build_strand()
       .version("1.0.0".to_string())
       .details(ipld!({

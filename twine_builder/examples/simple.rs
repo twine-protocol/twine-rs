@@ -1,10 +1,10 @@
-use twine_builder::Builder;
+use twine_builder::TwineBuilder;
 use twine_core::libipld::ipld;
 use josekit::jwk;
 
 fn main() {
   let signer = jwk::Jwk::generate_ed_key(jwk::alg::ed::EdCurve::Ed25519).unwrap();
-  let builder = Builder::new(signer);
+  let builder = TwineBuilder::new(signer);
   let strand = builder.build_strand()
     .version("1.0.0".to_string())
     .details(ipld!({
