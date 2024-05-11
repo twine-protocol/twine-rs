@@ -104,7 +104,7 @@ impl Resolver for MemoryStore {
 
   async fn resolve_range<R: Into<RangeQuery> + Send>(&self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + Send + '_>>, ResolutionError> {
     let range = range.into();
-    let range = range.try_to_definite(self).await?;
+    let range = range.try_to_absolute(self).await?;
     let strand = self.resolve_strand(range.strand).await?;
     use futures::stream::StreamExt;
     if let Some(entry) = self.strands.read().unwrap().get(&range.strand) {
