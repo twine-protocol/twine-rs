@@ -19,8 +19,9 @@ members = [
   "./twine_core",
   "./twine_builder",
   "./twine_http_store",
-  "./test_apis"
-, "twine_level_store"]
+  "./twine_sled_store",
+  "./test_apis",
+]
 
 [dependencies]
 twine_core = { path = "./twine_core" }
