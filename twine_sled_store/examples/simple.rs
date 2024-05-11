@@ -23,6 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   println!("first: {}", first);
   println!("next: {}", next);
 
+  store.save(strand.clone()).await?;
   store.save(first.clone()).await?;
   store.save(next.clone()).await?;
 
@@ -35,11 +36,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Some(next)
   }).collect();
 
+  println!("next_10");
+
   store.save_many(next_10.clone()).await?;
+  println!("saved next_10");
 
   store.resolve_range((strand.clone(), 0..10)).await?
     .inspect_ok(|twine| {
-      println!("Resolved twine: {:?}", twine);
+      println!("Resolved twine: {}", twine);
     })
     .inspect_err(|err| {
       println!("Error: {:?}", err);

@@ -68,7 +68,7 @@ impl <'a, S: Signer> TixelBuilder<'a, S> {
       strand: prev.strand(),
       prev: Some(prev),
       stitches: CrossStitches::default(),
-      payload: Ipld::Null,
+      payload: Ipld::Map(Default::default()),
       source: String::new(),
     }
   }

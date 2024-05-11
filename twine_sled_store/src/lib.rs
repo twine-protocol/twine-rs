@@ -13,7 +13,7 @@ use zerocopy::{
 #[repr(C)]
 struct LatestRecord {
   index: U64<LittleEndian>,
-  cid: [u8; 64],
+  cid: [u8; 68],
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -98,7 +98,6 @@ impl SledStore {
     );
 
     let (strand, tixel) = (strand?, tixel?);
-
     Ok(Twine::try_new_from_shared(strand, Arc::new(tixel))?)
   }
 
@@ -126,6 +125,23 @@ impl SledStore {
         Ok(Some(cid))
       }
     }
+  }
+
+  fn check_update(&self, twine: &Tixel) -> Result<(), StoreError> {
+    let cid = twine.strand_cid();
+    let latest_index = self.latest_index(&cid).map_err(|e| StoreError::Saving(e.to_string()))?;
+    if latest_index.map(|i| twine.index() > i).unwrap_or(true) {
+      // update latest
+      let mut cid_slice = [0u8; 68];
+      cid_slice.copy_from_slice(&twine.cid().to_bytes());
+      let record = LatestRecord {
+        index: U64::new(twine.index()),
+        cid: cid_slice,
+      };
+      self.db.insert(get_latest_key(&cid), record.as_bytes())
+        .map_err(|e| StoreError::Saving(e.to_string()))?;
+    }
+    Ok(())
   }
 }
 
@@ -207,9 +223,6 @@ impl Store for SledStore {
   async fn save<T: Into<AnyTwine> + Send>(&self, twine: T) -> Result<(), StoreError> {
     let twine = twine.into();
     let cid = twine.cid();
-    // TODO:
-    let latest_index = self.latest_index(&cid).map_err(|e| StoreError::Saving(e.to_string()))?;
-
     match &twine {
       AnyTwine::Strand(strand) => {
         self.db.insert(get_strand_key(&strand.cid()), &*strand.bytes())
@@ -217,8 +230,12 @@ impl Store for SledStore {
       },
       AnyTwine::Tixel(tixel) => {
         let strand = tixel.strand_cid();
+        if !self.has(strand).await {
+          return Err(StoreError::Saving(format!("Strand {} not saved yet", strand)));
+        }
+        self.check_update(&tixel)?;
         let index = tixel.index();
-        self.db.insert(get_index_key(&strand, index), &*tixel.bytes())
+        self.db.insert(get_index_key(&strand, index), cid.to_bytes())
           .map_err(|e| StoreError::Saving(e.to_string()))?;
       },
     }
@@ -234,6 +251,20 @@ impl Store for SledStore {
     for twine in twines {
       let twine = twine.into();
       let cid = twine.cid();
+      match &twine {
+        AnyTwine::Strand(strand) => {
+          batch.insert(get_strand_key(&strand.cid()).as_str(), &[]);
+        },
+        AnyTwine::Tixel(tixel) => {
+          let strand = tixel.strand_cid();
+          if !self.has(strand).await {
+            return Err(StoreError::Saving(format!("Strand {} not saved yet", strand)));
+          }
+          self.check_update(&tixel)?;
+          let index = tixel.index();
+          batch.insert(get_index_key(&strand, index).as_str(), cid.to_bytes());
+        },
+      }
       batch.insert(cid.to_bytes(), &*twine.bytes());
     }
 
@@ -250,7 +281,34 @@ impl Store for SledStore {
   }
 
   async fn delete<C: AsCid + Send>(&self, cid: C) -> Result<(), StoreError> {
-    self.db.remove(cid.as_cid().to_bytes())
+    let twine = match self.resolve_cid(cid).await {
+      Ok(twine) => twine,
+      Err(ResolutionError::NotFound) => return Ok(()),
+      Err(e) => return Err(StoreError::Saving(e.to_string())),
+    };
+    match &twine {
+      AnyTwine::Strand(strand) => {
+        let strand_cid = strand.cid();
+        let iter = self.db.scan_prefix(get_index_prefix(&strand_cid));
+        for item in iter {
+          let (key, _) = item.map_err(|e| StoreError::Saving(e.to_string()))?;
+          self.db.remove(key)
+            .map_err(|e| StoreError::Saving(e.to_string()))?;
+        }
+        self.db.remove(get_latest_key(&strand_cid))
+          .map_err(|e| StoreError::Saving(e.to_string()))?;
+        self.db.remove(get_strand_key(&strand_cid))
+          .map_err(|e| StoreError::Saving(e.to_string()))?;
+      },
+      AnyTwine::Tixel(tixel) => {
+        let strand = tixel.strand_cid();
+        let index = tixel.index();
+        self.db.remove(get_index_key(&strand, index))
+          .map_err(|e| StoreError::Saving(e.to_string()))?;
+      },
+
+    }
+    self.db.remove(twine.cid().to_bytes())
       .map_err(|e| StoreError::Saving(e.to_string()))?;
     Ok(())
   }
