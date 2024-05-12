@@ -1,4 +1,4 @@
-use futures::TryStreamExt;
+use futures::{StreamExt, TryStreamExt};
 use twine_core::twine::Twine;
 use twine_sled_store::*;
 use twine_core::resolver::*;
@@ -37,18 +37,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   }).collect();
 
   println!("next_10");
+  next_10.iter().for_each(|twine| {
+    println!("index: {}", twine.index());
+  });
 
   store.save_many(next_10.clone()).await?;
   println!("saved next_10");
 
-  store.resolve_range((strand.clone(), 0..10)).await?
+  store.resolve_range((strand.clone(), 0..=10)).await?
     .inspect_ok(|twine| {
-      println!("Resolved twine: {}", twine);
+      println!("Resolved twine: {}", twine.index());
     })
     .inspect_err(|err| {
       println!("Error: {:?}", err);
     })
-    .try_collect::<Vec<_>>().await?;
+    .collect::<Vec<_>>().await;
 
   Ok(())
 }
