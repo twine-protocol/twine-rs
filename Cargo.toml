@@ -20,7 +20,6 @@ members = [
   "./twine_builder",
   "./twine_http_store",
   "./twine_sled_store",
-  "./test_apis",
 ]
 
 [dependencies]
