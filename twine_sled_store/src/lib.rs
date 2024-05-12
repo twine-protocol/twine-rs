@@ -6,13 +6,13 @@ use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::S
 use twine_core::resolver::Resolver;
 use sled::Db;
 use zerocopy::{
-  byteorder::{U64, LittleEndian}, AsBytes, FromBytes, Unaligned,
+  byteorder::{U64, BigEndian}, AsBytes, FromBytes, Unaligned,
 };
 
 #[derive(FromZeroes, FromBytes, AsBytes, Unaligned)]
 #[repr(C)]
 struct LatestRecord {
-  index: U64<LittleEndian>,
+  index: U64<BigEndian>,
   cid: [u8; 68],
 }
 
@@ -20,7 +20,7 @@ struct LatestRecord {
 #[repr(C)]
 struct IndexKey {
   strand: [u8; 68],
-  index: U64<LittleEndian>,
+  index: U64<BigEndian>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -31,7 +31,7 @@ pub struct SledStoreOptions {
 impl Default for SledStoreOptions {
   fn default() -> Self {
     Self {
-      buffer_size: 10,
+      buffer_size: 100,
     }
   }
 }

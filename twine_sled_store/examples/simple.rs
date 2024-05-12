@@ -30,28 +30,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let latest = store.resolve(strand.clone()).await?;
   assert_eq!(latest, next.clone());
 
-  let next_10: Vec<Twine> = (latest.index()..10).into_iter().scan(latest, |prev, _| {
+  let count = 1000;
+  let next_n: Vec<Twine> = (latest.index()..count).into_iter().scan(latest, |prev, _| {
     let next = builder.build_next(prev.clone()).done().unwrap();
     *prev = next.clone();
     Some(next)
   }).collect();
 
-  println!("next_10");
-  next_10.iter().for_each(|twine| {
+  println!("next_n");
+  next_n.iter().for_each(|twine| {
     println!("index: {}", twine.index());
   });
 
-  store.save_many(next_10.clone()).await?;
-  println!("saved next_10");
+  store.save_many(next_n.clone()).await?;
+  println!("saved next_n");
 
-  store.resolve_range((strand.clone(), 0..=10)).await?
+  let start_time = std::time::Instant::now();
+  let results = store.resolve_range((strand.clone(), 0..=count as i64)).await?
     .inspect_ok(|twine| {
-      println!("Resolved twine: {}", twine.index());
+      // println!("Resolved twine: {}", twine.index());
     })
     .inspect_err(|err| {
-      println!("Error: {:?}", err);
+      // println!("Error: {:?}", err);
     })
     .collect::<Vec<_>>().await;
+
+  // check that they're in order
+  // results.iter().rev().enumerate().for_each(|(i, twine)| {
+  //   match twine {
+  //     Ok(twine) => assert_eq!(twine.index(), i as u64),
+  //     Err(_) => {},
+  //   }
+  // });
+
+
+  println!("Resolved {} twines in {}ms", count, start_time.elapsed().as_millis());
 
   Ok(())
 }
