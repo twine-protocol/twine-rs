@@ -2,19 +2,21 @@ use clap::{Subcommand, Parser};
 use anyhow::Result;
 
 #[derive(Debug, Parser)]
-pub struct Command {
+pub struct ResolverCommand {
   #[command(subcommand)]
   pub subcommand: Commands,
 }
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-  Add(add::Command),
-  Remove(remove::Command),
-  List(list::Command),
+  Add(add::AddCommand),
+  #[clap(alias = "rm")]
+  Remove(remove::RemoveCommand),
+  #[clap(alias = "ls")]
+  List(list::ListCommand),
 }
 
-impl Command {
+impl ResolverCommand {
   pub fn run(&self, config: &mut crate::config::Config) -> Result<()> {
     match &self.subcommand {
       Commands::Add(add) => {
@@ -34,7 +36,7 @@ mod add {
   use super::*;
 
   #[derive(Debug, Parser)]
-  pub struct Command {
+  pub struct AddCommand {
     pub uri: String,
     #[arg(short, long)]
     pub name: Option<String>,
@@ -42,7 +44,7 @@ mod add {
     pub default: bool,
   }
 
-  impl Command {
+  impl AddCommand {
     pub fn run(&self, config: &mut crate::config::Config) -> Result<()> {
       config.resolvers.add_resolver(self.uri.clone(), self.name.clone(), self.default)?;
       match &self.name {
@@ -58,11 +60,11 @@ mod remove {
   use super::*;
 
   #[derive(Debug, Parser)]
-  pub struct Command {
+  pub struct RemoveCommand {
     pub uri: String,
   }
 
-  impl Command {
+  impl RemoveCommand {
     pub fn run(&self, config: &mut crate::config::Config) -> Result<()> {
       config.resolvers.remove_resolver(&self.uri)?;
       log::info!("Removed resolver {}", self.uri);
@@ -75,18 +77,18 @@ mod list {
   use super::*;
 
   #[derive(Debug, Parser)]
-  pub struct Command;
+  pub struct ListCommand;
 
-  impl Command {
+  impl ListCommand {
     pub fn run(&self, config: &crate::config::Config) -> Result<()> {
       let default = config.resolvers.get_default().map(|r| r.name.as_deref()).flatten();
-      for resolver in config.resolvers.iter() {
+      for (index, resolver) in config.resolvers.iter().enumerate() {
         let default = if resolver.name.as_deref() == default {
           " (default)"
         } else {
           ""
         };
-        println!("{}{}{}", resolver.uri, resolver.name.as_ref().map(|n| format!(" ({})", n)).unwrap_or_default(), default);
+        println!("({}) {}{}{}", index, resolver.uri, resolver.name.as_ref().map(|n| format!(" ({})", n)).unwrap_or_default(), default);
       }
       Ok(())
     }

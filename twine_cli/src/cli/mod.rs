@@ -17,19 +17,19 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum SubCommands {
   // twine resolver add URI --name NAME
-  Resolver(resolver::Command),
+  Resolver(resolver::ResolverCommand),
   // twine ls --resolver URI_OR_NAME
-  Ls(list::Command),
+  Ls(list::ListCommand),
 }
 
 impl Cli {
-  pub fn run(&self, config: &mut crate::config::Config) -> Result<()> {
+  pub async fn run(&self, config: &mut crate::config::Config) -> Result<()> {
     match &self.subcommand {
       SubCommands::Resolver(resolver) => {
         resolver.run(config)
       },
       SubCommands::Ls(ls) => {
-        ls.run(config)
+        ls.run(config).await
       },
     }
   }

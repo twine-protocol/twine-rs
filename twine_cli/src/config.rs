@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
 
-use crate::multi_resolver::MultiResolver;
+use crate::poly_resolver::PolyResolver;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Resolver {
@@ -11,8 +11,8 @@ pub(crate) struct Resolver {
 }
 
 impl Resolver {
-  pub(crate) fn as_resolver(&self) -> Result<MultiResolver> {
-    MultiResolver::new_from_string(&self.uri)
+  pub(crate) fn as_resolver(&self) -> Result<PolyResolver> {
+    PolyResolver::new_from_string(&self.uri)
   }
 }
 
@@ -51,8 +51,19 @@ impl Resolvers {
     Ok(())
   }
 
-  pub(crate) fn remove_resolver(&mut self, uri_or_name: &str) -> Result<()> {
-    self.0.retain(|r| r.uri != uri_or_name && r.name.as_deref() != Some(uri_or_name));
+  pub(crate) fn remove_resolver(&mut self, uri_or_name_or_index: &str) -> Result<()> {
+    let maybe_index = uri_or_name_or_index.parse::<usize>().ok();
+    if let Some(index) = maybe_index {
+      if index >= self.0.len() {
+        return Err(anyhow::anyhow!("Index out of bounds"));
+      }
+      self.0.remove(index);
+    } else {
+      self.0.retain(|r|
+        r.uri != uri_or_name_or_index &&
+        r.name.as_deref() != Some(uri_or_name_or_index)
+      );
+    }
     Ok(())
   }
 

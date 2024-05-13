@@ -2,7 +2,7 @@ use clap::Parser;
 
 mod config;
 mod cli;
-mod multi_resolver;
+mod poly_resolver;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .quiet(cli.quiet)
     .init()?;
   let mut config = config::load_config()?;
-  cli.run(&mut config)?;
+  cli.run(&mut config).await?;
 
   config.save()?;
   Ok(())
