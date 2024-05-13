@@ -19,7 +19,7 @@ members = [
   "./twine_core",
   "./twine_builder",
   "./twine_http_store",
-  "./twine_sled_store",
+  "./twine_sled_store", "twine_cli",
 ]
 
 [dependencies]
