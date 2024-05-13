@@ -9,6 +9,8 @@ use zerocopy::{
   byteorder::{U64, BigEndian}, AsBytes, FromBytes, Unaligned,
 };
 
+pub use sled;
+
 #[derive(FromZeroes, FromBytes, AsBytes, Unaligned)]
 #[repr(C)]
 struct LatestRecord {
