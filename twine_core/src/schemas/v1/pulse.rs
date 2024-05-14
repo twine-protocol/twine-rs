@@ -31,6 +31,9 @@ impl Verifiable for PulseContentV1 {
 #[cfg(test)]
 mod test {
   use super::*;
+  use ipld_core::codec::Codec;
+  use libipld::ipld;
+  use serde_ipld_dagjson::codec::DagJsonCodec;
 
   #[test]
   fn test_pulse_content_v1_verify() {
@@ -40,7 +43,9 @@ mod test {
       source: "test".into(),
       links: vec![],
       mixins: vec![],
-      payload: Ipld::Null,
+      payload: ipld!({
+        "test": null
+      }),
     };
 
     assert!(pulse.verify().is_ok());
