@@ -8,18 +8,22 @@ mod list;
 pub struct Cli {
   #[command(subcommand)]
   pub subcommand: SubCommands,
+  /// Increase verbosity
   #[arg(short, long, action = clap::ArgAction::Count, global = true)]
   pub verbose: u8,
+  /// Suppress all output
   #[arg(short, long, global = true)]
   pub quiet: bool,
 }
 
 #[derive(Debug, Subcommand)]
 pub enum SubCommands {
-  // twine resolver add URI --name NAME
+  /// Manage resolvers
   Resolver(resolver::ResolverCommand),
-  // twine ls --resolver URI_OR_NAME
+  /// List strands
   Ls(list::ListCommand),
+  // twine pull <strand>
+
 }
 
 impl Cli {
