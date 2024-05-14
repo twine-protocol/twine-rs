@@ -1,5 +1,5 @@
 use twine_builder::TwineBuilder;
-use twine_core::libipld::ipld;
+use twine_core::{libipld::ipld, twine::{Tixel, Twine}};
 use josekit::jwk;
 
 fn main() {
@@ -16,7 +16,7 @@ fn main() {
   let mut signatures = vec![];
   let mut prev = builder.build_first(strand.clone())
     .payload(ipld!({
-      "baz": "qux",
+      "baz": null,
     }))
     .done()
     .unwrap();
