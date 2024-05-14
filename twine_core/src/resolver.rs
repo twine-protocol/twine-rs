@@ -1,3 +1,5 @@
+use std::fmt::Display;
+use std::str::FromStr;
 use std::{ops::RangeBounds, sync::Arc};
 use futures::{stream::once, Stream, TryStreamExt};
 use libipld::Cid;
@@ -5,7 +7,7 @@ use async_trait::async_trait;
 use std::pin::Pin;
 use crate::as_cid::AsCid;
 use crate::twine::{AnyTwine, Stitch, Strand, Tixel, Twine};
-use crate::errors::ResolutionError;
+use crate::errors::{ConversionError, ResolutionError};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum Query {
@@ -35,6 +37,12 @@ impl From<Strand> for Query {
 impl<C> From<(C, u64)> for Query where C: AsCid {
   fn from((strand, index): (C, u64)) -> Self {
     Self::Index(strand.as_cid().clone(), index)
+  }
+}
+
+impl<C> From<(C, C)> for Query where C: AsCid {
+  fn from((strand, tixel): (C, C)) -> Self {
+    Self::Stitch((strand.as_cid().clone(), tixel.as_cid().clone()).into())
   }
 }
 
@@ -74,7 +82,45 @@ impl PartialOrd for Query {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+impl FromStr for Query {
+  type Err = ConversionError;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    let parts: Vec<&str> = s.split(':').collect();
+    let cid = parts.get(0).ok_or(ConversionError::InvalidFormat("Invalid Selector".into()))?;
+    let strand_cid = Cid::try_from(cid.to_string())?;
+    if parts.len() == 1 {
+      Ok(strand_cid.into())
+    } else if parts.len() == 2 {
+      let arg = parts.get(1).unwrap();
+      match *arg {
+        "latest"|"" => Ok(strand_cid.into()),
+        _ => {
+          if let Ok(cid) = Cid::try_from(arg.to_string()) {
+            Ok((strand_cid, cid).into())
+          } else {
+            let index: u64 = arg.parse()?;
+            Ok((strand_cid, index).into())
+          }
+        }
+      }
+    } else {
+      Err(ConversionError::InvalidFormat("Invalid Selector".into()))
+    }
+  }
+}
+
+impl Display for Query {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Query::Stitch(stitch) => write!(f, "{}:{}", stitch.strand, stitch.tixel),
+      Query::Index(cid, index) => write!(f, "{}:{}", cid, index),
+      Query::Latest(cid) => write!(f, "{}:latest", cid),
+    }
+  }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub struct AbsoluteRange {
   pub strand: Cid,
   pub upper: u64,
@@ -142,7 +188,7 @@ impl Iterator for AbsoluteRangeIter {
 ///
 /// The range can be absolute, meaning the indices are known,
 /// or relative, meaning the range is somehow relative to the latest index.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum RangeQuery {
   Absolute(AbsoluteRange),
   Relative(Cid, i64, i64),
@@ -247,6 +293,46 @@ impl RangeQuery {
 impl<C, R> From<(C, R)> for RangeQuery where R: RangeBounds<i64>, C: AsCid {
   fn from((strand, range): (C, R)) -> Self {
     Self::from_range_bounds(strand.as_cid(), range)
+  }
+}
+
+impl FromStr for RangeQuery {
+  type Err = ConversionError;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    let parts: Vec<&str> = s.split(':').collect();
+    if !parts.len() == 3 {
+      return Err(ConversionError::InvalidFormat("Invalid range query string".to_string()));
+    }
+    let cid_str = parts.get(0).unwrap();
+    let maybe_upper = parts.get(1).unwrap();
+    let maybe_lower = parts.get(2).unwrap();
+    let cid = Cid::try_from(*cid_str)?;
+    match (*maybe_upper, *maybe_lower) {
+      ("", "") => Ok((cid, ..).into()),
+      (upper, "") => {
+        let upper: i64 = upper.parse()?;
+        Ok((cid, upper..).into())
+      },
+      ("", lower) => {
+        let lower: i64 = lower.parse()?;
+        Ok((cid, ..lower).into())
+      },
+      (upper, lower) => {
+        let upper: i64 = upper.parse()?;
+        let lower: i64 = lower.parse()?;
+        Ok((cid, upper..lower).into())
+      }
+    }
+  }
+}
+
+impl Display for RangeQuery {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      RangeQuery::Absolute(range) => write!(f, "{}:{}:{}", range.strand, range.upper, range.lower),
+      RangeQuery::Relative(strand, upper, lower) => write!(f, "{}:{}:{}", strand, upper, lower),
+    }
   }
 }
 

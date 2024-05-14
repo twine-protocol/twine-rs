@@ -1,9 +1,6 @@
-use std::collections::HashMap;
-
+use std::{collections::HashMap, sync::Arc};
 use libipld::Cid;
-
 use crate::{errors::ResolutionError, resolver::Resolver};
-
 use super::{Tixel, Twine};
 
 #[derive(Clone, Copy, Debug, PartialEq, Hash, Eq)]
@@ -21,12 +18,27 @@ impl From<Tixel> for Stitch {
   }
 }
 
+impl From<Arc<Tixel>> for Stitch {
+  fn from(tixel: Arc<Tixel>) -> Self {
+    Stitch {
+      strand: tixel.strand_cid(),
+      tixel: tixel.cid(),
+    }
+  }
+}
+
 impl From<Twine> for Stitch {
   fn from(twine: Twine) -> Self {
     Stitch {
       strand: twine.strand_cid(),
       tixel: twine.cid(),
     }
+  }
+}
+
+impl From<(Cid, Cid)> for Stitch {
+  fn from((strand, tixel): (Cid, Cid)) -> Self {
+    Stitch { strand, tixel }
   }
 }
 
