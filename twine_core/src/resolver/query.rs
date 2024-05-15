@@ -6,7 +6,7 @@ use libipld::Cid;
 use crate::as_cid::AsCid;
 use crate::twine::{Stitch, Strand, Tixel};
 use crate::errors::{ConversionError, ResolutionError};
-use super::{BaseResolver, Resolver};
+use super::Resolver;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum Query {

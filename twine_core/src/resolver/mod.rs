@@ -1,6 +1,5 @@
-use std::ops::Deref;
 use std::sync::Arc;
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt};
 use async_trait::async_trait;
 use crate::Cid;
 use std::pin::Pin;

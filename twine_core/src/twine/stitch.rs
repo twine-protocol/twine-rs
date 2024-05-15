@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 use libipld::Cid;
-use crate::{errors::ResolutionError, resolver::{BaseResolver, Resolver}};
+use crate::{errors::ResolutionError, resolver::Resolver};
 use super::{Tixel, Twine};
 
 #[derive(Clone, Copy, Debug, PartialEq, Hash, Eq)]

@@ -1,10 +1,9 @@
-use std::{f32::consts::E, sync::Arc};
-
-use clap::{Subcommand, Parser};
+use std::sync::Arc;
+use clap::Parser;
 use anyhow::Result;
 use twine_core::{errors::ResolutionError, resolver::{Query, RangeQuery, Resolver}, twine::{AnyTwine, Stitch, Strand, Twine}, Cid, Ipld};
 use futures::stream::{Stream, StreamExt, TryStreamExt};
-use num_format::{Locale, ToFormattedString, SystemLocale};
+use num_format::{ToFormattedString, SystemLocale};
 
 // use crate::poly_resolver::PolyResolver;
 

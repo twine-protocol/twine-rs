@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use futures::Stream;
 use libipld::Cid;
 use crate::errors::{ResolutionError, StoreError};
-use crate::resolver::{BaseResolver, RangeQuery, Resolver};
+use crate::resolver::{BaseResolver, RangeQuery};
 use crate::twine::{Strand, Tixel};
 use super::Store;
 use crate::as_cid::AsCid;
@@ -185,6 +185,7 @@ mod test {
   use super::*;
   use crate::twine::*;
   use crate::test::*;
+  use crate::resolver::Resolver;
 
   #[tokio::test]
   async fn test_memory_store() {

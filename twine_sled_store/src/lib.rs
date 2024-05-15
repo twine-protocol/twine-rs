@@ -102,16 +102,6 @@ impl SledStore {
     Ok(tixel)
   }
 
-  async fn get_twine(&self, strand: &Cid, tixel: &Cid) -> Result<Twine, ResolutionError> {
-    let (strand, tixel) = join!(
-      self.fetch_strand(strand),
-      self.get_tixel(strand, tixel),
-    );
-
-    let (strand, tixel) = (strand?, tixel?);
-    Ok(Twine::try_new_from_shared(strand, Arc::new(tixel))?)
-  }
-
   fn latest_index(&self, strand: &Cid) -> Result<Option<u64>, ResolutionError> {
     let latest = self.db.get(get_latest_key(strand))
       .map_err(|e| ResolutionError::Fetch(e.to_string()))?;

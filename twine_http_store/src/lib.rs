@@ -186,10 +186,6 @@ impl HttpStore {
       },
     }
   }
-
-  async fn latest_index(&self, strand: &Cid) -> Result<u64, ResolutionError> {
-    self.fetch_latest(strand).await.map(|t| t.index())
-  }
 }
 
 #[async_trait]
