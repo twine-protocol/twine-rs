@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use futures::{join, Stream};
+use futures::Stream;
 use zerocopy::FromZeroes;
 use std::{pin::Pin, sync::Arc};
 use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, resolver::RangeQuery, Cid};
