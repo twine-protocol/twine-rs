@@ -246,7 +246,7 @@ impl BaseResolver for HttpStore {
 
   async fn range_stream(&self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
     use futures::stream::StreamExt;
-    let stream = range.to_batch_stream(self.resolver(), 100)
+    let stream = range.to_batch_stream(self, 100)
       .map(|range| async {
         let range = range?;
         if range.upper == range.lower {

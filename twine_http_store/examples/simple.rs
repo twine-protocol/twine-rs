@@ -14,7 +14,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let cfg = HttpStoreOptions::default()
     .url("https://random.colorado.edu/api");
   let resolver = HttpStore::new(reqwest::Client::new(), cfg);
-  let resolver = resolver.resolver();
   // let resolver = MemoryCache::new(resolver);
   let store = HttpStore::new(
     reqwest::Client::new(),

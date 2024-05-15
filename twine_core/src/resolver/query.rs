@@ -227,7 +227,7 @@ impl RangeQuery {
     }
   }
 
-  pub async fn try_to_absolute(self, resolver: Resolver<'_>) -> Result<AbsoluteRange, ResolutionError> {
+  pub async fn try_to_absolute<R: Resolver>(self, resolver: &R) -> Result<AbsoluteRange, ResolutionError> {
     match self {
       Self::Absolute(range) => Ok(range),
       Self::Relative(strand, _, _) => {
@@ -237,7 +237,7 @@ impl RangeQuery {
     }
   }
 
-  pub fn to_stream<'a>(self, resolver: Resolver<'a>) -> impl Stream<Item = Result<Query, ResolutionError>> + 'a {
+  pub fn to_stream<'a, R: Resolver>(self, resolver: &'a R) -> impl Stream<Item = Result<Query, ResolutionError>> + 'a {
     once(async move {
       self.try_to_absolute(resolver).await
         .map(|result| futures::stream::iter(result.into_iter().map(Ok)))
@@ -245,7 +245,7 @@ impl RangeQuery {
       .try_flatten()
   }
 
-  pub fn to_batch_stream<'a>(self, resolver: Resolver<'a>, size: u64) -> impl Stream<Item = Result<AbsoluteRange, ResolutionError>> + 'a {
+  pub fn to_batch_stream<'a, R: Resolver>(self, resolver: &'a R, size: u64) -> impl Stream<Item = Result<AbsoluteRange, ResolutionError>> + 'a {
     use futures::stream::StreamExt;
     once(async move {
       self.try_to_absolute(resolver).await

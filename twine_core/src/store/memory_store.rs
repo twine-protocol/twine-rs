@@ -109,7 +109,7 @@ impl BaseResolver for MemoryStore {
   }
 
   async fn range_stream<'a>(&'a self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
-    let range = range.try_to_absolute(self.resolver()).await?;
+    let range = range.try_to_absolute(self).await?;
     use futures::stream::StreamExt;
     if let Some(entry) = self.strands.read().unwrap().get(&range.strand) {
       let list = (range.lower..=range.upper)
@@ -234,12 +234,11 @@ mod test {
   #[tokio::test]
   async fn test_resolver() {
     let store = MemoryStore::new();
-    let resolver = Resolver::new(&store);
     let strand = Strand::from_dag_json(STRANDJSON).unwrap();
     let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
     store.save(strand.clone()).await.unwrap();
     store.save(tixel.clone()).await.unwrap();
-    let latest = resolver.resolve(strand).await.unwrap();
+    let latest = store.resolve(strand).await.unwrap();
     assert_eq!(latest, tixel);
   }
 }

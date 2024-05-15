@@ -62,7 +62,7 @@ impl CrossStitches {
     self.0
   }
 
-  pub async fn refresh(self, resolver: Resolver<'_>) -> Result<Self, ResolutionError> {
+  pub async fn refresh<R: Resolver>(self, resolver: &R) -> Result<Self, ResolutionError> {
     let mut new_stitches = HashMap::new();
     for (strand, stitch) in self {
       use futures::join;

@@ -215,7 +215,7 @@ impl BaseResolver for SledStore {
 
   async fn range_stream(&self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
     use futures::stream::StreamExt;
-    let range = range.try_to_absolute(self.resolver()).await?;
+    let range = range.try_to_absolute(self).await?;
     let strand_cid = range.strand;
     let mut expecting = range.upper;
     let sled_range = get_index_key(&strand_cid, range.lower)..=get_index_key(&strand_cid, range.upper);

@@ -119,21 +119,19 @@ impl ListCommand {
       None => config.resolvers.get_default().ok_or(anyhow::anyhow!("No default resolver set. Please specify a resolver with -r"))?,
     }.as_resolver()?;
 
-    let resolver = Resolver::new(&*resolver);
-
     match &self.selector {
       Some(selector) => match selector {
-        Selector::Strand(cid) => self.list_strand(&cid, resolver).await?,
-        Selector::Query(query) => self.list_query(*query, resolver).await?,
-        Selector::RangeQuery(range) => self.list_range(*range, resolver).await?,
+        Selector::Strand(cid) => self.list_strand(&cid, &resolver).await?,
+        Selector::Query(query) => self.list_query(*query, &resolver).await?,
+        Selector::RangeQuery(range) => self.list_range(*range, &resolver).await?,
       }
-      None => self.list_strands(resolver).await?,
+      None => self.list_strands(&resolver).await?,
     }
 
     Ok(())
   }
 
-  async fn list_strand(&self, cid: &Cid, resolver: Resolver<'_>) -> Result<()> {
+  async fn list_strand<R: Resolver>(&self, cid: &Cid, resolver: &R) -> Result<()> {
     log::trace!("Resolving cid {}", cid);
     let strand = resolver.resolve_strand(cid).await?;
     self.print_strand_stream(
@@ -143,7 +141,7 @@ impl ListCommand {
     Ok(())
   }
 
-  async fn list_query(&self, query: Query, resolver: Resolver<'_>) -> Result<()> {
+  async fn list_query<R: Resolver>(&self, query: Query, resolver: &R) -> Result<()> {
     log::trace!("Resolving query {}", query);
     let twine = resolver.resolve(query).await?;
     self.print_twine_stream(
@@ -152,7 +150,7 @@ impl ListCommand {
     Ok(())
   }
 
-  async fn list_range(&self, range: RangeQuery, resolver: Resolver<'_>) -> Result<()> {
+  async fn list_range<R: Resolver>(&self, range: RangeQuery, resolver: &R) -> Result<()> {
     log::trace!("Resolving range {}", range);
     let stream = resolver.resolve_range(range).await?;
     self.print_twine_stream(stream).await?;
@@ -199,14 +197,14 @@ impl ListCommand {
     Ok(())
   }
 
-  async fn list_strands(&self, resolver: Resolver<'_>) -> Result<()> {
+  async fn list_strands<R: Resolver>(&self, resolver: &R) -> Result<()> {
     log::trace!("Listing strands");
     let strands = resolver.strands().await?;
     self.print_strand_stream(strands, resolver).await?;
     Ok(())
   }
 
-  async fn print_strand_stream<S: Stream<Item = Result<Arc<Strand>, ResolutionError>>>(&self, strands: S, resolver: Resolver<'_>) -> Result<()> {
+  async fn print_strand_stream<S: Stream<Item = Result<Arc<Strand>, ResolutionError>>, R: Resolver>(&self, strands: S, resolver: &R) -> Result<()> {
     if self.json {
       strands
         .inspect_err(|err| {
