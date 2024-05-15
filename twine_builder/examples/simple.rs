@@ -1,5 +1,5 @@
 use twine_builder::TwineBuilder;
-use twine_core::{libipld::ipld, twine::{Tixel, Twine}};
+use twine_core::libipld::ipld;
 use josekit::jwk;
 
 fn main() {

@@ -27,7 +27,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   store.save(first.clone()).await?;
   store.save(next.clone()).await?;
 
-  let latest = store.resolve(strand.clone()).await?;
+  let resolver = store.resolver();
+
+  let latest = resolver.resolve(strand.clone()).await?;
   assert_eq!(latest, next.clone());
 
   let count = 1000;
@@ -46,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   println!("saved next_n");
 
   let start_time = std::time::Instant::now();
-  let results = store.resolve_range((strand.clone(), 0..=count as i64)).await?
+  let results = resolver.resolve_range((strand.clone(), 0..=count as i64)).await?
     .inspect_ok(|twine| {
       // println!("Resolved twine: {}", twine.index());
     })

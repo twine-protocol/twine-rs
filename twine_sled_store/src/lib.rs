@@ -3,7 +3,7 @@ use futures::{join, Stream};
 use zerocopy::FromZeroes;
 use std::{pin::Pin, sync::Arc};
 use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, resolver::RangeQuery, Cid};
-use twine_core::resolver::Resolver;
+use twine_core::resolver::BaseResolver;
 use sled::Db;
 use zerocopy::{
   byteorder::{U64, BigEndian}, AsBytes, FromBytes, Unaligned,
@@ -91,17 +91,21 @@ impl SledStore {
     Ok(AnyTwine::from_block(*cid, bytes)?)
   }
 
-  async fn get_tixel(&self, cid: &Cid) -> Result<Tixel, ResolutionError> {
+  async fn get_tixel(&self, strand: &Cid, cid: &Cid) -> Result<Tixel, ResolutionError> {
     let bytes = self.db.get(cid.to_bytes())
       .map_err(|e| ResolutionError::Fetch(e.to_string()))?
       .ok_or(ResolutionError::NotFound)?;
-    Ok(Tixel::from_block(*cid, bytes)?)
+    let tixel = Tixel::from_block(*cid, bytes)?;
+    if tixel.strand_cid() != *strand {
+      return Err(ResolutionError::BadData("Tixel does not belong to strand".to_string()));
+    }
+    Ok(tixel)
   }
 
   async fn get_twine(&self, strand: &Cid, tixel: &Cid) -> Result<Twine, ResolutionError> {
     let (strand, tixel) = join!(
-      self.resolve_strand(strand),
-      self.get_tixel(tixel),
+      self.fetch_strand(strand),
+      self.get_tixel(strand, tixel),
     );
 
     let (strand, tixel) = (strand?, tixel?);
@@ -153,7 +157,7 @@ impl SledStore {
 }
 
 #[async_trait]
-impl Resolver for SledStore {
+impl BaseResolver for SledStore {
 
   async fn strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
     let iter = self.db.scan_prefix(get_strand_prefix());
@@ -162,49 +166,57 @@ impl Resolver for SledStore {
       .then(|item| async {
         let (key, _) = item.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
         let cid = get_strand_from_key(&key);
-        self.resolve_strand(cid).await
+        self.fetch_strand(&cid).await
       });
 
     Ok(Box::pin(stream))
   }
 
-  async fn has<C: AsCid + Send>(&self, cid: C) -> bool {
-    self.db.contains_key(cid.as_cid().to_bytes()).unwrap_or(false)
+  async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError> {
+    Ok(self.db.contains_key(cid.as_cid().to_bytes()).unwrap_or(false))
   }
 
-  async fn resolve_cid<'a, C: AsCid + Send>(&'a self, cid: C) -> Result<AnyTwine, ResolutionError> {
-    let cid = cid.as_cid();
-    self.get(&cid).await
+  async fn has_twine(&self, _strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
+    Ok(self.db.contains_key(cid.as_cid().to_bytes()).unwrap_or(false))
   }
 
-  async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError> {
-    let strand_cid = strand.as_cid();
-    let cid = self.db.get(get_index_key(&strand_cid, index))
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
+    let key = get_strand_key(&strand);
+    let bytes = self.db.get(key)
+      .map_err(|e| ResolutionError::Fetch(e.to_string()))?
+      .ok_or(ResolutionError::NotFound)?;
+    Ok(Arc::new(Strand::from_block(strand.clone(), bytes)?))
+  }
+
+  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+    let tixel = self.get_tixel(strand, tixel).await?;
+    Ok(Arc::new(tixel))
+  }
+
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
+    let cid = self.db.get(get_index_key(&strand, index))
       .map_err(|e| ResolutionError::Fetch(e.to_string()))?
       .ok_or(ResolutionError::NotFound)?;
     let cid = Cid::try_from(cid.to_vec()).map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-    let twine = self.get_twine(strand_cid, &cid).await?;
+    let tixel = self.get_tixel(strand, &cid).await?;
 
-    if twine.index() != index {
-      return Err(ResolutionError::BadData(format!("Expected index {}, found {}", index, twine.index())));
+    if tixel.index() != index {
+      return Err(ResolutionError::BadData(format!("Expected index {}, found {}", index, tixel.index())));
     }
 
-    Ok(twine)
+    Ok(Arc::new(tixel))
   }
 
-  async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<Twine, ResolutionError> {
-    let strand_cid = strand.as_cid();
-    let cid = self.latest_cid(&strand_cid)?.ok_or(ResolutionError::NotFound)?;
-    let twine = self.get_twine(strand_cid, &cid).await?;
-    Ok(twine)
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+    let cid = self.latest_cid(&strand)?.ok_or(ResolutionError::NotFound)?;
+    let tixel = self.get_tixel(strand, &cid).await?;
+    Ok(Arc::new(tixel))
   }
 
-  async fn resolve_range<R: Into<RangeQuery> + Send>(&self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + Send + '_>>, ResolutionError> {
-    let range = range.into();
+  async fn range_stream(&self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
     use futures::stream::StreamExt;
-    let strand = self.resolve_strand(range.strand_cid()).await?;
-    let strand_cid = strand.cid();
-    let range = range.try_to_absolute(self).await?;
+    let range = range.try_to_absolute(self.resolver()).await?;
+    let strand_cid = range.strand;
     let mut expecting = range.upper;
     let sled_range = get_index_key(&strand_cid, range.lower)..=get_index_key(&strand_cid, range.upper);
     let iter = self.db.range(sled_range).rev();
@@ -247,21 +259,18 @@ impl Resolver for SledStore {
         }
       })
       .flatten()
-      .map(|res| async {
-        let (index, cid) = res?;
-        let tixel = self.get_tixel(&cid).await?;
-        if tixel.index() != index {
-          return Err(ResolutionError::BadData(format!("Expected index {}, found {}", index, tixel.index())));
-        }
-        Ok(tixel)
-      })
-      .buffered(self.options.buffer_size)
-      .then(move |tixel: Result<_, ResolutionError>| {
-        let strand = strand.clone();
+      .map(move |res| {
+        let strand_cid = strand_cid.clone();
         async move {
-          Ok(Twine::try_new_from_shared(strand, Arc::new(tixel?))?)
+          let (index, cid) = res?;
+          let tixel = self.get_tixel(&strand_cid, &cid).await?;
+          if tixel.index() != index {
+            return Err(ResolutionError::BadData(format!("Expected index {}, found {}", index, tixel.index())));
+          }
+          Ok(Arc::new(tixel))
         }
-      });
+      })
+      .buffered(self.options.buffer_size);
     Ok(stream.boxed())
   }
 }
@@ -279,7 +288,7 @@ impl Store for SledStore {
       },
       AnyTwine::Tixel(tixel) => {
         let strand = tixel.strand_cid();
-        if !self.has(strand).await {
+        if !self.has_strand(&strand).await? {
           return Err(StoreError::Saving(format!("Strand {} not saved yet", strand)));
         }
         self.check_update(&tixel)?;
@@ -306,7 +315,7 @@ impl Store for SledStore {
         },
         AnyTwine::Tixel(tixel) => {
           let strand = tixel.strand_cid();
-          if !self.has(strand).await {
+          if !self.has_strand(&strand).await? {
             return Err(StoreError::Saving(format!("Strand {} not saved yet", strand)));
           }
           self.check_update(&tixel)?;
@@ -330,7 +339,7 @@ impl Store for SledStore {
   }
 
   async fn delete<C: AsCid + Send>(&self, cid: C) -> Result<(), StoreError> {
-    let twine = match self.resolve_cid(cid).await {
+    let twine = match self.get(cid.as_cid()).await {
       Ok(twine) => twine,
       Err(ResolutionError::NotFound) => return Ok(()),
       Err(e) => return Err(StoreError::Saving(e.to_string())),

@@ -1,18 +1,17 @@
 use std::fmt::Display;
 use std::str::FromStr;
-use std::{ops::RangeBounds, sync::Arc};
+use std::ops::RangeBounds;
 use futures::{stream::once, Stream, TryStreamExt};
 use libipld::Cid;
-use async_trait::async_trait;
-use std::pin::Pin;
 use crate::as_cid::AsCid;
-use crate::twine::{AnyTwine, Stitch, Strand, Tixel, Twine};
+use crate::twine::{Stitch, Strand, Tixel};
 use crate::errors::{ConversionError, ResolutionError};
+use super::{BaseResolver, Resolver};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum Query {
   Stitch(Stitch),
-  Index(Cid, u64),
+  Index(Cid, i64),
   Latest(Cid),
 }
 
@@ -36,6 +35,12 @@ impl From<Strand> for Query {
 
 impl<C> From<(C, u64)> for Query where C: AsCid {
   fn from((strand, index): (C, u64)) -> Self {
+    Self::Index(strand.as_cid().clone(), index as i64)
+  }
+}
+
+impl<C> From<(C, i64)> for Query where C: AsCid {
+  fn from((strand, index): (C, i64)) -> Self {
     Self::Index(strand.as_cid().clone(), index)
   }
 }
@@ -49,36 +54,6 @@ impl<C> From<(C, C)> for Query where C: AsCid {
 impl From<Cid> for Query {
   fn from(cid: Cid) -> Self {
     Self::Latest(cid)
-  }
-}
-
-impl PartialOrd for Query {
-  fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-    match (self, other) {
-      (Query::Index(a, i), Query::Index(b, j)) => {
-        if a == b {
-          i.partial_cmp(j)
-        } else {
-          None
-        }
-      }
-      (Query::Latest(a), Query::Latest(b)) => if a == b {
-        Some(std::cmp::Ordering::Equal)
-      } else {
-        None
-      },
-      (Query::Index(a, _), Query::Latest(b)) => if a == b {
-        Some(std::cmp::Ordering::Less)
-      } else {
-        None
-      },
-      (Query::Latest(a), Query::Index(b, _)) => if a == b {
-        Some(std::cmp::Ordering::Greater)
-      } else {
-        None
-      },
-      _ => None,
-    }
   }
 }
 
@@ -99,7 +74,7 @@ impl FromStr for Query {
           if let Ok(cid) = Cid::try_from(arg.to_string()) {
             Ok((strand_cid, cid).into())
           } else {
-            let index: u64 = arg.parse()?;
+            let index: i64 = arg.parse()?;
             Ok((strand_cid, index).into())
           }
         }
@@ -177,7 +152,7 @@ impl Iterator for AbsoluteRangeIter {
   fn next(&mut self) -> Option<Self::Item> {
     if self.current > self.range.lower {
       self.current -= 1;
-      Some(Query::Index(self.range.strand.clone(), self.current))
+      Some((self.range.strand.clone(), self.current).into())
     } else {
       None
     }
@@ -252,7 +227,7 @@ impl RangeQuery {
     }
   }
 
-  pub async fn try_to_absolute<R: Resolver>(self, resolver: &R) -> Result<AbsoluteRange, ResolutionError> {
+  pub async fn try_to_absolute(self, resolver: Resolver<'_>) -> Result<AbsoluteRange, ResolutionError> {
     match self {
       Self::Absolute(range) => Ok(range),
       Self::Relative(strand, _, _) => {
@@ -262,7 +237,7 @@ impl RangeQuery {
     }
   }
 
-  pub fn to_stream<'a, R: Resolver>(self, resolver: &'a R) -> impl Stream<Item = Result<Query, ResolutionError>> + 'a {
+  pub fn to_stream<'a>(self, resolver: Resolver<'a>) -> impl Stream<Item = Result<Query, ResolutionError>> + 'a {
     once(async move {
       self.try_to_absolute(resolver).await
         .map(|result| futures::stream::iter(result.into_iter().map(Ok)))
@@ -270,7 +245,7 @@ impl RangeQuery {
       .try_flatten()
   }
 
-  pub fn to_batch_stream<'a, R: Resolver>(self, resolver: &'a R, size: u64) -> impl Stream<Item = Result<AbsoluteRange, ResolutionError>> + 'a {
+  pub fn to_batch_stream<'a>(self, resolver: Resolver<'a>, size: u64) -> impl Stream<Item = Result<AbsoluteRange, ResolutionError>> + 'a {
     use futures::stream::StreamExt;
     once(async move {
       self.try_to_absolute(resolver).await
@@ -333,122 +308,5 @@ impl Display for RangeQuery {
       RangeQuery::Absolute(range) => write!(f, "{}:{}:{}", range.strand, range.upper, range.lower),
       RangeQuery::Relative(strand, upper, lower) => write!(f, "{}:{}:{}", strand, upper, lower),
     }
-  }
-}
-
-#[async_trait]
-pub trait Resolver: Clone + Send + Sync {
-  async fn resolve_cid<C: AsCid + Send>(&self, cid: C) -> Result<AnyTwine, ResolutionError>;
-  async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError>;
-  async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<Twine, ResolutionError>;
-
-  async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError>;
-
-  async fn has<C: AsCid + Send>(&self, cid: C) -> bool {
-    self.resolve_cid(cid).await.is_ok()
-  }
-
-  async fn resolve<Q: Into<Query> + Send>(&self, query: Q) -> Result<Twine, ResolutionError> {
-    let query = query.into();
-    match query {
-      Query::Stitch(stitch) => {
-        let strand = self.resolve_strand(stitch.strand);
-        let tixel = self.resolve_tixel(stitch.tixel);
-        let (strand, tixel) = futures::try_join!(strand, tixel)?;
-        Ok(Twine::try_new_from_shared(strand, tixel)?)
-      }
-      Query::Index(strand, index) => self.resolve_index(strand, index).await,
-      Query::Latest(strand) => self.resolve_latest(strand).await,
-    }
-  }
-
-  async fn resolve_tixel<C: AsCid + Send>(&self, tixel: C) -> Result<Arc<Tixel>, ResolutionError> {
-    let twine = self.resolve_cid(tixel).await?;
-    Ok(twine.try_into()?)
-  }
-
-  async fn resolve_strand<C: AsCid + Send>(&self, strand: C) -> Result<Arc<Strand>, ResolutionError> {
-    let task = self.resolve_cid(strand);
-    let twine = task.await?;
-    Ok(twine.try_into()?)
-  }
-
-  async fn resolve_range<'a, R: Into<RangeQuery> + Send>(&'a self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + Send + 'a>>, ResolutionError> {
-    let range = range.into();
-    use futures::stream::StreamExt;
-    let stream = range.to_stream(self)
-      .then(|q| async { self.resolve(q?).await });
-    Ok(stream.boxed())
-  }
-}
-
-// #[async_trait]
-// impl<T> Resolver for Arc<T> where T: Resolver {
-//   async fn resolve_cid<C: AsCid + Send>(&self, cid: C) -> Result<AnyTwine, ResolutionError> {
-//     self.as_ref().resolve_cid(cid).await
-//   }
-
-//   async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError> {
-//     self.as_ref().resolve_index(strand, index).await
-//   }
-
-//   async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<Twine, ResolutionError> {
-//     self.as_ref().resolve_latest(strand).await
-//   }
-
-//   async fn resolve_tixel<C: AsCid + Send>(&self, tixel: C) -> Result<Arc<Tixel>, ResolutionError> {
-//     self.as_ref().resolve_tixel(tixel).await
-//   }
-
-//   async fn resolve_strand<C: AsCid + Send>(&self, strand: C) -> Result<Arc<Strand>, ResolutionError> {
-//     self.as_ref().resolve_strand(strand).await
-//   }
-
-//   fn resolve_range<C: AsCid + Send, R: RangeBounds<i64> + Send>(&self, strand: C, range: R) -> impl Stream<Item = Result<Twine, ResolutionError>> where Self: Sized + Sync {
-//     self.as_ref().resolve_range(strand, range)
-//   }
-// }
-
-#[cfg(test)]
-mod test {
-  use super::*;
-
-  #[test]
-  fn test_range_query_bounds() {
-    let cid = Cid::default();
-    let range = RangeQuery::from_range_bounds(&cid, 0..2);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 1, 0)));
-    let range = RangeQuery::from_range_bounds(&cid, 2..);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 2, 0)));
-    let range = RangeQuery::from_range_bounds(&cid, 4..1);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 4, 2)));
-    let range = RangeQuery::from_range_bounds(&cid, 2..=4);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 4, 2)));
-    let range = RangeQuery::from_range_bounds(&cid, 3..=1);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 3, 1)));
-    let range = RangeQuery::from_range_bounds(&cid, -1..);
-    assert_eq!(range, RangeQuery::Relative(cid, -1, 0));
-    let range = RangeQuery::from_range_bounds(&cid, ..=-2);
-    assert_eq!(range, RangeQuery::Relative(cid, -1, -2));
-    let range = RangeQuery::from_range_bounds(&cid, ..);
-    assert_eq!(range, RangeQuery::Relative(cid, -1, 0));
-    let range = RangeQuery::from_range_bounds(&cid, -1..-1);
-    assert_eq!(range, RangeQuery::Relative(cid, -1, -1));
-    let range = RangeQuery::from_range_bounds(&cid, -1..=-2);
-    assert_eq!(range, RangeQuery::Relative(cid, -1, -2));
-    let range = RangeQuery::from_range_bounds(&cid, ..=2);
-    assert_eq!(range, RangeQuery::Relative(cid, -1, 2));
-    let range = RangeQuery::from_range_bounds(&cid, -3..-1);
-    assert_eq!(range, RangeQuery::Relative(cid, -2, -3));
-  }
-
-  #[test]
-  fn test_batches(){
-    let range = AbsoluteRange::new(Cid::default(), 100, 0);
-    let batches = range.batches(100);
-    let cid = Cid::default();
-    assert_eq!(batches.len(), 2);
-    assert_eq!(batches[0], AbsoluteRange::new(cid.clone(), 100, 1));
-    assert_eq!(batches[1], AbsoluteRange::new(cid, 0, 0));
   }
 }

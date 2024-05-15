@@ -21,7 +21,7 @@ macro_rules! poly_resolver {
           $(Self::$resolver(r) => r.resolve_cid(cid).await,)*
         }
       }
-      async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError> {
+      async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: i64) -> Result<Twine, ResolutionError> {
         match self {
           $(Self::$resolver(r) => r.resolve_index(strand, index).await,)*
         }

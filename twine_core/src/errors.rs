@@ -54,6 +54,8 @@ pub enum StoreError {
   Invalid(#[from] VerificationError),
   #[error("Problem saving data: {0}")]
   Saving(String),
+  #[error("Problem fetching data: {0}")]
+  Fetching(#[from] ResolutionError),
 }
 
 #[derive(Debug, Error)]

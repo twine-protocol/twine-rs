@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
+use twine_core::resolver::BaseResolver;
+use twine_http_store::{HttpStore, HttpStoreOptions, reqwest};
+use twine_sled_store::{SledStore, SledStoreOptions, sled};
 
-use crate::poly_resolver::PolyResolver;
+// use crate::poly_resolver::PolyResolver;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Resolver {
@@ -11,8 +14,22 @@ pub(crate) struct Resolver {
 }
 
 impl Resolver {
-  pub(crate) fn as_resolver(&self) -> Result<PolyResolver> {
-    PolyResolver::new_from_string(&self.uri)
+  pub(crate) fn as_resolver(&self) -> Result<Box<dyn BaseResolver>> {
+    match self.uri.split("://").next().unwrap_or_default() {
+      "http"|"https" => {
+        let cfg = HttpStoreOptions::default()
+          .url(&self.uri);
+        let r = HttpStore::new(reqwest::Client::new(), cfg);
+        Ok(Box::new(r))
+      },
+      "sled" => {
+        let path = self.uri.split_at(5).1;
+        let db = sled::Config::new().path(path).open()?;
+        let r = SledStore::new(db, SledStoreOptions::default());
+        Ok(Box::new(r))
+      },
+      _ => Err(anyhow::anyhow!("Unknown resolver type: {}", self.uri)),
+    }
   }
 }
 

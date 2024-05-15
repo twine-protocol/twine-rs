@@ -2,7 +2,7 @@ use clap::Parser;
 
 mod config;
 mod cli;
-mod poly_resolver;
+// mod poly_resolver;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

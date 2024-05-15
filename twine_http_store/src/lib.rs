@@ -5,7 +5,7 @@ use rs_car::car_read_all;
 use std::{pin::Pin, sync::Arc};
 use std::time::Duration;
 use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, resolver::RangeQuery, Cid, resolver::AbsoluteRange};
-use twine_core::resolver::Resolver;
+use twine_core::resolver::BaseResolver;
 
 pub use reqwest;
 
@@ -87,6 +87,11 @@ impl HttpStore {
       .timeout(self.options.timeout)
   }
 
+  fn head(&self, path: &str) -> reqwest::RequestBuilder {
+    self.client.head(self.options.url.join(&path).expect("Invalid path"))
+      .timeout(self.options.timeout)
+  }
+
   fn post(&self, path: &str) -> reqwest::RequestBuilder {
     self.client.post(self.options.url.join(&path).expect("Invalid path"))
       .header(CONTENT_TYPE, "application/vnd.ipld.car")
@@ -136,15 +141,11 @@ impl HttpStore {
     }
   }
 
-  async fn get_tixel<T: AsCid + Send>(&self, strand: T, path: &str) -> Result<Twine, ResolutionError> {
-    let strand = self.resolve_strand(strand.as_cid());
-    let response = self.req(&path).send();
-    let (strand, response) = futures::future::join(strand, response).await;
-    let strand = strand?;
+  async fn get_tixel(&self, path: &str) -> Result<Arc<Tixel>, ResolutionError> {
+    let response = self.req(&path).send().await;
     let response = response.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
     let tixel = self.parse(response).await?.try_into()?;
-    let twine = Twine::try_new_from_shared(strand, tixel)?;
-    Ok(twine)
+    Ok(Arc::new(tixel))
   }
 
   async fn fetch_tixel_range(&self, range: AbsoluteRange) -> Result<reqwest::Response, ResolutionError> {
@@ -185,15 +186,24 @@ impl HttpStore {
       },
     }
   }
+
+  async fn latest_index(&self, strand: &Cid) -> Result<u64, ResolutionError> {
+    self.fetch_latest(strand).await.map(|t| t.index())
+  }
 }
 
 #[async_trait]
-impl Resolver for HttpStore {
-  async fn resolve_cid<'a, C: AsCid + Send>(&'a self, cid: C) -> Result<AnyTwine, ResolutionError> {
-    let cid = cid.as_cid();
-    let path = format!("cid/{}", cid);
-    let response = self.req(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-    Ok(self.parse_expect(cid, response).await?)
+impl BaseResolver for HttpStore {
+  async fn has_twine(&self, strand: &Cid, tixel: &Cid) -> Result<bool, ResolutionError> {
+    let path = format!("chains/{}/pulses/{}", strand.as_cid(), tixel.as_cid());
+    let response = self.head(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+    Ok(response.status() == StatusCode::OK)
+  }
+
+  async fn has_strand(&self, strand: &Cid) -> Result<bool, ResolutionError> {
+    let path = format!("chains/{}", strand.as_cid());
+    let response = self.head(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+    Ok(response.status() == StatusCode::OK)
   }
 
   async fn strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
@@ -207,45 +217,53 @@ impl Resolver for HttpStore {
     Ok(stream.boxed())
   }
 
-  async fn resolve_strand<C: AsCid + Send>(&self, strand: C) -> Result<Arc<Strand>, ResolutionError> {
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
     let cid = strand.as_cid();
     let path = format!("chains/{}", cid);
     let response = self.req(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
     Ok(self.parse_expect(cid, response).await?.try_into()?)
   }
 
-  async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError> {
+  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+    let path = format!("chains/{}/pulses/{}", strand.as_cid(), tixel.as_cid());
+    self.get_tixel(&path).await
+  }
+
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
     let path = format!("chains/{}/pulses/{}", strand.as_cid(), index);
-    let twine = self.get_tixel(strand, &path).await?;
-    if twine.index() != index {
-      return Err(ResolutionError::BadData(format!("Expected index {}, found {}", index, twine.index())));
+    let tixel = self.get_tixel(&path).await?;
+    if tixel.index() != index {
+      return Err(ResolutionError::BadData(format!("Expected index {}, found {}", index, tixel.index())));
     }
-    Ok(twine)
+    Ok(tixel)
   }
 
-  async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<Twine, ResolutionError> {
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
     let path = format!("chains/{}/pulses/latest", strand.as_cid());
-    let twine = self.get_tixel(strand, &path).await?;
-    Ok(twine)
+    let tixel = self.get_tixel(&path).await?;
+    Ok(tixel)
   }
 
-  async fn resolve_range<R: Into<RangeQuery> + Send>(&self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + Send + '_>>, ResolutionError> {
-    let range = range.into();
+  async fn range_stream(&self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
     use futures::stream::StreamExt;
-    let strand = self.resolve_strand(range.strand_cid()).await?;
-    let stream = range.to_batch_stream(self, 100)
+    let stream = range.to_batch_stream(self.resolver(), 100)
       .map(|range| async {
-        let response = self.fetch_tixel_range(range?).await;
-        self.parse_collection_response(response?).await
+        let range = range?;
+        if range.upper == range.lower {
+          let res = self.fetch_index(&range.strand.clone(), range.upper).await;
+          return Ok::<_, ResolutionError>(futures::stream::once(async {
+            res.map(|t| AnyTwine::from(t))
+          }).boxed());
+        }
+        let response = self.fetch_tixel_range(range).await;
+        Ok(self.parse_collection_response(response?).await?.boxed())
       })
       .buffered(self.options.buffer_size)
       .try_flatten()
-      .then(move |t| {
-        let strand = strand.clone();
-        async move {
-          let tixel = Arc::<Tixel>::try_from(t?)?;
-          Ok(Twine::try_new_from_shared(strand, tixel)?)
-        }
+      .then(|t| async {
+        let t = t?;
+        let t = Arc::<Tixel>::try_from(t)?;
+        Ok(t)
       });
     Ok(stream.boxed())
   }

@@ -61,7 +61,7 @@ impl<T: Resolver> Resolver for MemoryCache<T> {
     Ok(twine)
   }
 
-  async fn resolve_index<C: AsCid + Send>(&self, cid: C, index: u64) -> Result<Twine, ResolutionError> {
+  async fn resolve_index<C: AsCid + Send>(&self, cid: C, index: i64) -> Result<Twine, ResolutionError> {
     let cid = cid.as_cid();
     let res = {
       self.cache.resolve_index(cid, index).await

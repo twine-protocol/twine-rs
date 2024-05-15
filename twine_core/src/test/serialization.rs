@@ -1,5 +1,7 @@
+use ipld_core::{codec::Codec, ipld};
 use libipld::serde::from_ipld;
 use serde::Serialize;
+use serde_ipld_dagjson::codec::DagJsonCodec;
 
 use crate::twine::*;
 use super::*;
@@ -108,3 +110,14 @@ fn test_shared_twine() {
   assert_eq!(twine.previous(), twine.back_stitches().first().unwrap().to_owned());
 }
 
+#[test]
+fn test_null_payload(){
+  let ipld = ipld!({
+    "payload": {
+      "baz": null
+    }
+  });
+  let encoded = DagJsonCodec::encode_to_vec(&ipld).unwrap();
+  let decoded = DagJsonCodec::decode_from_slice(&encoded).unwrap();
+  assert_eq!(ipld, decoded);
+}

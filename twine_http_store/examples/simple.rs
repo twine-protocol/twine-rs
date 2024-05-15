@@ -3,7 +3,7 @@ use tokio::pin;
 use twine_http_store::*;
 use twine_core::resolver::*;
 use twine_core::Cid;
-use twine_core::store::MemoryCache;
+// use twine_core::store::MemoryCache;
 use twine_core::store::Store;
 // use futures_time::prelude::*;
 // use futures_time::time::Duration;
@@ -14,11 +14,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let cfg = HttpStoreOptions::default()
     .url("https://random.colorado.edu/api");
   let resolver = HttpStore::new(reqwest::Client::new(), cfg);
-  let resolver = MemoryCache::new(resolver);
+  let resolver = resolver.resolver();
+  // let resolver = MemoryCache::new(resolver);
   let store = HttpStore::new(
     reqwest::Client::new(),
     HttpStoreOptions::default().url("http://192.168.68.58:8787")
   );
+  let store = twine_core::store::MemoryStore::new();
 
   println!("strands:");
   let strands = resolver.strands().await?;
@@ -37,9 +39,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let twine = resolver.resolve_strand(cid).await?;
   println!("specific strand resolved: {}", twine.cid());
 
-  store.save(twine.clone()).await?;
-  println!("saved twine");
-
   let tenth = resolver.resolve_index(&twine, 10).await?;
   println!("tenth: {}", tenth.cid());
 
@@ -55,6 +54,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   pin!(twine_stream);
 
+  store.save(twine.clone()).await?;
+  println!("saved twine");
   store.save_stream(twine_stream).await?;
 
   Ok(())

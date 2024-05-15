@@ -6,7 +6,7 @@ use twine_core::{errors::ResolutionError, resolver::{Query, RangeQuery, Resolver
 use futures::stream::{Stream, StreamExt, TryStreamExt};
 use num_format::{Locale, ToFormattedString, SystemLocale};
 
-use crate::poly_resolver::PolyResolver;
+// use crate::poly_resolver::PolyResolver;
 
 #[derive(Debug, Parser)]
 pub struct ListCommand {
@@ -83,7 +83,7 @@ fn format_ipld(thing: Ipld, depth: u8, locale: &SystemLocale) -> String {
 
 #[derive(Debug, Clone, Copy)]
 enum Selector {
-  Cid(Cid),
+  Strand(Cid),
   Query(Query),
   RangeQuery(RangeQuery),
 }
@@ -96,7 +96,7 @@ fn parse_selector(selector: &str) -> Result<Selector> {
   match selector.split(':').count() {
     1 => {
       let cid = Cid::try_from(selector)?;
-      Ok(Selector::Cid(cid))
+      Ok(Selector::Strand(cid))
     },
     2 => {
       Ok(Selector::Query(selector.parse()?))
@@ -117,38 +117,33 @@ impl ListCommand {
     let resolver = match &self.resolver {
       Some(resolver) => config.resolvers.get(resolver).ok_or(anyhow::anyhow!("Resolver not found"))?,
       None => config.resolvers.get_default().ok_or(anyhow::anyhow!("No default resolver set. Please specify a resolver with -r"))?,
-    };
-    let resolver = resolver.as_resolver()?;
+    }.as_resolver()?;
+
+    let resolver = Resolver::new(&*resolver);
 
     match &self.selector {
       Some(selector) => match selector {
-        Selector::Cid(cid) => self.list_cid(&cid, &resolver).await?,
-        Selector::Query(query) => self.list_query(*query, &resolver).await?,
-        Selector::RangeQuery(range) => self.list_range(*range, &resolver).await?,
+        Selector::Strand(cid) => self.list_strand(&cid, resolver).await?,
+        Selector::Query(query) => self.list_query(*query, resolver).await?,
+        Selector::RangeQuery(range) => self.list_range(*range, resolver).await?,
       }
-      None => self.list_strands(&resolver).await?,
+      None => self.list_strands(resolver).await?,
     }
 
     Ok(())
   }
 
-  async fn list_cid(&self, cid: &Cid, resolver: &PolyResolver) -> Result<()> {
+  async fn list_strand(&self, cid: &Cid, resolver: Resolver<'_>) -> Result<()> {
     log::trace!("Resolving cid {}", cid);
-    let twine = resolver.resolve_cid(cid).await?;
-    match twine {
-      AnyTwine::Strand(strand) =>
-        self.print_strand_stream(
-          futures::stream::once(async { Ok(strand) }),
-          resolver
-        ).await?,
-      AnyTwine::Tixel(tixel) => self.print_twine_stream(
-        futures::stream::once(async { resolver.resolve(Stitch::from(tixel)).await })
-      ).await?,
-    }
+    let strand = resolver.resolve_strand(cid).await?;
+    self.print_strand_stream(
+      futures::stream::once(async { Ok(strand) }),
+      resolver
+    ).await?;
     Ok(())
   }
 
-  async fn list_query(&self, query: Query, resolver: &PolyResolver) -> Result<()> {
+  async fn list_query(&self, query: Query, resolver: Resolver<'_>) -> Result<()> {
     log::trace!("Resolving query {}", query);
     let twine = resolver.resolve(query).await?;
     self.print_twine_stream(
@@ -157,7 +152,7 @@ impl ListCommand {
     Ok(())
   }
 
-  async fn list_range(&self, range: RangeQuery, resolver: &PolyResolver) -> Result<()> {
+  async fn list_range(&self, range: RangeQuery, resolver: Resolver<'_>) -> Result<()> {
     log::trace!("Resolving range {}", range);
     let stream = resolver.resolve_range(range).await?;
     self.print_twine_stream(stream).await?;
@@ -204,14 +199,14 @@ impl ListCommand {
     Ok(())
   }
 
-  async fn list_strands(&self, resolver: &PolyResolver) -> Result<()> {
+  async fn list_strands(&self, resolver: Resolver<'_>) -> Result<()> {
     log::trace!("Listing strands");
     let strands = resolver.strands().await?;
     self.print_strand_stream(strands, resolver).await?;
     Ok(())
   }
 
-  async fn print_strand_stream<S: Stream<Item = Result<Arc<Strand>, ResolutionError>>>(&self, strands: S, resolver: &PolyResolver) -> Result<()> {
+  async fn print_strand_stream<S: Stream<Item = Result<Arc<Strand>, ResolutionError>>>(&self, strands: S, resolver: Resolver<'_>) -> Result<()> {
     if self.json {
       strands
         .inspect_err(|err| {
