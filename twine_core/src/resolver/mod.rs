@@ -1,5 +1,5 @@
-use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::collections::HashSet;
+use std::sync::Arc;
 use futures::{Stream, StreamExt, TryStreamExt};
 use async_trait::async_trait;
 use crate::Cid;

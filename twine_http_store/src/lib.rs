@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use futures::{Stream, TryStreamExt};
 use reqwest::{header::{ACCEPT, CONTENT_TYPE}, StatusCode, Url};
 use fvm_ipld_car::CarReader;
-use std::{env::consts::OS, pin::Pin, sync::Arc};
+use std::{pin::Pin, sync::Arc};
 use std::time::Duration;
 use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, resolver::RangeQuery, Cid, resolver::AbsoluteRange};
 use twine_core::resolver::BaseResolver;
@@ -315,7 +315,7 @@ impl Store for HttpStore {
       use itertools::Itertools;
       let groups_by_strand = tixels.iter()
         .map(|t| Tixel::try_from(t.to_owned()).unwrap())
-        .group_by(|t| t.strand_cid().clone())
+        .chunk_by(|t| t.strand_cid().clone())
         .into_iter()
         .map(|(cid, it)|
           (
