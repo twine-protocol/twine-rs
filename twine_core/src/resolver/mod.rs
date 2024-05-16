@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use futures::{Stream, StreamExt};
+use std::sync::{Arc, Mutex};
+use futures::{Stream, StreamExt, TryStreamExt};
 use async_trait::async_trait;
 use crate::Cid;
 use std::pin::Pin;
@@ -68,7 +68,7 @@ pub trait Resolver: BaseResolver + Send + Sync {
       }
       Query::Index(strand, index) => {
         let index = match index {
-          i if i < 0 => self.resolve_latest(strand).await?.index() as i64 + i,
+          i if i < 0 => self.fetch_latest(strand.as_cid()).await?.index() as i64 + i + 1,
           i => i
         } as u64;
         self.resolve_index(strand, index).await
@@ -134,12 +134,18 @@ impl BaseResolver for Vec<Box<dyn BaseResolver>> {
   }
 
   async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
-    for resolver in self {
-      if let Ok(tixel) = resolver.fetch_latest(strand).await {
-        return Ok(tixel);
-      }
+    let tasks = self.iter().map(|r| r.fetch_latest(strand))
+      .collect::<Vec<_>>();
+    let results = futures::future::join_all(tasks).await.into_iter()
+      .filter_map(|res| match res {
+        Ok(t) => Some(t),
+        Err(_) => None,
+      })
+      .max_by(|a, b| a.index().cmp(&b.index()));
+    match results {
+      Some(t) => Ok(t),
+      None => Err(ResolutionError::NotFound),
     }
-    Err(ResolutionError::NotFound)
   }
 
   async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
@@ -171,6 +177,7 @@ impl BaseResolver for Vec<Box<dyn BaseResolver>> {
 
   async fn range_stream<'a>(&'a self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
     for resolver in self {
+      // TODO: should find a way to merge streams
       if let Ok(stream) = resolver.range_stream(range.clone()).await {
         return Ok(stream);
       }
@@ -179,15 +186,32 @@ impl BaseResolver for Vec<Box<dyn BaseResolver>> {
   }
 
   async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
-    let mut strands = HashMap::new();
-    for resolver in self {
-      while let Some(strand) = resolver.strands().await?.next().await {
-        let strand = strand?;
-        strands.insert(strand.cid(), strand);
-      }
-    }
-    let vec = strands.values().cloned().collect::<Vec<_>>();
-    Ok(futures::stream::iter(vec).map(|t| Ok(t.clone())).boxed())
+    let stream = futures::stream::iter(self.iter())
+      .then(|r| r.strands())
+      .try_flatten()
+      .scan(HashSet::new(), |seen, strand| {
+        use futures::future::ready;
+        let strand = match strand {
+          Ok(s) => s,
+          Err(e) => return ready(Some(Err(e))),
+        };
+        if seen.contains(&strand.cid()) {
+          return ready(Some(Ok(None)));
+        }
+        seen.insert(strand.cid());
+        ready(Some(Ok(Some(strand))))
+      })
+      // TODO: maybe log error?
+      .filter_map(|res| async move {
+        match res {
+          Ok(Some(s)) => Some(Ok(s)),
+          Ok(None) => None,
+          Err(_) => None,
+        }
+      })
+      .boxed();
+
+    Ok(stream)
   }
 }
 
