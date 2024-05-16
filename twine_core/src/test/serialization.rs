@@ -1,5 +1,5 @@
 use ipld_core::{codec::Codec, ipld};
-use libipld::serde::from_ipld;
+use ipld_core::serde::from_ipld;
 use serde::Serialize;
 use serde_ipld_dagjson::codec::DagJsonCodec;
 
@@ -120,4 +120,15 @@ fn test_null_payload(){
   let encoded = DagJsonCodec::encode_to_vec(&ipld).unwrap();
   let decoded = DagJsonCodec::decode_from_slice(&encoded).unwrap();
   assert_eq!(ipld, decoded);
+}
+
+
+#[test]
+fn test_roundtrip_null(){
+    let test = ipld!({
+      "test": null
+    });
+    let s = DagJsonCodec::encode_to_vec(&test).unwrap();
+    let decoded: ipld_core::ipld::Ipld = DagJsonCodec::decode_from_slice(&s).unwrap();
+    assert_eq!(test, decoded);
 }
