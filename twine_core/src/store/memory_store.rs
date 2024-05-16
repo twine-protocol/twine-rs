@@ -10,7 +10,6 @@ use super::Store;
 use crate::as_cid::AsCid;
 use crate::twine::AnyTwine;
 use async_trait::async_trait;
-// use async_std::sync::RwLock;
 use std::sync::RwLock;
 
 #[derive(Debug, Clone)]

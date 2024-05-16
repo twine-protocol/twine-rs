@@ -15,10 +15,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .url("https://random.colorado.edu/api");
   let resolver = HttpStore::new(reqwest::Client::new(), cfg);
   // let resolver = MemoryCache::new(resolver);
-  let store = HttpStore::new(
-    reqwest::Client::new(),
-    HttpStoreOptions::default().url("http://192.168.68.58:8787")
-  );
+  // let store = HttpStore::new(
+  //   reqwest::Client::new(),
+  //   HttpStoreOptions::default().url("http://192.168.68.58:8787")
+  // );
   let store = twine_core::store::MemoryStore::new();
 
   println!("strands:");
@@ -56,6 +56,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   store.save(twine.clone()).await?;
   println!("saved twine");
   store.save_stream(twine_stream).await?;
+
+  // try sequentially
+  // for i in 0..100 {
+  //   let twine = resolver.resolve_index(&twine, i).await?;
+  //   println!("(cached?) index: {}, cid: {}", twine.index(), twine.cid());
+  // }
 
   Ok(())
 }
