@@ -5,6 +5,7 @@ use twine_core::resolver::{Query, RangeQuery};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Selector {
+  All,
   Strand(Cid),
   Query(Query),
   RangeQuery(RangeQuery),
@@ -15,6 +16,9 @@ pub enum Selector {
 // <cid>::<lower_index> (range from latest to lower_index)
 // <cid>:<upper_index>: (range from upper_index to 0)
 pub fn parse_selector(selector: &str) -> Result<Selector> {
+  if ["all", "ALL", "*"].contains(&selector) {
+    return Ok(Selector::All);
+  }
   match selector.split(':').count() {
     1 => {
       let cid = Cid::try_from(selector)?;

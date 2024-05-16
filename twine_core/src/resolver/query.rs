@@ -15,6 +15,16 @@ pub enum Query {
   Latest(Cid),
 }
 
+impl Query {
+  pub fn strand_cid(&self) -> &Cid {
+    match self {
+      Query::Stitch(stitch) => &stitch.strand,
+      Query::Index(cid, _) => cid,
+      Query::Latest(cid) => cid,
+    }
+  }
+}
+
 impl From<Stitch> for Query {
   fn from(stitch: Stitch) -> Self {
     Self::Stitch(stitch)
@@ -122,6 +132,14 @@ impl AbsoluteRange {
       upper = lower.saturating_sub(1);
     }
     batches
+  }
+
+  pub fn iter(&self) -> AbsoluteRangeIter {
+    AbsoluteRangeIter::new(*self)
+  }
+
+  pub fn strand_cid(&self) -> &Cid {
+    &self.strand
   }
 }
 

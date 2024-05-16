@@ -3,6 +3,7 @@ use clap::{Subcommand, Parser};
 mod resolver;
 mod list;
 mod pull;
+mod sync;
 
 #[derive(Debug, Parser)]
 #[command(version, about)]
@@ -25,6 +26,10 @@ pub enum SubCommands {
   Ls(list::ListCommand),
   /// Retrieve and store twines locally
   Pull(pull::PullCommand),
+  /// Manage sync strands
+  Sync(sync::SyncCommand),
+  /// Unsync a strand
+  UnSync(sync::UnSyncCommand),
 }
 
 impl Cli {
@@ -38,6 +43,12 @@ impl Cli {
       },
       SubCommands::Pull(pull) => {
         pull.run(config).await
+      },
+      SubCommands::Sync(sync) => {
+        sync.run(config).await
+      },
+      SubCommands::UnSync(unsync) => {
+        unsync.run(config).await
       },
     }
   }

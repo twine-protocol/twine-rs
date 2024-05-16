@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
-use twine_core::resolver::BaseResolver;
+use twine_core::{resolver::BaseResolver, Cid};
 use twine_http_store::{HttpStore, HttpStoreOptions, reqwest};
 use twine_sled_store::{SledStore, SledStoreOptions, sled};
 
@@ -107,12 +107,15 @@ impl Resolvers {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Config {
   pub resolvers: Resolvers,
+  #[serde(default)]
+  pub sync_strands: Vec<Cid>,
 }
 
 impl Default for Config {
   fn default() -> Self {
     Self {
       resolvers: Resolvers::default(),
+      sync_strands: Vec::new(),
     }
   }
 }

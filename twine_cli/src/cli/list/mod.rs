@@ -89,10 +89,11 @@ impl ListCommand {
 
     match &self.selector {
       Some(selector) => match selector {
+        Selector::All => self.list_strands(&resolver).await?,
         Selector::Strand(cid) => self.list_strand(&cid, &resolver).await?,
         Selector::Query(query) => self.list_query(*query, &resolver).await?,
         Selector::RangeQuery(range) => self.list_range(*range, &resolver).await?,
-      }
+      },
       None => self.list_strands(&resolver).await?,
     }
 
