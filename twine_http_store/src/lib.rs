@@ -13,7 +13,7 @@ pub use reqwest;
 pub struct HttpStoreOptions {
   pub url: Url,
   pub timeout: Duration,
-  pub buffer_size: usize,
+  pub concurency: usize,
 }
 
 impl Default for HttpStoreOptions {
@@ -21,7 +21,7 @@ impl Default for HttpStoreOptions {
     Self {
       url: "http://localhost:8080".parse().unwrap(),
       timeout: Duration::from_secs(30),
-      buffer_size: 4,
+      concurency: 4,
     }
   }
 }
@@ -37,8 +37,8 @@ impl HttpStoreOptions {
     self
   }
 
-  pub fn buffer_size(mut self, buffer_size: usize) -> Self {
-    self.buffer_size = buffer_size;
+  pub fn concurency(mut self, concurency: usize) -> Self {
+    self.concurency = concurency;
     self
   }
 }
@@ -254,7 +254,7 @@ impl BaseResolver for HttpStore {
         let response = self.fetch_tixel_range(range).await;
         Ok(self.parse_collection_response(response?).await?.boxed())
       })
-      .buffered(self.options.buffer_size)
+      .buffered(self.options.concurency)
       .try_flatten()
       .then(|t| async {
         let t = t?;
@@ -290,7 +290,7 @@ impl Store for HttpStore {
       futures::stream::iter(strands).map(|strand| async move {
         self.save(strand).await
       })
-      .buffered(self.options.buffer_size)
+      .buffered(self.options.concurency)
       .try_collect::<Vec<()>>().await?;
     }
     if tixels.len() > 0 {

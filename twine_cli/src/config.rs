@@ -16,6 +16,7 @@ impl Resolver {
     match self.uri.split("://").next().unwrap_or_default() {
       "http"|"https" => {
         let cfg = HttpStoreOptions::default()
+          .concurency(20)
           .url(&self.uri);
         let r = HttpStore::new(reqwest::Client::new(), cfg);
         Ok(Box::new(r))
