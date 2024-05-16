@@ -48,7 +48,7 @@ impl PullCommand {
     let stream = resolver.resolve_range(range).await?
       .map(|twine| {
         let twine = twine.expect("Error resolving twine");
-        log::debug!("Saving twine: {}", twine.cid());
+        log::debug!("Saving twine: ({}) {}", twine.index(), twine.cid());
         twine
       });
     store.save_stream(stream).await?;
@@ -59,7 +59,7 @@ impl PullCommand {
     let twine = resolver.resolve(query).await?;
     log::debug!("Saving strand: {}", twine.strand_cid());
     store.save(twine.strand()).await?;
-    log::debug!("Saving twine: {}", twine.cid());
+    log::debug!("Saving twine: ({}) {}", twine.index(), twine.cid());
     store.save(twine).await?;
     Ok(())
   }
