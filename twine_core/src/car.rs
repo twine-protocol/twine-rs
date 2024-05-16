@@ -1,6 +1,6 @@
 use futures::Stream;
 use futures::stream::StreamExt;
-use libipld::Cid;
+use crate::Cid;
 use ipld_core::codec::Codec;
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use serde::{Deserialize, Serialize};
@@ -78,9 +78,9 @@ mod test {
     let mut reader = CarReader::new(&mut cursor, false).await?;
     let header = &reader.header;
     assert_eq!(header.version as u8, 1);
-    assert_eq!(header.roots, roots);
+    assert_eq!(header.roots[0].to_bytes(), roots[0].to_bytes());
     let (cid, bytes) = reader.next().await.unwrap().unwrap();
-    assert_eq!(cid, twine.cid());
+    assert_eq!(cid.to_bytes(), twine.cid().to_bytes());
     assert_eq!(*bytes, *twine.bytes());
     Ok(())
   }

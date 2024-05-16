@@ -1,5 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
-use libipld::Cid;
+use crate::Cid;
 use crate::{errors::ResolutionError, resolver::Resolver};
 use super::{Tixel, Twine};
 

@@ -1,7 +1,23 @@
 use std::sync::Arc;
 
 use twine_core::{
-  errors::{SpecificationError, VerificationError}, libipld::multihash::{Code, MultihashDigest}, semver::Version, skiplist::get_layer_pos, specification::Subspec, twine::{container::TwineContent, CrossStitches, Stitch, Strand, StrandContent, Tixel, TixelContent, Twine}, verify::Verified, Ipld
+  errors::{SpecificationError, VerificationError},
+  semver::Version,
+  multihash_codetable::{Code, MultihashDigest},
+  skiplist::get_layer_pos,
+  specification::Subspec,
+  twine::{
+    container::TwineContent,
+    CrossStitches,
+    Stitch,
+    Strand,
+    StrandContent,
+    Tixel,
+    TixelContent,
+    Twine
+  },
+  verify::Verified,
+  Ipld
 };
 use crate::{signer::SigningError, Signer};
 
@@ -248,7 +264,7 @@ impl <'a, S: Signer> StrandBuilder<'a, S> {
 #[cfg(test)]
 mod test {
   use josekit::jwk;
-  use twine_core::libipld::ipld;
+  use twine_core::ipld_core::ipld;
   use super::*;
 
   #[test]

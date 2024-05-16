@@ -1,8 +1,8 @@
 use crate::specification::Subspec;
 use crate::verify::Verifiable;
 use crate::{errors::VerificationError, schemas::v1};
-use libipld::Cid;
-use libipld::Ipld;
+use crate::Cid;
+use crate::Ipld;
 use semver::Version;
 use serde::{Serialize, Deserialize};
 use ipld_core::codec::Codec;

@@ -61,12 +61,12 @@ pub fn stage() -> AdHoc {
         )
         .finalize( &signer, &verifier, hasher)
         .expect("Should be able to make chains");
-        
+
         let pulse = PulseBuilder::first(&chain)
             .payload(map!{ String::from("Hello") => ipld!{ "world" } })
             .finalize(&signer, &verifier)
             .expect("Should be able to make pulses");
-        
+
         println!("chain {:?} : pulse {:?}", chain.cid, pulse.cid);
 
         let state = PulseCache::new(map!{ chain.cid => map!{ pulse.cid => pulse } });

@@ -6,11 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-libipld = { version = "0.16.0", features = ["serde-codec"] }
 serde = { version = "1.0.152", features = ["rc"] }
 josekit = "0.8.2"
 serde_ipld_dagcbor = { version = ">=0.6.1" }
 serde_ipld_dagjson = "0.2.0"
+multihash = "0.19"
 multihash-codetable = { version = "0.1", features = ["sha3"] }
 multihash-derive = "0.9"
 serde_json = "1.0"

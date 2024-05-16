@@ -1,4 +1,4 @@
-use libipld::Ipld;
+use crate::Ipld;
 use libipld::error::SerdeError;
 use serde::{Serialize, Deserialize};
 use crate::specification::Subspec;

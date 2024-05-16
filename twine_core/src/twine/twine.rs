@@ -1,5 +1,5 @@
 use std::{ops::Deref, fmt::Display};
-use libipld::Cid;
+use crate::Cid;
 use semver::Version;
 use std::sync::Arc;
 

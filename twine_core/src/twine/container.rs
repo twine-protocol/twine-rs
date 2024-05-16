@@ -1,10 +1,8 @@
 use std::fmt::Display;
 use std::sync::Arc;
+use crate::Cid;
 use ipld_core::codec::Codec;
-use libipld::multihash::MultihashDigest;
-use libipld::store::StoreParams;
-use libipld::Block;
-use libipld::{Cid, multihash::Code};
+use multihash_codetable::{MultihashDigest, Code};
 use serde_ipld_dagjson::codec::DagJsonCodec;
 use serde::{Serialize, Deserialize};
 use serde_ipld_dagcbor::codec::DagCborCodec;
@@ -70,12 +68,6 @@ impl<C: TwineContent> From<TwineContainer<C>> for Cid {
 impl<C: TwineContent> AsCid for TwineContainer<C> {
   fn as_cid(&self) -> &Cid {
     &self.cid
-  }
-}
-
-impl<C: TwineContent, S: StoreParams> From<TwineContainer<C>> for Block<S> where C: Serialize + for<'de> Deserialize<'de> {
-  fn from(t: TwineContainer<C>) -> Self {
-    Block::new_unchecked(t.cid(), t.bytes().to_vec())
   }
 }
 

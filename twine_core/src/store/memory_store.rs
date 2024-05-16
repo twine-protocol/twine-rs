@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::pin::Pin;
 use std::{collections::HashMap, sync::Arc};
 use futures::Stream;
-use libipld::Cid;
+use crate::Cid;
 use crate::errors::{ResolutionError, StoreError};
 use crate::resolver::{BaseResolver, RangeQuery};
 use crate::twine::{Strand, Tixel};

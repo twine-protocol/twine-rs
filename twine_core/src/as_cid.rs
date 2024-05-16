@@ -1,4 +1,4 @@
-use libipld::Cid;
+use crate::Cid;
 use std::sync::Arc;
 
 pub trait AsCid {

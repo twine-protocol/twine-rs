@@ -1,7 +1,7 @@
-use libipld::Cid;
+use crate::Cid;
 use std::{fmt::Display, sync::Arc};
 use crate::errors::VerificationError;
-use libipld::multihash::Code;
+use multihash_codetable::Code;
 
 pub trait TwineBlock where Self: Sized {
   fn cid(&self) -> Cid;

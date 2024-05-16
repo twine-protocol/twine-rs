@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::str::FromStr;
 use std::ops::RangeBounds;
 use futures::{stream::once, Stream, TryStreamExt};
-use libipld::Cid;
+use crate::Cid;
 use crate::as_cid::AsCid;
 use crate::twine::{Stitch, Strand, Tixel};
 use crate::errors::{ConversionError, ResolutionError};

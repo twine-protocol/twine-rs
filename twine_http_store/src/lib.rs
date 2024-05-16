@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use futures::{Stream, TryStreamExt};
 use reqwest::{header::{ACCEPT, CONTENT_TYPE}, StatusCode, Url};
-use rs_car::car_read_all;
-use std::{pin::Pin, sync::Arc};
+use fvm_ipld_car::CarReader;
+use std::{env::consts::OS, pin::Pin, sync::Arc};
 use std::time::Duration;
 use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, resolver::RangeQuery, Cid, resolver::AbsoluteRange};
 use twine_core::resolver::BaseResolver;
@@ -118,10 +118,12 @@ impl HttpStore {
     match tp {
       "application/vnd.ipld.car"|"application/octet-stream" => {
         let bytes = response.bytes().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-        let (blocks, header) = car_read_all(&mut bytes.as_ref(), false).await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-        let root = header.roots.first().ok_or(ResolutionError::Fetch("No roots found".to_string()))?;
-        let (cid, bytes) = blocks.iter().find(|(cid, _)| cid == root).ok_or(ResolutionError::Fetch("Root not found".to_string()))?;
-        let twine = AnyTwine::from_block(*cid, bytes).map_err(|e| ResolutionError::Invalid(e))?;
+        let mut reader = CarReader::new_unchecked(bytes.as_ref()).await.map_err(|e| ResolutionError::BadData(e.to_string()))?;
+        let block = reader.next_block().await
+          .map_err(|e| ResolutionError::BadData(e.to_string()))?
+          .ok_or(ResolutionError::BadData("No blocks found in response".to_string()))?;
+        let cid = Cid::try_from(block.cid.to_bytes()).unwrap();
+        let twine = AnyTwine::from_block(cid, block.data).map_err(|e| ResolutionError::Invalid(e))?;
         Ok(AnyTwine::from(twine))
       },
       _ => {
@@ -168,15 +170,25 @@ impl HttpStore {
     use futures::stream::StreamExt;
     match tp {
       "application/vnd.ipld.car"|"application/octet-stream" => {
-        let bytes = response.bytes().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-        // TODO: I'd love to use CarReader and stream this but it only borrows,
-        // so I can't give it ownership of the bytes
-        let (blocks, _) = car_read_all(&mut bytes.as_ref(), false).await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-        let stream = futures::stream::iter(blocks)
-          .then(|(cid, bytes)| async move {
-            AnyTwine::from_block(cid, bytes).map_err(|e| ResolutionError::Invalid(e))
-          });
-        Ok(stream.boxed())
+        let async_read = response.bytes_stream()
+          .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+          .into_async_read();
+        let reader = CarReader::new_unchecked(async_read).await
+          .map_err(|e| ResolutionError::BadData(e.to_string()))?;
+        let stream = futures::stream::unfold(reader, |mut reader| async {
+          match reader.next_block().await {
+            Ok(Some(block)) => {
+              let cid = Cid::try_from(block.cid.to_bytes()).unwrap();
+              match AnyTwine::from_block(cid, block.data) {
+                Ok(twine) => Some((Ok(twine), reader)),
+                Err(e) => Some((Err(ResolutionError::Invalid(e)), reader)),
+              }
+            },
+            Ok(None) => None,
+            Err(e) => Some((Err(ResolutionError::BadData(e.to_string())), reader)),
+          }
+        }).boxed();
+        Ok(stream)
       },
       _ => {
         let json = response.text().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;

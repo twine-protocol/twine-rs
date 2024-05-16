@@ -1,6 +1,6 @@
 use std::hash::Hash;
 
-use libipld::Cid;
+use crate::Cid;
 use serde::{Deserialize, Serialize};
 
 use crate::twine::Stitch;

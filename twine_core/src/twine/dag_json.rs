@@ -1,7 +1,7 @@
 use crate::twine::container::TwineContainer;
 use crate::twine::container::TwineContent;
 use ipld_core::codec::Codec;
-use libipld::{Cid, Ipld};
+use crate::{Cid, Ipld};
 use serde::{Deserialize, Serialize};
 use serde_ipld_dagjson::codec::DagJsonCodec;
 use crate::errors::VerificationError;

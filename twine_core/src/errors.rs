@@ -78,7 +78,7 @@ pub enum ConversionError {
   #[error("Invalid format: {0}")]
   InvalidFormat(String),
   #[error("Invalid CID: {0}")]
-  InvalidCid(#[from] libipld::cid::Error),
+  InvalidCid(#[from] ipld_core::cid::Error),
   #[error("Invalid index value: {0}")]
   InvalidIndex(#[from] std::num::ParseIntError),
 }

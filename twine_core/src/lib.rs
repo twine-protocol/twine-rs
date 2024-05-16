@@ -17,11 +17,12 @@ pub mod car;
 pub mod skiplist;
 
 pub use semver;
-pub use libipld;
+pub use ipld_core;
 pub use twine::dag_json;
 
-pub use libipld::Cid;
-pub use libipld::Ipld;
+pub use ipld_core::cid::Cid;
+pub use ipld_core::ipld::Ipld;
+pub use multihash_codetable;
 
 #[cfg(test)]
 mod test;

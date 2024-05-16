@@ -1,4 +1,4 @@
-use libipld::{Cid, Ipld};
+use crate::{Cid, Ipld};
 use serde::{Serialize, Deserialize};
 use crate::{errors::VerificationError, verify::Verifiable};
 use super::Mixin;
@@ -31,7 +31,7 @@ impl Verifiable for PulseContentV1 {
 #[cfg(test)]
 mod test {
   use super::*;
-  use libipld::ipld;
+  use ipld_core::ipld;
 
   #[test]
   fn test_pulse_content_v1_verify() {

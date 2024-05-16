@@ -1,7 +1,7 @@
 use crate::{crypto::verify_signature, schemas::v1, specification::Subspec, verify::Verifiable};
 use josekit::jwk::Jwk;
 use semver::Version;
-use libipld::ipld::Ipld;
+use crate::Ipld;
 use serde::{Serialize, Deserialize};
 use ipld_core::codec::Codec;
 use serde_ipld_dagcbor::codec::DagCborCodec;

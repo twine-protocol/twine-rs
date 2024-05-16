@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use rocket::request::FromParam;
-use twine_core::libipld::{Cid, cid::Error};
+use twine_core::{Cid, ipld_core::cid::Error};
 use thiserror::Error;
 
 pub struct ParamCid(pub Cid);  // Wrapped CID

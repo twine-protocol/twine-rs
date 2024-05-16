@@ -1,4 +1,4 @@
-use libipld::Ipld;
+use crate::Ipld;
 use serde::{Serialize, Deserialize};
 use josekit::jwk::Jwk;
 use crate::{errors::VerificationError, verify::{is_all_unique, Verifiable}};
@@ -37,7 +37,7 @@ impl Verifiable for ChainContentV1 {
 mod test {
   use super::*;
   use josekit::jwk::alg::ec::EcCurve;
-  use libipld::cid::Cid;
+  use crate::Cid;
 
   #[test]
   fn test_chain_content_v1_verify() {

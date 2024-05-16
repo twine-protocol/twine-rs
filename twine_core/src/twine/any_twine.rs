@@ -3,9 +3,8 @@ use core::str;
 
 use std::fmt::Display;
 use std::sync::Arc;
-use libipld::multihash::Code;
-use libipld::store::StoreParams;
-use libipld::{Block, Cid};
+use multihash_codetable::Code;
+use crate::Cid;
 use serde::{Serialize, Deserialize};
 use crate::as_cid::AsCid;
 use crate::crypto::{assert_cid, get_hasher};
@@ -195,12 +194,6 @@ impl From<AnyTwine> for Cid {
       AnyTwine::Strand(s) => s.cid(),
       AnyTwine::Tixel(t) => t.cid(),
     }
-  }
-}
-
-impl<S: StoreParams> From<AnyTwine> for Block<S> {
-  fn from(t: AnyTwine) -> Self {
-    Block::new_unchecked(t.cid(), t.bytes().to_vec())
   }
 }
 
