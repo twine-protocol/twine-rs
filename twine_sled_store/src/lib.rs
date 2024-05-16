@@ -67,20 +67,25 @@ fn get_index_key(strand: &Cid, index: u64) -> Vec<u8> {
   key.as_bytes().to_vec()
 }
 
-fn get_latest_key(strand: &Cid) -> String {
-  format!("latest:{}", strand)
+fn get_latest_key(strand: &Cid) -> Vec<u8> {
+  let mut key = "latest:".as_bytes().to_vec();
+  key.extend_from_slice(&strand.to_bytes());
+  key
 }
 
-fn get_strand_prefix() -> &'static str {
-  "strand:"
+fn get_strand_prefix() -> Vec<u8> {
+  "strand:".as_bytes().to_vec()
 }
 
-fn get_strand_key(strand: &Cid) -> String {
-  format!("{}{}", get_strand_prefix(), strand)
+fn get_strand_key(strand: &Cid) -> Vec<u8> {
+  let mut key = get_strand_prefix();
+  key.extend_from_slice(&strand.to_bytes());
+  key
 }
 
 fn get_strand_from_key(key: &[u8]) -> Cid {
-  Cid::try_from(key[7..].to_vec()).unwrap()
+  let pfx = get_strand_prefix();
+  Cid::try_from(key[pfx.len()..].to_vec()).unwrap()
 }
 
 impl SledStore {
@@ -171,8 +176,7 @@ impl BaseResolver for SledStore {
   }
 
   async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
-    let key = get_strand_key(&strand);
-    let bytes = self.db.get(key)
+    let bytes = self.db.get(strand.to_bytes())
       .map_err(|e| ResolutionError::Fetch(e.to_string()))?
       .ok_or(ResolutionError::NotFound)?;
     Ok(Arc::new(Strand::from_block(strand.clone(), bytes)?))
@@ -273,7 +277,7 @@ impl Store for SledStore {
     let cid = twine.cid();
     match &twine {
       AnyTwine::Strand(strand) => {
-        self.db.insert(get_strand_key(&strand.cid()), &*strand.bytes())
+        self.db.insert(get_strand_key(&strand.cid()), &[])
           .map_err(|e| StoreError::Saving(e.to_string()))?;
       },
       AnyTwine::Tixel(tixel) => {
@@ -301,7 +305,7 @@ impl Store for SledStore {
       let cid = twine.cid();
       match &twine {
         AnyTwine::Strand(strand) => {
-          batch.insert(get_strand_key(&strand.cid()).as_str(), &[]);
+          batch.insert(get_strand_key(&strand.cid()), &[]);
         },
         AnyTwine::Tixel(tixel) => {
           let strand = tixel.strand_cid();
