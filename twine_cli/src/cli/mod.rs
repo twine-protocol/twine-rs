@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Subcommand, Parser};
 mod resolver;
 mod list;
+mod pull;
 
 #[derive(Debug, Parser)]
 #[command(version, about)]
@@ -22,8 +23,8 @@ pub enum SubCommands {
   Resolver(resolver::ResolverCommand),
   /// List strands
   Ls(list::ListCommand),
-  // twine pull <strand>
-
+  /// Retrieve and store twines locally
+  Pull(pull::PullCommand),
 }
 
 impl Cli {
@@ -34,6 +35,9 @@ impl Cli {
       },
       SubCommands::Ls(ls) => {
         ls.run(config).await
+      },
+      SubCommands::Pull(pull) => {
+        pull.run(config).await
       },
     }
   }

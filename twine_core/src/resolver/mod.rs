@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use futures::{Stream, StreamExt};
 use async_trait::async_trait;
@@ -111,6 +112,84 @@ pub trait Resolver: BaseResolver + Send + Sync {
 }
 
 impl<R> Resolver for R where R: BaseResolver {}
+
+#[async_trait]
+impl BaseResolver for Vec<Box<dyn BaseResolver>> {
+  async fn has_twine(&self, strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
+    for resolver in self {
+      if resolver.has_twine(strand, cid).await? {
+        return Ok(true);
+      }
+    }
+    Ok(false)
+  }
+
+  async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError> {
+    for resolver in self {
+      if resolver.has_strand(cid).await? {
+        return Ok(true);
+      }
+    }
+    Ok(false)
+  }
+
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+    for resolver in self {
+      if let Ok(tixel) = resolver.fetch_latest(strand).await {
+        return Ok(tixel);
+      }
+    }
+    Err(ResolutionError::NotFound)
+  }
+
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
+    for resolver in self {
+      if let Ok(tixel) = resolver.fetch_index(strand, index).await {
+        return Ok(tixel);
+      }
+    }
+    Err(ResolutionError::NotFound)
+  }
+
+  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+    for resolver in self {
+      if let Ok(t) = resolver.fetch_tixel(strand, tixel).await {
+        return Ok(t);
+      }
+    }
+    Err(ResolutionError::NotFound)
+  }
+
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
+    for resolver in self {
+      if let Ok(s) = resolver.fetch_strand(strand).await {
+        return Ok(s);
+      }
+    }
+    Err(ResolutionError::NotFound)
+  }
+
+  async fn range_stream<'a>(&'a self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+    for resolver in self {
+      if let Ok(stream) = resolver.range_stream(range.clone()).await {
+        return Ok(stream);
+      }
+    }
+    Err(ResolutionError::NotFound)
+  }
+
+  async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+    let mut strands = HashMap::new();
+    for resolver in self {
+      while let Some(strand) = resolver.strands().await?.next().await {
+        let strand = strand?;
+        strands.insert(strand.cid(), strand);
+      }
+    }
+    let vec = strands.values().cloned().collect::<Vec<_>>();
+    Ok(futures::stream::iter(vec).map(|t| Ok(t.clone())).boxed())
+  }
+}
 
 #[cfg(test)]
 mod test {

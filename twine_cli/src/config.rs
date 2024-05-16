@@ -4,8 +4,6 @@ use twine_core::resolver::BaseResolver;
 use twine_http_store::{HttpStore, HttpStoreOptions, reqwest};
 use twine_sled_store::{SledStore, SledStoreOptions, sled};
 
-// use crate::poly_resolver::PolyResolver;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Resolver {
   pub uri: String,
@@ -119,10 +117,27 @@ impl Default for Config {
 }
 
 impl Config {
-
   pub(crate) fn save(&self) -> Result<()> {
     confy::store("twine_cli", Some("config"), self)?;
     Ok(())
+  }
+
+  pub(crate) fn get_resolver(&self, name_or_uri: &Option<String>) -> Result<Box<dyn BaseResolver>> {
+    let r = match name_or_uri {
+      Some(resolver) => self.resolvers.get(&resolver).ok_or(anyhow::anyhow!("Resolver not found"))?,
+      None => self.resolvers.get_default().ok_or(anyhow::anyhow!("No default resolver set. Please specify a resolver with -r"))?,
+    };
+    log::trace!("Using resolver: {:?}", r);
+    r.as_resolver()
+  }
+
+  pub(crate) fn get_local_store(&self) -> Result<SledStore> {
+    let proj = directories::ProjectDirs::from("rs", "twine", "twine_cli")
+      .ok_or(anyhow::anyhow!("Could not determine local store path"))?;
+    let path = proj.data_dir().join("local_store");
+    log::trace!("Using local store at: {:?}", path);
+    let db = sled::Config::new().path(path).open()?;
+    Ok(SledStore::new(db, SledStoreOptions::default()))
   }
 }
 

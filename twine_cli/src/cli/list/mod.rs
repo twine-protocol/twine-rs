@@ -1,11 +1,10 @@
 use std::sync::Arc;
 use clap::Parser;
 use anyhow::Result;
-use twine_core::{errors::ResolutionError, resolver::{Query, RangeQuery, Resolver}, twine::{AnyTwine, Stitch, Strand, Twine}, Cid, Ipld};
+use twine_core::{errors::ResolutionError, resolver::{Query, RangeQuery, Resolver}, twine::{Strand, Twine}, Cid, Ipld};
 use futures::stream::{Stream, StreamExt, TryStreamExt};
 use num_format::{ToFormattedString, SystemLocale};
-
-// use crate::poly_resolver::PolyResolver;
+use crate::selector::{Selector, parse_selector};
 
 #[derive(Debug, Parser)]
 pub struct ListCommand {
@@ -80,43 +79,13 @@ fn format_ipld(thing: Ipld, depth: u8, locale: &SystemLocale) -> String {
   }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum Selector {
-  Strand(Cid),
-  Query(Query),
-  RangeQuery(RangeQuery),
-}
-
-// expects format <cid>[:<index>?[:<lower_index>?]]
-// ... could be <cid>:: (whole range),
-// <cid>::<lower_index> (range from latest to lower_index)
-// <cid>:<upper_index>: (range from upper_index to 0)
-fn parse_selector(selector: &str) -> Result<Selector> {
-  match selector.split(':').count() {
-    1 => {
-      let cid = Cid::try_from(selector)?;
-      Ok(Selector::Strand(cid))
-    },
-    2 => {
-      Ok(Selector::Query(selector.parse()?))
-    },
-    3 => {
-      Ok(Selector::RangeQuery(selector.parse()?))
-    },
-    _ => Err(anyhow::anyhow!("Invalid selector format")),
-  }
-}
-
-
 impl ListCommand {
   // list strands from resolver
   pub async fn run(&self, config: &crate::config::Config) -> Result<()> {
     log::trace!("List: {:?}", self);
 
-    let resolver = match &self.resolver {
-      Some(resolver) => config.resolvers.get(resolver).ok_or(anyhow::anyhow!("Resolver not found"))?,
-      None => config.resolvers.get_default().ok_or(anyhow::anyhow!("No default resolver set. Please specify a resolver with -r"))?,
-    }.as_resolver()?;
+    let store = config.get_local_store()?;
+    let resolver = vec![Box::new(store), config.get_resolver(&self.resolver)?];
 
     match &self.selector {
       Some(selector) => match selector {
