@@ -45,6 +45,10 @@ impl MemoryStore {
 
 #[async_trait]
 impl BaseResolver for MemoryStore {
+  async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
+    Ok(self.strands.read().unwrap().get(strand).map_or(false, |s| s.by_index.contains_key(&index)))
+  }
+
   async fn has_twine(&self, _strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
     Ok(self.tixels.read().unwrap().contains_key(cid))
   }

@@ -171,6 +171,10 @@ impl BaseResolver for SledStore {
     Ok(self.db.contains_key(cid.as_cid().to_bytes()).unwrap_or(false))
   }
 
+  async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
+    Ok(self.db.contains_key(get_index_key(strand, index)).unwrap_or(false))
+  }
+
   async fn has_twine(&self, _strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
     Ok(self.db.contains_key(cid.as_cid().to_bytes()).unwrap_or(false))
   }

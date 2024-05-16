@@ -265,6 +265,18 @@ impl RangeQuery {
   }
 }
 
+impl From<AbsoluteRange> for RangeQuery {
+  fn from(range: AbsoluteRange) -> Self {
+    Self::Absolute(range)
+  }
+}
+
+impl From<(Cid, i64, i64)> for RangeQuery {
+  fn from((strand, upper, lower): (Cid, i64, i64)) -> Self {
+    Self::Relative(strand, upper, lower)
+  }
+}
+
 impl<C, R> From<(C, R)> for RangeQuery where R: RangeBounds<i64>, C: AsCid {
   fn from((strand, range): (C, R)) -> Self {
     Self::from_range_bounds(strand.as_cid(), range)

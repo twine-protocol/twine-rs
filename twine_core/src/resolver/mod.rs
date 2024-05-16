@@ -13,6 +13,7 @@ pub use query::*;
 
 #[async_trait]
 pub trait BaseResolver: Send + Sync {
+  async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError>;
   async fn has_twine(&self, strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError>;
   async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError>;
   async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError>;
@@ -25,6 +26,10 @@ pub trait BaseResolver: Send + Sync {
 
 #[async_trait]
 impl<'r> BaseResolver for Box<dyn BaseResolver + 'r> {
+  async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
+    self.as_ref().has_index(strand, index).await
+  }
+
   async fn has_twine(&self, strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
     self.as_ref().has_twine(strand, cid).await
   }
@@ -77,6 +82,27 @@ pub trait Resolver: BaseResolver + Send + Sync {
     }
   }
 
+  async fn has<Q: Into<Query> + Send>(&self, query: Q) -> Result<bool, ResolutionError> {
+    let query = query.into();
+    match query {
+      Query::Stitch(stitch) => {
+        self.has_twine(stitch.strand.as_cid(), stitch.tixel.as_cid()).await
+      }
+      Query::Index(strand, index) => {
+        let index = match index {
+          i if i < 0 => self.fetch_latest(strand.as_cid()).await?.index() as i64 + i + 1,
+          i => i
+        } as u64;
+        self.has_index(strand.as_cid(), index).await
+      },
+      Query::Latest(strand) => match self.fetch_latest(strand.as_cid()).await {
+        Ok(_) => Ok(true),
+        Err(ResolutionError::NotFound) => Ok(false),
+        Err(e) => Err(e),
+      },
+    }
+  }
+
   async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<Twine, ResolutionError> {
     use futures::join;
     let (strand, tixel) = join!(self.fetch_strand(&strand.as_cid()), self.fetch_latest(&strand.as_cid()));
@@ -115,6 +141,15 @@ impl<R> Resolver for R where R: BaseResolver {}
 
 #[async_trait]
 impl BaseResolver for Vec<Box<dyn BaseResolver>> {
+  async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
+    for resolver in self {
+      if resolver.has_index(strand, index).await? {
+        return Ok(true);
+      }
+    }
+    Ok(false)
+  }
+
   async fn has_twine(&self, strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
     for resolver in self {
       if resolver.has_twine(strand, cid).await? {
@@ -176,10 +211,13 @@ impl BaseResolver for Vec<Box<dyn BaseResolver>> {
   }
 
   async fn range_stream<'a>(&'a self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+    let range = range.try_to_absolute(self).await?;
     for resolver in self {
       // TODO: should find a way to merge streams
-      if let Ok(stream) = resolver.range_stream(range.clone()).await {
-        return Ok(stream);
+      if resolver.has((range.strand, range.upper)).await? {
+        if let Ok(stream) = resolver.range_stream(range.into()).await {
+          return Ok(stream);
+        }
       }
     }
     Err(ResolutionError::NotFound)

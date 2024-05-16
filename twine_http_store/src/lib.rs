@@ -190,6 +190,12 @@ impl HttpStore {
 
 #[async_trait]
 impl BaseResolver for HttpStore {
+  async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
+    let path = format!("chains/{}/pulses/{}", strand.as_cid(), index);
+    let response = self.head(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+    Ok(response.status() == StatusCode::OK)
+  }
+
   async fn has_twine(&self, strand: &Cid, tixel: &Cid) -> Result<bool, ResolutionError> {
     let path = format!("chains/{}/pulses/{}", strand.as_cid(), tixel.as_cid());
     let response = self.head(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
