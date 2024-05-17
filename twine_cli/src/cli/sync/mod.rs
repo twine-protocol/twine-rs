@@ -9,7 +9,7 @@ pub struct SyncCommand {
 }
 
 impl SyncCommand {
-  pub async fn run(&self, config: &mut crate::config::Config) -> Result<()> {
+  pub async fn run(&self, config: &mut crate::config::Config, _ctx: crate::Context) -> Result<()> {
     match self.strand {
       Some(ref strand) => {
         config.sync_strands.push(Cid::from_str(strand)?);
@@ -35,7 +35,7 @@ pub struct UnSyncCommand {
 }
 
 impl UnSyncCommand {
-  pub async fn run(&self, config: &mut crate::config::Config) -> Result<()> {
+  pub async fn run(&self, config: &mut crate::config::Config, _ctx: crate::Context) -> Result<()> {
     let cid = Cid::from_str(&self.strand)?;
     config.sync_strands.retain(|s| s != &cid);
     log::info!("No longer synchronizing strand: {}", self.strand);

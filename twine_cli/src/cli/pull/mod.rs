@@ -1,5 +1,4 @@
-use std::io::IsTerminal;
-use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 use clap::Parser;
 use anyhow::Result;
 use twine_core::{resolver::{AbsoluteRange, Query, RangeQuery, Resolver}, store::Store};
@@ -21,7 +20,7 @@ pub struct PullCommand {
 }
 
 impl PullCommand {
-  pub async fn run(&self, config: &mut crate::config::Config) -> Result<()> {
+  pub async fn run(&self, config: &mut crate::config::Config, mut ctx: crate::Context) -> Result<()> {
     let resolver = config.get_resolver(&self.resolver)?;
     let store = config.get_local_store()?;
 
@@ -47,7 +46,7 @@ impl PullCommand {
     };
     let mut errors = vec![];
     for range in ranges {
-      match self.pull(&store, &resolver, range).await {
+      match self.pull(&store, &resolver, range, &mut ctx).await {
         Ok(_) => log::info!("Finished pulling strand: {}", range.strand_cid()),
         Err(e) => {
           log::error!("Error pulling strand: {}", e);
@@ -66,14 +65,15 @@ impl PullCommand {
     Ok(())
   }
 
-  async fn pull<R: Resolver>(&self, store: &SledStore, resolver: &R, range: RangeQuery) -> Result<()> {
+  async fn pull<R: Resolver>(&self, store: &SledStore, resolver: &R, range: RangeQuery, ctx: &mut crate::Context) -> Result<()> {
     log::info!("Pulling twines from strand: {}", range.strand_cid());
     let strand = resolver.resolve_strand(range.strand_cid()).await?;
     log::debug!("Saving strand: {}", strand.cid());
     store.save(strand).await?;
 
+    let range = range.try_to_absolute(resolver).await?;
+
     let range = if self.force { range } else {
-      let range = range.try_to_absolute(resolver).await?;
       // first figure out what we have locally
       let has_lower = store.has((range.strand_cid(), range.lower)).await?;
 
@@ -84,19 +84,46 @@ impl PullCommand {
           *range.strand_cid(),
           range.upper,
           latest.index()
-        ).into()
+        )
       } else {
-        range.into()
+        range
       }
     };
 
+    // let is_in_terminal = std::io::stdout().is_terminal();
+    let lower = range.lower;
+    let total_size = range.upper - range.lower;
+    let pb = ctx.multi_progress.add(ProgressBar::new(total_size));
+    pb.set_style(
+      ProgressStyle::with_template( "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg} (eta: {eta})")
+        .unwrap()
+        .progress_chars("##-")
+    );
+
+    use futures::future::ready;
     let stream = resolver.resolve_range(range).await?
-      .map(|twine| {
-        let twine = twine.expect("Error resolving twine");
-        log::debug!("Saving twine: ({}) {}", twine.index(), twine.cid());
+      .take_while(|res| {
+        if res.is_ok() {
+          ready(true)
+        } else {
+          pb.finish_with_message("Error");
+          ready(false)
+        }
+      })
+      .map(|res| {
+        let twine = res.unwrap();
+        pb.set_position(total_size - (twine.index() - lower));
+        pb.set_message(format!("index: {}", twine.index()));
         twine
       });
-    store.save_stream(stream).await?;
+
+    match store.save_stream(stream).await {
+      Ok(_) => pb.finish_with_message("Finished"),
+      Err(e) => {
+        pb.finish_with_message("Error");
+        return Err(e.into());
+      }
+    };
     Ok(())
   }
 

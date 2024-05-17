@@ -33,22 +33,22 @@ pub enum SubCommands {
 }
 
 impl Cli {
-  pub async fn run(&self, config: &mut crate::config::Config) -> Result<()> {
+  pub async fn run(&self, config: &mut crate::config::Config, ctx: crate::Context) -> Result<()> {
     match &self.subcommand {
       SubCommands::Resolver(resolver) => {
-        resolver.run(config)
+        resolver.run(config, ctx)
       },
       SubCommands::Ls(ls) => {
-        ls.run(config).await
+        ls.run(config, ctx).await
       },
       SubCommands::Pull(pull) => {
-        pull.run(config).await
+        pull.run(config, ctx).await
       },
       SubCommands::Sync(sync) => {
-        sync.run(config).await
+        sync.run(config, ctx).await
       },
       SubCommands::UnSync(unsync) => {
-        unsync.run(config).await
+        unsync.run(config, ctx).await
       },
     }
   }

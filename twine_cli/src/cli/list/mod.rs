@@ -81,7 +81,7 @@ fn format_ipld(thing: Ipld, depth: u8, locale: &SystemLocale) -> String {
 
 impl ListCommand {
   // list strands from resolver
-  pub async fn run(&self, config: &crate::config::Config) -> Result<()> {
+  pub async fn run(&self, config: &crate::config::Config, _ctx: crate::Context) -> Result<()> {
     log::trace!("List: {:?}", self);
 
     let store = config.get_local_store()?;
