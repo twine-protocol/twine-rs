@@ -7,6 +7,7 @@ use crate::as_cid::AsCid;
 use crate::twine::{Stitch, Strand, Tixel};
 use crate::errors::{ConversionError, ResolutionError};
 use super::Resolver;
+use std::ops::Bound;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum Query {
@@ -21,6 +22,13 @@ impl Query {
       Query::Stitch(stitch) => &stitch.strand,
       Query::Index(cid, _) => cid,
       Query::Latest(cid) => cid,
+    }
+  }
+
+  pub fn unwrap_index(self) -> i64 {
+    match self {
+      Query::Index(_, index) => index,
+      _ => panic!("Query is not an index query"),
     }
   }
 }
@@ -108,28 +116,41 @@ impl Display for Query {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub struct AbsoluteRange {
   pub strand: Cid,
-  pub upper: u64,
-  pub lower: u64,
+  pub start: u64,
+  pub end: u64,
 }
 
 impl AbsoluteRange {
-  pub fn new(strand: Cid, upper: u64, lower: u64) -> Self {
-    let upper = upper.max(lower);
-    let lower = lower.min(upper);
-    Self { strand, upper, lower }
+  pub fn new(strand: Cid, start: u64, end: u64) -> Self {
+    Self { strand, start, end }
+  }
+
+  pub fn is_increasing(&self) -> bool {
+    self.start <= self.end
+  }
+
+  pub fn is_decreasing(&self) -> bool {
+    self.start > self.end
   }
 
   pub fn batches(&self, size: u64) -> Vec<Self> {
     let mut batches = Vec::new();
-    let mut upper = self.upper;
-    while upper > self.lower {
-      let lower = (upper + 1).saturating_sub(size).max(self.lower);
-      batches.push(Self::new(self.strand.clone(), upper, lower));
-      if lower - self.lower < size {
-        batches.push(Self::new(self.strand.clone(), lower.saturating_sub(1), self.lower));
-        break;
+    if self.is_decreasing() {
+      // decreasing
+      let mut upper = self.start;
+      while upper > self.end {
+        let lower = upper.saturating_sub(size).max(self.end);
+        batches.push(Self::new(self.strand.clone(), upper, lower));
+        upper = lower;
       }
-      upper = lower.saturating_sub(1);
+    } else {
+      // increasing
+      let mut lower = self.start;
+      while lower < self.end {
+        let upper = (lower + size).min(self.end);
+        batches.push(Self::new(self.strand.clone(), lower, upper));
+        lower = upper;
+      }
     }
     batches
   }
@@ -147,6 +168,7 @@ impl AbsoluteRange {
 pub struct AbsoluteRangeIter {
   range: AbsoluteRange,
   current: u64,
+  decreasing: bool,
 }
 
 impl IntoIterator for AbsoluteRange {
@@ -160,7 +182,9 @@ impl IntoIterator for AbsoluteRange {
 
 impl AbsoluteRangeIter {
   pub fn new(range: AbsoluteRange) -> Self {
-    Self { current: range.upper + 1, range }
+    let decreasing = range.is_decreasing();
+    let current = range.start;
+    Self { current, range, decreasing }
   }
 }
 
@@ -168,11 +192,41 @@ impl Iterator for AbsoluteRangeIter {
   type Item = Query;
 
   fn next(&mut self) -> Option<Self::Item> {
-    if self.current > self.range.lower {
-      self.current -= 1;
-      Some((self.range.strand.clone(), self.current).into())
+    if self.decreasing {
+      if self.current > self.range.end {
+        self.current -= 1;
+        Some((self.range.strand.clone(), self.current).into())
+      } else {
+        None
+      }
     } else {
-      None
+      if self.current < self.range.end {
+        let current = self.current;
+        self.current += 1;
+        Some((self.range.strand.clone(), current).into())
+      } else {
+        None
+      }
+    }
+  }
+}
+
+fn range_dir(s: i64, e: i64) -> i64 {
+  if (s < 0) ^ (e < 0) {
+    // one is relative and the other is absolute
+    if s < 0 {
+      // the relative one is the start
+      -1
+    } else {
+      // the relative one is the end
+      1
+    }
+  } else {
+    // both are relative or both are absolute
+    if s < e {
+      1
+    } else {
+      -1
     }
   }
 }
@@ -181,66 +235,125 @@ impl Iterator for AbsoluteRangeIter {
 ///
 /// The range can be absolute, meaning the indices are known,
 /// or relative, meaning the range is somehow relative to the latest index.
+///
+/// They can be constructed from a tuple of a strand and a range, or from a string.
+/// The range is converted as follows:
+/// - Positive numbers are absolute indices
+/// - Negative numbers are relative to the latest index
+/// - Range will respect rust's Inclusive/Exclusive range semantics
+///
+/// The range can be increasing or decreasing. Absolute ranges are increasing
+/// if the start is less than the end and vice versa.
+///
+/// A relative range with both negative start and end indices is
+/// increasing if the start is less than the end and vice versa.
+///
+/// Relative ranges with one negative and one positive index are
+/// increasing if the start is positive and vice versa.
+///
+/// The "all" range is represented as `..` is equivalent to `0..=latest`.
+/// If you need a decreasing all range, you can use `-1..`.
+///
+/// # Examples
+///
+/// ```
+/// use twine_core::{Cid, resolver::RangeQuery};
+/// let cid = Cid::default();
+/// let latest = 10;
+/// let range = RangeQuery::from((cid, 0..2)).to_absolute(latest);
+/// assert_eq!(range, RangeQuery::Absolute((cid, 0, 1)));
+/// let range = RangeQuery::from((cid, 2..)).to_absolute(latest);
+/// assert_eq!(range, RangeQuery::Absolute((cid, 2, 10)));
+/// let range = RangeQuery::from((cid, 4..=1)).to_absolute(latest);
+/// assert_eq!(range, RangeQuery::Absolute((cid, 4, 1)));
+/// let range = RangeQuery::from((cid, ..=-2)).to_absolute(latest);
+/// assert_eq!(range, RangeQuery::Relative(cid, 0, 8));
+/// let range = RangeQuery::from((cid, -1..-5)).to_absolute(latest);
+/// assert_eq!(range, RangeQuery::Relative(cid, 10, 6));
+/// let range = RangeQuery::from((cid, -1..)).to_absolute(latest);
+/// assert_eq!(range, RangeQuery::Relative(cid, 10, 0));
+/// let range = RangeQuery::from((cid, ..)).to_absolute(latest);
+/// assert_eq!(range, RangeQuery::Relative(cid, 0, 10));
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum RangeQuery {
   Absolute(AbsoluteRange),
-  Relative(Cid, i64, i64),
+  Relative(Cid, Bound<i64>, Bound<i64>),
 }
 
 impl RangeQuery {
-  // ..2 -> latest to 2 (relative)
-  // 2.. -> 2 to 0 (absolute)
-  // 4..1 -> 4 to 2 (absolute)
-  // 2..=4 -> 4 to 2 again (absolute)
-  // -1..5 -> latest to 6 (relative)
-  // ..=-2 -> latest to (latest - 1) (relative)
   pub fn from_range_bounds<C: AsCid, T: RangeBounds<i64>>(strand: C, range: T) -> Self {
-    use std::ops::Bound;
-    let dir = |start: i64, end: i64| (end - start).signum();
     let start = match range.start_bound() {
-      Bound::Unbounded => Bound::Included(&-1i64),
-      start@_ => start,
+      Bound::Unbounded => Bound::Included(&0),
+      bound@_ => bound,
+    };
+    let neg_start = match start {
+      Bound::Included(s) => s < &0,
+      Bound::Excluded(s) => s < &0,
+      _ => false,
     };
     let end = match range.end_bound() {
-      Bound::Unbounded => Bound::Included(&0i64),
-      end@_ => end,
+      Bound::Unbounded if neg_start => Bound::Included(&0),
+      Bound::Unbounded => Bound::Included(&-1),
+      bound@_ => bound,
     };
-    let (start, end) = match (start, end) {
-      (Bound::Included(s), Bound::Included(e)) => (*s, *e),
-      (Bound::Included(s), Bound::Excluded(e)) => (*s, e - dir(*s, *e)),
-      (Bound::Excluded(s), Bound::Included(e)) => (s + dir(*s, *e), *e),
-      (Bound::Excluded(s), Bound::Excluded(e)) => (s + dir(*s, *e), e - dir(*s, *e)),
+    let neg_end = match end {
+      Bound::Included(e) => e < &0,
+      Bound::Excluded(e) => e < &0,
       _ => unreachable!(),
     };
-    let (upper, lower) = (start.max(end), start.min(end));
-    match (upper, lower) {
-      (u, l) if u >= 0 && l >= 0 => Self::Absolute(AbsoluteRange::new(strand.as_cid().clone(), u as u64, l as u64)),
-      (u, l) if u >= 0 => Self::Relative(strand.as_cid().clone(), l, u),
-      (u, l) => Self::Relative(strand.as_cid().clone(), u, l),
+
+    if neg_start || neg_end {
+      Self::Relative(strand.as_cid().clone(), start.cloned(), end.cloned())
+    } else {
+      // 0, 0 is empty
+      // 1, 0 is [0]
+      // 0, 1 is [0]
+      // 1, 1 is empty
+      // larger number is always exclusive
+      let (start, end) = match (start, end) {
+        (Bound::Included(s), Bound::Included(e)) => if e > s { (*s, e + 1) } else { (s + 1, *e) },
+        (Bound::Included(s), Bound::Excluded(e)) => if e > s { (*s, *e) } else { (s + 1, e + 1) },
+        (Bound::Excluded(s), Bound::Included(e)) => if e > s { (s + 1, e + 1) } else { (*s, *e) },
+        (Bound::Excluded(s), Bound::Excluded(e)) => if e > s { (s + 1, *e) } else { (*s, e + 1) },
+        _ => unreachable!(),
+      };
+
+      Self::Absolute(AbsoluteRange::new(strand.as_cid().clone(), start as u64, end as u64))
     }
   }
 
   pub fn to_absolute(self, latest: u64) -> AbsoluteRange {
     match self {
       Self::Absolute(range) => range,
-      Self::Relative(cid, u, l) => {
-        let (u, l) = match (u, l) {
-          // this shouldn't happen.. but anyway..
-          (u, l) if u >= 0 && l >= 0 => ((u as u64).max(l as u64), (u as u64).min(l as u64)),
-          // if they are both less than zero, they are both relative
-          (u, l) if u < 0 && l < 0 =>
-            (
-              (latest + 1).saturating_sub(-u as u64),
-              (latest + 1).saturating_sub(-l as u64)
-            ),
-          // otherwise the first is relative and the second is absolute
-          (u, l) => (
-            (latest + 1).saturating_sub(-u as u64),
-            l as u64
-          ),
+      Self::Relative(cid, s, e) => {
+        let dir = range_dir(
+          match s {
+            Bound::Included(s)|Bound::Excluded(s) => s,
+            _ => unreachable!()
+          },
+          match e {
+            Bound::Included(e)|Bound::Excluded(e) => e,
+            _ => unreachable!()
+          }
+        );
+        let e = e.map(|e| if e < 0 { latest as i64 + e + 1 } else { e });
+        let e = match e {
+          Bound::Included(e) => e + dir,
+          Bound::Excluded(e) => e,
+          _ => unreachable!(),
         };
-        // ensure that the lower bound is less than or equal to the upper bound
-        AbsoluteRange::new(cid, u, l.min(u))
+        let s = s.map(|s| if s < 0 { latest as i64 + s + 1 } else { s });
+        let s = match s {
+          Bound::Included(s) => s,
+          Bound::Excluded(s) => s + dir,
+          _ => unreachable!(),
+        };
+        if dir < 0 {
+          AbsoluteRange::new(cid, s.max(e) as u64, e as u64)
+        } else {
+          AbsoluteRange::new(cid, s as u64, e.max(s) as u64)
+        }
       }
     }
   }
@@ -291,7 +404,7 @@ impl From<AbsoluteRange> for RangeQuery {
 
 impl From<(Cid, i64, i64)> for RangeQuery {
   fn from((strand, upper, lower): (Cid, i64, i64)) -> Self {
-    Self::Relative(strand, upper, lower)
+    Self::Relative(strand, Bound::Included(upper), Bound::Included(lower))
   }
 }
 
@@ -304,29 +417,36 @@ impl<C, R> From<(C, R)> for RangeQuery where R: RangeBounds<i64>, C: AsCid {
 impl FromStr for RangeQuery {
   type Err = ConversionError;
 
+  // TODO: test this
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     let parts: Vec<&str> = s.split(':').collect();
     if !parts.len() == 3 {
       return Err(ConversionError::InvalidFormat("Invalid range query string".to_string()));
     }
     let cid_str = parts.get(0).unwrap();
-    let maybe_upper = parts.get(1).unwrap();
-    let maybe_lower = parts.get(2).unwrap();
+    let maybe_start = parts.get(1).unwrap();
+    let maybe_end = parts.get(2).unwrap();
     let cid = Cid::try_from(*cid_str)?;
-    match (*maybe_upper, *maybe_lower) {
+    match (*maybe_start, *maybe_end) {
       ("", "") => Ok((cid, ..).into()),
-      (upper, "") => {
-        let upper: i64 = upper.parse()?;
-        Ok((cid, upper..).into())
+      (start, "") => {
+        let start: i64 = start.parse()?;
+        Ok((cid, start..).into())
       },
-      ("", lower) => {
-        let lower: i64 = lower.parse()?;
-        Ok((cid, ..lower).into())
+      ("", end) => {
+        let parts = end.split('=').collect::<Vec<_>>();
+        if parts.len() == 2 {
+          let end: i64 = parts[1].parse()?;
+          Ok((cid, ..=end).into())
+        } else {
+          let end: i64 = end.parse()?;
+          Ok((cid, ..end).into())
+        }
       },
-      (upper, lower) => {
-        let upper: i64 = upper.parse()?;
-        let lower: i64 = lower.parse()?;
-        Ok((cid, upper..lower).into())
+      (start, end) => {
+        let start: i64 = start.parse()?;
+        let end: i64 = end.parse()?;
+        Ok((cid, start..end).into())
       }
     }
   }
@@ -335,8 +455,105 @@ impl FromStr for RangeQuery {
 impl Display for RangeQuery {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      RangeQuery::Absolute(range) => write!(f, "{}:{}:{}", range.strand, range.upper, range.lower),
-      RangeQuery::Relative(strand, upper, lower) => write!(f, "{}:{}:{}", strand, upper, lower),
+      RangeQuery::Absolute(range) => write!(f, "{}:{}:{}", range.strand, range.start, range.end),
+      RangeQuery::Relative(strand, start, end) => {
+        let start = match start {
+          Bound::Included(s) => s.to_string(),
+          Bound::Unbounded => "".to_string(),
+          Bound::Excluded(_) => unimplemented!("Excluded start bounds not supported"),
+        };
+        let end = match end {
+          Bound::Included(e) => format!("={}", e),
+          Bound::Unbounded => "".to_string(),
+          Bound::Excluded(e) => e.to_string(),
+        };
+        write!(f, "{}:{}:{}", strand, start, end)
+      },
     }
+  }
+}
+
+
+#[cfg(test)]
+mod test {
+  use super::*;
+  use crate::Cid;
+
+  #[test]
+  fn test_range_query_bounds() {
+    let cid = Cid::default();
+    let range = RangeQuery::from_range_bounds(&cid, 0..2);
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 0, 2)));
+    let range = RangeQuery::from_range_bounds(&cid, 4..1);
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 5, 2)));
+    let range = RangeQuery::from_range_bounds(&cid, 2..=4);
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 2, 5)));
+    let range = RangeQuery::from_range_bounds(&cid, 3..=1);
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 4, 1)));
+    let range = RangeQuery::from_range_bounds(&cid, ..=2);
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 0, 3)));
+    let range = RangeQuery::from_range_bounds(&cid, -1..);
+    assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(-1), Bound::Included(0)));
+    let range = RangeQuery::from_range_bounds(&cid, ..=-2);
+    assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(0), Bound::Included(-2)));
+    let range = RangeQuery::from_range_bounds(&cid, ..);
+    assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(0), Bound::Included(-1)));
+    let range = RangeQuery::from_range_bounds(&cid, 2..);
+    assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(2), Bound::Included(-1)));
+    let range = RangeQuery::from_range_bounds(&cid, -1..-1);
+    assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(-1), Bound::Excluded(-1)));
+    let range = RangeQuery::from_range_bounds(&cid, -1..=-2);
+    assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(-1), Bound::Included(-2)));
+    let range = RangeQuery::from_range_bounds(&cid, -3..-1);
+    assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(-3), Bound::Excluded(-1)));
+  }
+
+  // -100..20 if latest is 100... would mean: 1..20
+  // but the intention is a decreasing range. so it should be 20..20
+  // 20..-100 would mean 20..1 which is also not what we want
+  // since the intention is an increasing range, so it should be 20..20
+  #[test]
+  fn relative_range_edge_cases() {
+    let latest = 100;
+    let cid = Cid::default();
+    let range: RangeQuery = (cid.clone(), -100..20).into();
+    let absolute = range.to_absolute(latest);
+    assert_eq!(absolute, AbsoluteRange::new(cid, 20, 20));
+
+    let range: RangeQuery = (cid.clone(), 20..-100).into();
+    let absolute = range.to_absolute(latest);
+    assert_eq!(absolute, AbsoluteRange::new(cid, 20, 20));
+  }
+
+  #[test]
+  fn test_iter(){
+    let range = AbsoluteRange::new(Cid::default(), 0, 100);
+    let queries = range.into_iter().collect::<Vec<_>>();
+    assert_eq!(queries.len(), 100);
+    assert_eq!(queries[0], Query::Index(Cid::default(), 0));
+    assert_eq!(queries[99], Query::Index(Cid::default(), 99));
+
+    let range = AbsoluteRange::new(Cid::default(), 100, 0);
+    let queries = range.into_iter().collect::<Vec<_>>();
+    assert_eq!(queries.len(), 100);
+    assert_eq!(queries[0], Query::Index(Cid::default(), 99));
+    assert_eq!(queries[99], Query::Index(Cid::default(), 0));
+  }
+
+  #[test]
+  fn test_batches(){
+    let range = AbsoluteRange::new(Cid::default(), 101, 0);
+    let batches = range.batches(100);
+    let cid = Cid::default();
+    assert_eq!(batches.len(), 2);
+    assert_eq!(batches[0], AbsoluteRange::new(cid.clone(), 101, 1));
+    assert_eq!(batches[1], AbsoluteRange::new(cid, 1, 0));
+
+    let range = AbsoluteRange::new(Cid::default(), 0, 101);
+    let batches = range.batches(100);
+    let cid = Cid::default();
+    assert_eq!(batches.len(), 2);
+    assert_eq!(batches[0], AbsoluteRange::new(cid.clone(), 0, 100));
+    assert_eq!(batches[1], AbsoluteRange::new(cid, 100, 101));
   }
 }
