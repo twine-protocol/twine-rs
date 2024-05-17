@@ -13,7 +13,7 @@ fn get_jws_signer(jwk: &Jwk, header: &JwsHeader) -> Result<Box<dyn JwsSigner>, J
     Some("ES384") => Ok(Box::new(ES384.signer_from_jwk(jwk)?)),
     Some("ES512") => Ok(Box::new(ES512.signer_from_jwk(jwk)?)),
     Some("EdDSA") => Ok(Box::new(EdDSA.signer_from_jwk(jwk)?)),
-    _ => return Err(JoseError::UnsupportedSignatureAlgorithm(anyhow!("Unsupported algorithm"))),
+    _ => return Err(JoseError::UnsupportedSignatureAlgorithm(anyhow!("Unsupported algorithm {}", header.algorithm().unwrap_or("none")))),
   }
 }
 
@@ -48,14 +48,30 @@ fn get_header(jwk: &Jwk) -> JwsHeader {
   h
 }
 
+struct SignerSelector<'a> {
+  jwk: &'a Jwk,
+  signer: Option<Box<dyn JwsSigner>>,
+}
+
+impl<'a> SignerSelector<'a> {
+  pub fn new(jwk: &'a Jwk) -> Self {
+    Self {
+      jwk,
+      signer: None,
+    }
+  }
+
+  pub fn select(&mut self, header: &JwsHeader) -> Result<&dyn JwsSigner, JoseError> {
+    self.signer = Some(get_jws_signer(self.jwk, header)?);
+    Ok(self.signer.as_deref().map(|v| v).unwrap())
+  }
+}
+
 pub fn sign<P: AsRef<[u8]>>(jwk: &Jwk, payload: P) -> Result<String, SigningError> {
-  let selector = |header: &JwsHeader| -> Option<&dyn JwsSigner> {
-    get_jws_signer(jwk, header).ok().map(|v| {
-      let leaked: &dyn JwsSigner = Box::leak(v);
-      leaked
-    })
-  };
+  let mut selector = SignerSelector::new(jwk);
   let header = get_header(jwk);
-  serialize_compact_with_selector(payload.as_ref(), &header, selector)
+  let signer = selector.select(&header)
+    .map_err(|e| SigningError(e.to_string()))?;
+  serialize_compact(payload.as_ref(), &header, signer)
     .map_err(|e| SigningError(format!("Could not sign: {}", e)))
 }
