@@ -20,8 +20,11 @@ pub trait BaseResolver: Send + Sync {
   async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError>;
   async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError>;
   async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError>;
-  async fn range_stream<'a>(&'a self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError>;
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError>;
   async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError>;
+  async fn latest_index(&self, strand: &Cid) -> Result<u64, ResolutionError> {
+    Ok(self.fetch_latest(strand).await?.index())
+  }
 }
 
 #[async_trait]
@@ -54,7 +57,7 @@ impl<'r> BaseResolver for Box<dyn BaseResolver + 'r> {
     self.as_ref().fetch_strand(strand).await
   }
 
-  async fn range_stream<'a>(&'a self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
     self.as_ref().range_stream(range).await
   }
 
@@ -127,10 +130,29 @@ pub trait Resolver: BaseResolver + Send + Sync {
 
   async fn resolve_range<'a, R: Into<RangeQuery> + Send>(&'a self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + Send + 'a>>, ResolutionError> {
     let range = range.into();
-    let strand = self.resolve_strand(range.strand_cid()).await?;
+    let latest = self.resolve_latest(range.strand_cid()).await?;
+    let range = range.to_absolute(latest.index());
+    if range.len() == 1 {
+      return Ok::<_, ResolutionError>(futures::stream::once({
+        let strand_cid = range.strand_cid().clone();
+        async move {
+          let tixel = self.fetch_index(&strand_cid, range.start).await?;
+          if tixel.index() != range.start {
+            return Err(ResolutionError::Fetch("index mismatch".to_string()));
+          }
+          Twine::try_new_from_shared(latest.strand(), tixel).map_err(|e| e.into())
+        }
+      }).boxed());
+    }
+    let expected = range.clone().iter();
     let stream = self.range_stream(range).await?
-      .map(move |tixel| {
-        Twine::try_new_from_shared(strand.clone(), tixel?)
+      .zip(futures::stream::iter(expected))
+      .map(move |(tixel, q)| {
+        let tixel = tixel?;
+        if tixel.index() != q.unwrap_index() as u64 {
+          return Err(ResolutionError::Fetch("index mismatch".to_string()));
+        }
+        Twine::try_new_from_shared(latest.strand(), tixel)
           .map_err(|e| e.into())
       });
     Ok(stream.boxed())
@@ -210,11 +232,10 @@ impl BaseResolver for Vec<Box<dyn BaseResolver>> {
     Err(ResolutionError::NotFound)
   }
 
-  async fn range_stream<'a>(&'a self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
-    let range = range.try_to_absolute(self).await?;
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
     for resolver in self {
       // TODO: should find a way to merge streams
-      if resolver.has((range.strand, range.upper)).await? {
+      if resolver.has((range.strand, range.start)).await? {
         if let Ok(stream) = resolver.range_stream(range.into()).await {
           return Ok(stream);
         }
@@ -250,50 +271,5 @@ impl BaseResolver for Vec<Box<dyn BaseResolver>> {
       .boxed();
 
     Ok(stream)
-  }
-}
-
-#[cfg(test)]
-mod test {
-  use super::*;
-  use crate::Cid;
-
-  #[test]
-  fn test_range_query_bounds() {
-    let cid = Cid::default();
-    let range = RangeQuery::from_range_bounds(&cid, 0..2);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 1, 0)));
-    let range = RangeQuery::from_range_bounds(&cid, 2..);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 2, 0)));
-    let range = RangeQuery::from_range_bounds(&cid, 4..1);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 4, 2)));
-    let range = RangeQuery::from_range_bounds(&cid, 2..=4);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 4, 2)));
-    let range = RangeQuery::from_range_bounds(&cid, 3..=1);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 3, 1)));
-    let range = RangeQuery::from_range_bounds(&cid, -1..);
-    assert_eq!(range, RangeQuery::Relative(cid, -1, 0));
-    let range = RangeQuery::from_range_bounds(&cid, ..=-2);
-    assert_eq!(range, RangeQuery::Relative(cid, -1, -2));
-    let range = RangeQuery::from_range_bounds(&cid, ..);
-    assert_eq!(range, RangeQuery::Relative(cid, -1, 0));
-    let range = RangeQuery::from_range_bounds(&cid, -1..-1);
-    assert_eq!(range, RangeQuery::Relative(cid, -1, -1));
-    let range = RangeQuery::from_range_bounds(&cid, -1..=-2);
-    assert_eq!(range, RangeQuery::Relative(cid, -1, -2));
-    let range = RangeQuery::from_range_bounds(&cid, ..=2);
-    assert_eq!(range, RangeQuery::Relative(cid, -1, 2));
-    let range = RangeQuery::from_range_bounds(&cid, -3..-1);
-    assert_eq!(range, RangeQuery::Relative(cid, -2, -3));
-  }
-
-  #[test]
-  fn test_batches(){
-    let range = AbsoluteRange::new(Cid::default(), 100, 0);
-    let batches = range.batches(100);
-    let cid = Cid::default();
-    assert_eq!(batches.len(), 2);
-    assert_eq!(batches[0], AbsoluteRange::new(cid.clone(), 100, 1));
-    assert_eq!(batches[1], AbsoluteRange::new(cid, 0, 0));
   }
 }

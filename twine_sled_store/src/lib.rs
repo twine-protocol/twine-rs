@@ -2,8 +2,8 @@ use async_trait::async_trait;
 use futures::Stream;
 use zerocopy::FromZeroes;
 use std::{pin::Pin, sync::Arc};
-use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, resolver::RangeQuery, Cid};
-use twine_core::resolver::BaseResolver;
+use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, Cid};
+use twine_core::resolver::{AbsoluteRange, BaseResolver};
 use sled::Db;
 use zerocopy::{
   byteorder::{U64, BigEndian}, AsBytes, FromBytes, Unaligned,
@@ -211,60 +211,28 @@ impl BaseResolver for SledStore {
     Ok(Arc::new(tixel))
   }
 
-  async fn range_stream(&self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
     use futures::stream::StreamExt;
-    let range = range.try_to_absolute(self).await?;
     let strand_cid = range.strand;
-    let mut expecting = range.upper;
-    let sled_range = get_index_key(&strand_cid, range.lower)..=get_index_key(&strand_cid, range.upper);
-    let iter = self.db.range(sled_range).rev();
+    let (start, end) = if range.is_increasing() {
+      (range.start, range.end)
+    } else {
+      (range.end, range.start)
+    };
+    let sled_range = get_index_key(&strand_cid, start)..get_index_key(&strand_cid, end);
+    use either::Either;
+    let iter = if range.is_decreasing() {
+      Either::Left(self.db.range(sled_range).rev())
+    } else {
+      Either::Right(self.db.range(sled_range))
+    };
     let stream = futures::stream::iter(iter)
-      // we're expecting the keys to be all present, but we need to check
-      // and return NotFound if they're not
       .map(move |item| {
-        let (key, cid) = match item {
-          Ok((key, cid)) => (key, cid),
-          Err(e) => {
-            expecting = expecting.saturating_sub(1);
-            return futures::stream::iter(vec![Err(ResolutionError::Fetch(e.to_string()))])
-          },
-        };
-        let index = IndexKey::ref_from(&key).map(|r| r.index.get());
-        match index {
-          None => {
-            expecting = expecting.saturating_sub(1);
-            let res = vec![Err(ResolutionError::Fetch("Key record is corrupted".to_string()))];
-            futures::stream::iter(res)
-          },
-          Some(index) => {
-            let mut res = Vec::new();
-            while index < expecting {
-              res.push(Err(ResolutionError::NotFound));
-              expecting = expecting.saturating_sub(1);
-            }
-            expecting = expecting.saturating_sub(1);
-            match Cid::try_from(cid.to_vec()) {
-              Ok(cid) => {
-                res.push(Ok((index, cid)));
-                futures::stream::iter(res)
-              },
-              Err(e) => {
-                res.push(Err(ResolutionError::Fetch(e.to_string())));
-                futures::stream::iter(res)
-              },
-            }
-          }
-        }
-      })
-      .flatten()
-      .map(move |res| {
         let strand_cid = strand_cid.clone();
         async move {
-          let (index, cid) = res?;
+          let (_, cid) = item.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+          let cid = Cid::try_from(cid.to_vec()).map_err(|e| ResolutionError::BadData(e.to_string()))?;
           let tixel = self.get_tixel(&strand_cid, &cid).await?;
-          if tixel.index() != index {
-            return Err(ResolutionError::BadData(format!("Expected index {}, found {}", index, tixel.index())));
-          }
           Ok(Arc::new(tixel))
         }
       })

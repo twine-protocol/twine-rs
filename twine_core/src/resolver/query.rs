@@ -133,6 +133,30 @@ impl AbsoluteRange {
     self.start > self.end
   }
 
+  pub fn lower(&self) -> u64 {
+    if self.is_increasing() {
+      self.start
+    } else {
+      self.end
+    }
+  }
+
+  pub fn upper(&self) -> u64 {
+    if self.is_increasing() {
+      self.end - 1
+    } else {
+      self.start - 1
+    }
+  }
+
+  pub fn len(&self) -> u64 {
+    if self.is_increasing() {
+      self.end - self.start
+    } else {
+      self.start - self.end
+    }
+  }
+
   pub fn batches(&self, size: u64) -> Vec<Self> {
     let mut batches = Vec::new();
     if self.is_decreasing() {
@@ -476,7 +500,9 @@ impl Display for RangeQuery {
 
 #[cfg(test)]
 mod test {
-  use super::*;
+  use ipld_core::cid::CidGeneric;
+
+use super::*;
   use crate::Cid;
 
   #[test]

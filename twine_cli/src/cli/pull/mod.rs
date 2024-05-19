@@ -1,7 +1,7 @@
 use indicatif::{ProgressBar, ProgressStyle};
 use clap::Parser;
 use anyhow::Result;
-use twine_core::{resolver::{AbsoluteRange, Query, RangeQuery, Resolver}, store::Store};
+use twine_core::{errors::ResolutionError, resolver::{AbsoluteRange, Query, RangeQuery, Resolver}, store::Store};
 use futures::{stream::StreamExt, TryStreamExt};
 use twine_sled_store::SledStore;
 use crate::selector::{Selector, parse_selector};
@@ -72,27 +72,44 @@ impl PullCommand {
     store.save(strand).await?;
 
     let range = range.try_to_absolute(resolver).await?;
+    // only allow increasing ranges
+    if range.is_decreasing() {
+      return Err(anyhow::anyhow!("Cannot pull decreasing range"));
+    }
 
     let range = if self.force { range } else {
       // first figure out what we have locally
-      let has_lower = store.has((range.strand_cid(), range.lower)).await?;
+      match store.resolve_latest(range.strand_cid()).await {
+        Ok(twine) => {
+          let latest_index = twine.index();
+          // if we have latest, then assume we're done
+          if latest_index >= range.upper() {
+            return Ok(());
+          }
 
-      if has_lower {
-        // then assume we have everything from lower to latest
-        let latest = store.resolve_latest(range.strand_cid()).await?;
-        AbsoluteRange::new(
-          *range.strand_cid(),
-          range.upper,
-          latest.index()
-        )
-      } else {
-        range
+          // if latest is below lower, then error
+          if latest_index < range.lower() {
+            return Err(anyhow::anyhow!("Local twine index is lower than requested range"));
+          }
+
+          // otherwise start from latest
+          AbsoluteRange::new(
+            *range.strand_cid(),
+            latest_index,
+            range.end
+          )
+        },
+        Err(ResolutionError::NotFound) if range.lower() == 0 => {
+          range
+        },
+        Err(e) => {
+          return Err(e.into());
+        }
       }
     };
 
-    // let is_in_terminal = std::io::stdout().is_terminal();
-    let lower = range.lower;
-    let total_size = range.upper - range.lower;
+    let lower = range.lower();
+    let total_size = range.len();
     let pb = ctx.multi_progress.add(ProgressBar::new(total_size));
     pb.set_style(
       ProgressStyle::with_template( "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg} (eta: {eta})")
@@ -112,7 +129,7 @@ impl PullCommand {
       })
       .map(|res| {
         let twine = res.unwrap();
-        pb.set_position(total_size - (twine.index() - lower));
+        pb.set_position(twine.index() - lower);
         pb.set_message(format!("index: {}", twine.index()));
         twine
       });

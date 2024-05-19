@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use futures::Stream;
 use crate::Cid;
 use crate::errors::{ResolutionError, StoreError};
-use crate::resolver::{BaseResolver, RangeQuery};
+use crate::resolver::{AbsoluteRange, BaseResolver};
 use crate::twine::{Strand, Tixel};
 use super::Store;
 use crate::as_cid::AsCid;
@@ -111,14 +111,12 @@ impl BaseResolver for MemoryStore {
     }
   }
 
-  async fn range_stream<'a>(&'a self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
-    let range = range.try_to_absolute(self).await?;
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
     use futures::stream::StreamExt;
     if let Some(entry) = self.strands.read().unwrap().get(&range.strand) {
-      let list = (range.lower..=range.upper)
-        .map(|i| entry.by_index.get(&i).cloned())
+      let list = range.into_iter()
+        .map(|q| entry.by_index.get(&(q.unwrap_index() as u64)).cloned())
         .map(|t| t.ok_or(ResolutionError::NotFound))
-        .rev()
         .collect::<Vec<Result<Arc<Tixel>, ResolutionError>>>();
       let stream = futures::stream::iter(list);
       Ok(stream.boxed())

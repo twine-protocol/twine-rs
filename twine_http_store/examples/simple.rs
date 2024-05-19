@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let latest = resolver.resolve_latest(&twine).await?;
   println!("latest: {}", latest.cid());
 
-  let twine_stream = resolver.resolve_range((&twine, 100..)).await?
+  let twine_stream = resolver.resolve_range((&twine, 100..=0)).await?
     .inspect_ok(|twine| println!("index: {}, cid: {}", twine.index(), twine.cid()))
     .inspect_err(|err| eprintln!("error: {}", err))
     .filter_map(|twine| async {

@@ -1,5 +1,5 @@
 use futures::{StreamExt, TryStreamExt};
-use twine_core::twine::Twine;
+use twine_core::{as_cid::AsCid, twine::Twine};
 use twine_sled_store::*;
 use twine_core::resolver::*;
 use twine_core::store::Store;
@@ -68,6 +68,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
   println!("Resolved {} twines in {}ms", count, start_time.elapsed().as_millis());
+
+  // try just using resolve_index
+  // let start_time = std::time::Instant::now();
+  // futures::stream::iter(0..=count as u64)
+  //   .map(|i| store.resolve_index(strand.as_cid(), i))
+  //   .buffered(100)
+  //   .inspect_ok(|twine| {
+  //     // println!("Resolved twine: {}", twine.index());
+  //   })
+  //   .inspect_err(|err| {
+  //     // println!("Error: {:?}", err);
+  //   })
+  //   .collect::<Vec<_>>().await;
+
+  // println!("Resolved {} twines in {}ms", count, start_time.elapsed().as_millis());
 
   Ok(())
 }

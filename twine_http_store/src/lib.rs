@@ -4,7 +4,7 @@ use reqwest::{header::{ACCEPT, CONTENT_TYPE}, StatusCode, Url};
 use fvm_ipld_car::CarReader;
 use std::{pin::Pin, sync::Arc};
 use std::time::Duration;
-use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, resolver::RangeQuery, Cid, resolver::AbsoluteRange};
+use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, Cid, resolver::AbsoluteRange};
 use twine_core::resolver::BaseResolver;
 
 pub use reqwest;
@@ -150,8 +150,8 @@ impl HttpStore {
     Ok(Arc::new(tixel))
   }
 
-  async fn fetch_tixel_range(&self, range: AbsoluteRange) -> Result<reqwest::Response, ResolutionError> {
-    let path = format!("chains/{}/pulses/{}-{}", range.strand.as_cid(), range.upper, range.lower);
+  async fn fetch_tixel_range(&self, strand: &Cid, upper: u64, lower: u64) -> Result<reqwest::Response, ResolutionError> {
+    let path = format!("chains/{}/pulses/{}-{}", strand, upper, lower);
     let response = self.req(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
     match response.error_for_status_ref() {
       Ok(_) => {},
@@ -258,19 +258,27 @@ impl BaseResolver for HttpStore {
     Ok(tixel)
   }
 
-  async fn range_stream(&self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
     use futures::stream::StreamExt;
-    let stream = range.to_batch_stream(self, 100)
-      .map(|range| async {
-        let range = range?;
-        if range.upper == range.lower {
-          let res = self.fetch_index(&range.strand.clone(), range.upper).await;
-          return Ok::<_, ResolutionError>(futures::stream::once(async {
-            res.map(|t| AnyTwine::from(t))
-          }).boxed());
+    let decreasing = range.is_decreasing();
+
+    let stream = futures::stream::iter(range.batches(100))
+      .map(move |range| {
+        let strand_cid = range.strand.clone();
+        let (upper, lower) = if decreasing {
+          (range.start - 1, range.end)
+        } else {
+          (range.end - 1, range.start)
+        };
+        async move {
+          let response = self.fetch_tixel_range(&strand_cid, upper, lower).await;
+          if decreasing {
+            Ok::<_, ResolutionError>(self.parse_collection_response(response?).await?.boxed())
+          } else {
+            let tixels = self.parse_collection_response(response?).await?.collect::<Vec<Result<AnyTwine, ResolutionError>>>().await;
+            Ok::<_, ResolutionError>(futures::stream::iter(tixels.into_iter().rev()).boxed())
+          }
         }
-        let response = self.fetch_tixel_range(range).await;
-        Ok(self.parse_collection_response(response?).await?.boxed())
       })
       .buffered(self.options.concurency)
       .try_flatten()
