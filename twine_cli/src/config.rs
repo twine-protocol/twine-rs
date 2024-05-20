@@ -56,6 +56,12 @@ impl Resolvers {
       *r = record;
       return Ok(());
     }
+    // name should only contain alphanumeric characters, dashes, and underscores
+    if let Some(name) = record.name.as_deref() {
+      if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        return Err(anyhow::anyhow!("Resolver name can only contain alphanumeric characters, dashes, and underscores"));
+      }
+    }
     // Check if resolver with name already exists... and return error. (None doesn't count)
     if let Some(name) = record.name.as_deref() {
       if self.0.iter().any(|r| r.name.as_deref() == Some(name)) {
@@ -128,7 +134,19 @@ impl Config {
 
   pub(crate) fn get_resolver(&self, name_or_uri: &Option<String>) -> Result<Box<dyn BaseResolver>> {
     let r = match name_or_uri {
-      Some(resolver) => self.resolvers.get(&resolver).ok_or(anyhow::anyhow!("Resolver not found"))?,
+      Some(resolver) => {
+        match self.resolvers.get(&resolver) {
+          Some(r) => r,
+          None if resolver.contains("/") => {
+            // try to interpret it as a uri
+            let r = Resolver { uri: resolver.clone(), name: None, default: false };
+            return r.as_resolver();
+          },
+          None => {
+            return Err(anyhow::anyhow!("Resolver {} not found", resolver));
+          }
+        }
+      },
       None => self.resolvers.get_default().ok_or(anyhow::anyhow!("No default resolver set. Please specify a resolver with -r"))?,
     };
     log::trace!("Using resolver: {:?}", r);

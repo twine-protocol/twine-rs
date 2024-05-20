@@ -1,7 +1,6 @@
-use std::env;
-
 use clap::Parser;
 use indicatif::MultiProgress;
+use simplelog::{Config, ConfigBuilder, TermLogger};
 
 mod config;
 mod cli;
@@ -15,26 +14,26 @@ pub(crate) struct Context {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let cli = cli::Cli::parse();
-  // let mut logger = stderrlog::new();
-  // logger
-  //   .verbosity(cli.verbose as usize)
-  //   .quiet(cli.quiet)
-  //   .show_level(cli.verbose > 1)
-  //   .modules(vec![
-  //     module_path!(),
-  //   ]);
-  let logger = env_logger::Builder::new()
-    .format_timestamp(None)
-    .format_module_path(false)
-    .filter_level(match (cli.quiet, cli.verbose) {
-      (true, _) => log::LevelFilter::Off,
-      (_, 0) => log::LevelFilter::Warn,
-      (_, 1) => log::LevelFilter::Info,
-      (_, 2) => log::LevelFilter::Debug,
-      (_, _) => log::LevelFilter::Trace,
-    })
-    .format_indent(Some(2))
+  let log_level = match (cli.quiet, cli.verbose) {
+    (true, _) => log::LevelFilter::Off,
+    (_, 0) => log::LevelFilter::Warn,
+    (_, 1) => log::LevelFilter::Info,
+    (_, 2) => log::LevelFilter::Debug,
+    (_, _) => log::LevelFilter::Trace,
+  };
+  let config = ConfigBuilder::new()
+    .set_time_level(log::LevelFilter::Debug)
+    .set_target_level(log::LevelFilter::Trace)
+    .set_location_level(log::LevelFilter::Off)
+    .set_max_level(log::LevelFilter::Debug)
+    .add_filter_ignore_str("reqwest")
+    .add_filter_ignore_str("sled")
+    .add_filter_ignore_str("hyper_util")
+    .add_filter_ignore_str("tokio_util")
     .build();
+  let mode = simplelog::TerminalMode::Mixed;
+  let color_choice = simplelog::ColorChoice::Auto;
+  let logger = TermLogger::new(log_level, config, mode, color_choice);
 
   let multi_progress = MultiProgress::new();
   indicatif_log_bridge::LogWrapper::new(
@@ -49,6 +48,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   ).await?;
 
   config.save()?;
-  multi_progress.clear().unwrap();
+  // multi_progress.clear().unwrap();
   Ok(())
 }
