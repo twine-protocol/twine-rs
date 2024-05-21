@@ -29,7 +29,7 @@ pub enum SubCommands {
   /// Manage sync strands
   Sync(sync::SyncCommand),
   /// Unsync a strand
-  UnSync(sync::UnSyncCommand),
+  Unsync(sync::UnSyncCommand),
 }
 
 impl Cli {
@@ -47,7 +47,7 @@ impl Cli {
       SubCommands::Sync(sync) => {
         sync.run(config, ctx).await
       },
-      SubCommands::UnSync(unsync) => {
+      SubCommands::Unsync(unsync) => {
         unsync.run(config, ctx).await
       },
     }
