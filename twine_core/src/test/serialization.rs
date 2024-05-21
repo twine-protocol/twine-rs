@@ -95,7 +95,7 @@ fn test_twine() {
   let strand = Strand::from_dag_json(STRANDJSON).unwrap();
   let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
   let twine = Twine::try_new(strand, tixel).unwrap();
-  assert_eq!(twine.previous(), twine.back_stitches().first().unwrap().to_owned());
+  assert_eq!(twine.previous(), twine.back_stitches().first().copied());
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn test_shared_twine() {
   let tixel = Arc::new(tixel);
   let twine = Twine::try_new_from_shared(strand.clone(), tixel.clone()).unwrap();
   let _other = Twine::try_new_from_shared(strand.clone(), tixel).unwrap();
-  assert_eq!(twine.previous(), twine.back_stitches().first().unwrap().to_owned());
+  assert_eq!(twine.previous(), twine.back_stitches().first().copied());
 }
 
 #[test]

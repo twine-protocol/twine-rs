@@ -42,8 +42,8 @@ impl Tixel {
     strand.verify_tixel(self)
   }
 
-  pub fn previous(&self) -> Stitch {
-    self.back_stitches().first().unwrap().to_owned()
+  pub fn previous(&self) -> Option<Stitch> {
+    self.back_stitches().first().cloned()
   }
 }
 
