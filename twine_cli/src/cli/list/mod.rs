@@ -209,11 +209,20 @@ impl ListCommand {
       .buffered(2)
       .try_for_each(|(strand, maybe_latest)| async move {
         let cid = strand.cid();
-        let latest_index = maybe_latest.map(|l| l.index().to_formatted_string(locale));
+        let latest_index = maybe_latest.as_ref().map(|l| l.index().to_formatted_string(locale));
         if self.inspect {
           let subspec = strand.subspec().map(|s| s.to_string()).unwrap_or_default();
           println!("{}", cid);
           println!("  Latest: {}", latest_index.unwrap_or("unknown".to_string()));
+          if maybe_latest.is_some() {
+            use twine_core::twine::TwineBlock;
+            let latest = maybe_latest.unwrap();
+            let byte_count = latest.bytes().len();
+            println!(
+              "  Estimated strand size (MB): {}",
+              (latest.index() as usize * byte_count) / 1_000_000
+            );
+          }
           println!("  Subspec: {}", subspec);
           println!("  Key: {}", strand.key().key_type());
           let details = format_ipld(strand.details(), self.depth, locale);

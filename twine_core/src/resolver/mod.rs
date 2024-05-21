@@ -286,7 +286,8 @@ impl BaseResolver for Vec<Box<dyn BaseResolver>> {
 
   async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
     let stream = futures::stream::iter(self.iter())
-      .then(|r| r.strands())
+      .map(|r| r.strands())
+      .buffered(10)
       .try_flatten()
       .scan(HashSet::new(), |seen, strand| {
         use futures::future::ready;
