@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use futures::Stream;
+use sled::transaction::TransactionError;
 use zerocopy::FromZeroes;
 use std::{pin::Pin, sync::Arc};
 use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, Cid};
@@ -247,25 +248,31 @@ impl Store for SledStore {
   async fn save<T: Into<AnyTwine> + Send>(&self, twine: T) -> Result<(), StoreError> {
     let twine = twine.into();
     let cid = twine.cid();
+
     match &twine {
       AnyTwine::Strand(strand) => {
-        self.db.insert(get_strand_key(&strand.cid()), &[])
-          .map_err(|e| StoreError::Saving(e.to_string()))?;
+        self.db.transaction(|db| {
+          db.insert(get_strand_key(&strand.cid()), &[])?;
+          db.insert(cid.to_bytes(), &*twine.bytes())?;
+          Ok(())
+        }).map_err(|e: TransactionError| StoreError::Saving(e.to_string()))?;
       },
       AnyTwine::Tixel(tixel) => {
         let strand = tixel.strand_cid();
         if !self.has_strand(&strand).await? {
           return Err(StoreError::Saving(format!("Strand {} not saved yet", strand)));
         }
+        self.db.transaction(|db| {
+          let index = tixel.index();
+          db.insert(get_index_key(&strand, index), cid.to_bytes())?;
+          db.insert(cid.to_bytes(), &*twine.bytes())?;
+          Ok(())
+        }).map_err(|e: TransactionError| StoreError::Saving(e.to_string()))?;
+
         self.check_update(&tixel)?;
-        let index = tixel.index();
-        self.db.insert(get_index_key(&strand, index), cid.to_bytes())
-          .map_err(|e| StoreError::Saving(e.to_string()))?;
       },
     }
 
-    self.db.insert(cid.to_bytes(), &*twine.bytes())
-      .map_err(|e| StoreError::Saving(e.to_string()))?;
 
     Ok(())
   }

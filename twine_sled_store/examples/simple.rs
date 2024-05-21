@@ -27,6 +27,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   store.save(first.clone()).await?;
   store.save(next.clone()).await?;
 
+  store.strands().await?
+    .inspect_ok(|strand| {
+      println!("strand: {}", strand.cid());
+    })
+    .inspect_err(|err| {
+      println!("Error: {:?}", err);
+    })
+    .try_collect::<Vec<_>>().await?;
+
   let s = store.resolve_strand(&strand).await?;
   assert_eq!(*s, strand);
 
