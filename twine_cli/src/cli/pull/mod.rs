@@ -103,7 +103,7 @@ impl PullCommand {
           }
         }
       })
-      .buffered(3)
+      .buffered(self.parallel)
       .map_ok(|r| {
         let pb = ctx.multi_progress.add(
           ProgressBar::new(r.upper()).with_message(format!("Pulling strand: {}", r.strand_cid()))
@@ -130,7 +130,8 @@ impl PullCommand {
 
     let results: Vec<_> = iter(tasks)
       .map(|(r, pb)| self.pull(&store, &resolver, r, pb))
-      .buffered(self.parallel)
+      .buffer_unordered(self.parallel)
+      .inspect_err(|e| { ctx.multi_progress.println(format!("Error: {}", e)).unwrap_or_else(|e| log::error!("{}", e)) })
       .inspect(|_| bar.inc(1))
       .collect().await;
 
@@ -154,6 +155,10 @@ impl PullCommand {
     log::debug!("Saving strand: {}", strand.cid());
     store.save(strand).await?;
 
+    pb.set_position(range.start);
+    pb.reset_elapsed();
+    pb.reset_eta();
+    pb.enable_steady_tick(Duration::from_millis(300));
     pb.set_message(format!("pulling (...{})", last_chars(&range.strand_cid().to_string(), 5)));
 
     use futures::future::ready;
@@ -178,14 +183,14 @@ impl PullCommand {
       Ok(_) => {
         if let Some(err) = error {
           pb.abandon_with_message("Error!");
-          Err(anyhow::anyhow!("Error: {}", err))
+          Err(anyhow::anyhow!("While pulling {}: {}", range.strand_cid(), err))
         } else {
           pb.finish_with_message("Done!");
           Ok(())
         }
       },
       Err(e) => {
-        pb.abandon_with_message(format!("Error: {}", e));
+        pb.abandon_with_message(format!("While pulling {}: {}", range.strand_cid(), e));
         Err(e.into())
       }
     }
