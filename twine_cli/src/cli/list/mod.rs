@@ -192,25 +192,34 @@ impl ListCommand {
       .inspect_ok(|strand| {
         log::trace!("Resolving latest for strand {}", strand.cid());
       })
-      .map(|s| async { resolver.resolve_latest(s?).await })
-      .buffered(2)
-      .inspect_err(|err| {
-        log::error!("{}", err);
+      .map(|s| async {
+        let strand = s?;
+        match resolver.resolve_latest(&strand).await {
+          Ok(latest) => Ok((strand, Some(latest))),
+          Err(ResolutionError::NotFound) => {
+            log::debug!("No latest tixel for strand {}", strand.cid());
+            Ok((strand, None))
+          },
+          Err(err) => {
+            log::error!("{}", err);
+            Err(err)
+          }
+        }
       })
-      .try_for_each(|latest| async move {
-        let strand = latest.strand();
+      .buffered(2)
+      .try_for_each(|(strand, maybe_latest)| async move {
         let cid = strand.cid();
-        let latest_index = latest.index().to_formatted_string(locale);
+        let latest_index = maybe_latest.map(|l| l.index().to_formatted_string(locale));
         if self.inspect {
           let subspec = strand.subspec().map(|s| s.to_string()).unwrap_or_default();
           println!("{}", cid);
-          println!("  Latest: {}", latest_index);
+          println!("  Latest: {}", latest_index.unwrap_or("unknown".to_string()));
           println!("  Subspec: {}", subspec);
           println!("  Key: {}", strand.key().key_type());
           let details = format_ipld(strand.details(), self.depth, locale);
           println!("  Details: {}", indent::indent_all_by(2, details));
         } else {
-          println!("{} (latest: {})", cid, latest_index);
+          println!("{} (latest: {})", cid, latest_index.unwrap_or("unknown".to_string()));
         }
         Ok(())
       }).await?;

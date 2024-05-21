@@ -1,8 +1,21 @@
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use twine_core::{resolver::BaseResolver, Cid};
 use twine_http_store::{HttpStore, HttpStoreOptions, reqwest};
 use twine_sled_store::{SledStore, SledStoreOptions, sled};
+
+lazy_static::lazy_static! {
+  static ref STORE: Arc<SledStore> = {
+    let proj = directories::ProjectDirs::from("rs", "twine", "twine_cli")
+      .expect("Could not determine local store path");
+    let path = proj.data_dir().join("local_store");
+    log::trace!("Using local store at: {:?}", path);
+    let db = sled::Config::new().path(path).open().expect("Failed to open local store");
+    Arc::new(SledStore::new(db, SledStoreOptions::default()))
+  };
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Resolver {
@@ -133,13 +146,17 @@ impl Config {
   }
 
   pub(crate) fn get_resolver(&self, name_or_uri: &Option<String>) -> Result<Box<dyn BaseResolver>> {
-    let r = match name_or_uri {
+    let r = match name_or_uri.as_deref() {
+      Some("local") => {
+        let store = self.get_local_store()?;
+        return Ok(Box::new(store));
+      },
       Some(resolver) => {
         match self.resolvers.get(&resolver) {
           Some(r) => r,
           None if resolver.contains("/") => {
             // try to interpret it as a uri
-            let r = Resolver { uri: resolver.clone(), name: None, default: false };
+            let r = Resolver { uri: resolver.to_string(), name: None, default: false };
             return r.as_resolver();
           },
           None => {
@@ -153,13 +170,8 @@ impl Config {
     r.as_resolver()
   }
 
-  pub(crate) fn get_local_store(&self) -> Result<SledStore> {
-    let proj = directories::ProjectDirs::from("rs", "twine", "twine_cli")
-      .ok_or(anyhow::anyhow!("Could not determine local store path"))?;
-    let path = proj.data_dir().join("local_store");
-    log::trace!("Using local store at: {:?}", path);
-    let db = sled::Config::new().path(path).open()?;
-    Ok(SledStore::new(db, SledStoreOptions::default()))
+  pub(crate) fn get_local_store(&self) -> Result<Arc<SledStore>> {
+    Ok(STORE.clone())
   }
 }
 

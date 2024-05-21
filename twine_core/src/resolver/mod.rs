@@ -67,6 +67,46 @@ impl<'r> BaseResolver for Box<dyn BaseResolver + 'r> {
 }
 
 #[async_trait]
+impl<T> BaseResolver for Arc<T> where T: BaseResolver {
+  async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
+    self.as_ref().has_index(strand, index).await
+  }
+
+  async fn has_twine(&self, strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
+    self.as_ref().has_twine(strand, cid).await
+  }
+
+  async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError> {
+    self.as_ref().has_strand(cid).await
+  }
+
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+    self.as_ref().fetch_latest(strand).await
+  }
+
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
+    self.as_ref().fetch_index(strand, index).await
+  }
+
+  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+    self.as_ref().fetch_tixel(strand, tixel).await
+  }
+
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
+    self.as_ref().fetch_strand(strand).await
+  }
+
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+    self.as_ref().range_stream(range).await
+  }
+
+  async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+    self.as_ref().strands().await
+  }
+
+}
+
+#[async_trait]
 pub trait Resolver: BaseResolver + Send + Sync {
   async fn resolve<Q: Into<Query> + Send>(&self, query: Q) -> Result<Twine, ResolutionError> {
     let query = query.into();
