@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use futures::Stream;
+use itertools::Itertools;
 use sled::transaction::TransactionError;
 use zerocopy::FromZeroes;
+use std::collections::{HashMap, HashSet};
 use std::{pin::Pin, sync::Arc};
 use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, Cid};
 use twine_core::resolver::{AbsoluteRange, BaseResolver};
@@ -147,6 +149,7 @@ impl SledStore {
       };
       self.db.insert(get_latest_key(&cid), record.as_bytes())
         .map_err(|e| StoreError::Saving(e.to_string()))?;
+      log::debug!("Updated latest for strand {}: {}", cid, twine.index());
     }
     Ok(())
   }
@@ -208,8 +211,16 @@ impl BaseResolver for SledStore {
 
   async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
     let cid = self.latest_cid(&strand)?.ok_or(ResolutionError::NotFound)?;
-    let tixel = self.get_tixel(strand, &cid).await?;
-    Ok(Arc::new(tixel))
+    match self.get_tixel(strand, &cid).await {
+      Ok(tixel) => Ok(Arc::new(tixel)),
+      Err(ResolutionError::NotFound) => {
+        // we have a latest record but no entry for cid... so remove the latest entry
+        self.db.remove(get_latest_key(strand))
+          .map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+        Err(ResolutionError::NotFound)
+      },
+      Err(e) => Err(e),
+    }
   }
 
   async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
@@ -273,41 +284,67 @@ impl Store for SledStore {
       },
     }
 
-
     Ok(())
   }
 
   async fn save_many<I: Into<AnyTwine> + Send, S: Iterator<Item = I> + Send, T: IntoIterator<Item = I, IntoIter = S> + Send>(&self, twines: T) -> Result<(), StoreError> {
-    let mut batch = sled::Batch::default();
-    for twine in twines {
-      let twine = twine.into();
-      let cid = twine.cid();
-      match &twine {
-        AnyTwine::Strand(strand) => {
-          batch.insert(get_strand_key(&strand.cid()), &[]);
-        },
-        AnyTwine::Tixel(tixel) => {
-          let strand = tixel.strand_cid();
-          if !self.has_strand(&strand).await? {
-            return Err(StoreError::Saving(format!("Strand {} not saved yet", strand)));
-          }
-          self.check_update(&tixel)?;
-          let index = tixel.index();
-          batch.insert(get_index_key(&strand, index), cid.to_bytes());
-        },
+    let mut stored_strands = HashSet::new();
+    let (strands, tixels) = twines.into_iter().map(|i| i.into()).partition::<Vec<AnyTwine>, _>(|twine| {
+      matches!(twine, AnyTwine::Strand(_))
+    });
+
+    if strands.len() > 0 {
+      let mut batch = sled::Batch::default();
+      for strand in strands.iter().unique() {
+        let cid = strand.cid();
+        stored_strands.insert(cid);
+        batch.insert(get_strand_key(&cid), &[]);
+        batch.insert(cid.to_bytes(), &*strand.bytes());
       }
-      batch.insert(cid.to_bytes(), &*twine.bytes());
+      self.db.apply_batch(batch)
+        .map_err(|e| StoreError::Saving(e.to_string()))?;
     }
 
-    self.db.apply_batch(batch)
-      .map_err(|e| StoreError::Saving(e.to_string()))?;
+    if tixels.len() > 0 {
+      let tixels = tixels.into_iter().map(|t| t.unwrap_tixel());
+      let mut latests: HashMap<Cid, Arc<Tixel>> = HashMap::new();
+      let mut batch = sled::Batch::default();
+      for tixel in tixels {
+        let strand = tixel.strand_cid();
+        if !stored_strands.contains(&strand) {
+          let has = self.has_strand(&strand).await?;
+          if has {
+            stored_strands.insert(strand);
+          } else {
+            return Err(StoreError::Saving(format!("Strand {} not saved yet", strand)));
+          }
+        }
+        let index = tixel.index();
+        latests.entry(strand).and_modify(|t| if index > t.index() { *t = tixel.clone() } ).or_insert(tixel.clone());
+        batch.insert(get_index_key(&strand, index), tixel.cid().to_bytes());
+        batch.insert(tixel.cid().to_bytes(), &*tixel.bytes());
+      }
+
+      self.db.apply_batch(batch)
+        .map_err(|e| StoreError::Saving(e.to_string()))?;
+
+      // check latests
+      for (_, tixel) in latests {
+        self.check_update(&tixel)?;
+      }
+    }
 
     Ok(())
   }
 
   async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send + Unpin>(&self, twines: T) -> Result<(), StoreError> {
-    use futures::stream::StreamExt;
-    self.save_many(twines.collect::<Vec<_>>().await).await?;
+    use futures::stream::{StreamExt, TryStreamExt};
+    // save in batches
+    twines
+      .chunks(self.options.buffer_size)
+      .then(|chunk| self.save_many(chunk))
+      .try_for_each(|_| async { Ok(()) })
+      .await?;
     Ok(())
   }
 
