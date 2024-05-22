@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use futures::{Stream, TryStreamExt};
-use reqwest::{header::{ACCEPT, CONTENT_TYPE}, StatusCode, Url};
+use reqwest::{header::{ACCEPT, CONTENT_TYPE}, Request, StatusCode, Url};
 use fvm_ipld_car::CarReader;
 use std::{pin::Pin, sync::Arc};
 use std::time::Duration;
@@ -58,16 +58,15 @@ impl Default for HttpStore {
   }
 }
 
-async fn handle_save_result(res: Result<reqwest::Response, reqwest::Error>) -> Result<(), StoreError> {
-  let res = res.map_err(|e| StoreError::Saving(e.to_string()))?;
-  match res.error_for_status_ref() {
+fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result<(), StoreError> {
+  match res {
     Ok(_) => Ok::<(), StoreError>(()),
     Err(e) => {
-      match res.json::<serde_json::Value>().await {
-        Ok(j) => {
-          Err(StoreError::Saving(j.get("error").map(|e| e.to_string()).unwrap_or(e.to_string())))
-        },
-        Err(_) => Err(StoreError::Saving(e.to_string())),
+      match e {
+        ResolutionError::Fetch(e) => Err(StoreError::Saving(e)),
+        ResolutionError::NotFound => Err(StoreError::Saving("Not found".to_string())),
+        ResolutionError::Invalid(e) => Err(StoreError::Invalid(e)),
+        ResolutionError::BadData(e) => Err(StoreError::Saving(e)),
       }
     },
   }
@@ -78,6 +77,46 @@ impl HttpStore {
     Self {
       client,
       options,
+    }
+  }
+
+  async fn send(&self, req: reqwest::RequestBuilder) -> Result<reqwest::Response, ResolutionError> {
+    use backon::{Retryable, ExponentialBuilder};
+    let req = req.build().unwrap();
+    let response = (|| async {
+      self.client.execute(req.try_clone().expect("Could not clone request")).await
+    })
+      .retry(&ExponentialBuilder::default())
+      .when(|e| {
+        if e.is_status() {
+          e.status().map(|s| s.is_server_error()).unwrap_or(false)
+        } else if e.is_timeout() {
+          true
+        } else if e.is_connect() {
+          true
+        } else {
+          false
+        }
+      })
+      .await
+      .map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+
+    match response.error_for_status_ref() {
+      Ok(_) => Ok(response),
+      Err(e) => {
+        match e.status() {
+          Some(StatusCode::NOT_FOUND) => Err(ResolutionError::NotFound),
+          Some(status) if status.is_client_error() => {
+            match response.json::<serde_json::Value>().await {
+              Ok(j) => {
+                Err(ResolutionError::Fetch(j.get("error").map(|e| e.to_string()).unwrap_or(e.to_string())))
+              },
+              Err(_) => Err(ResolutionError::Fetch(e.to_string())),
+            }
+          },
+          _ => Err(ResolutionError::Fetch(e.to_string()))
+        }
+      },
     }
   }
 
@@ -104,16 +143,18 @@ impl HttpStore {
       .timeout(self.options.timeout)
   }
 
+  async fn get_tixel(&self, path: &str) -> Result<Arc<Tixel>, ResolutionError> {
+    let response = self.send(self.req(&path)).await?;
+    let tixel = self.parse(response).await?.try_into()?;
+    Ok(Arc::new(tixel))
+  }
+
+  async fn fetch_tixel_range(&self, strand: &Cid, upper: u64, lower: u64) -> Result<reqwest::Response, ResolutionError> {
+    let path = format!("chains/{}/pulses/{}-{}", strand, upper, lower);
+    self.send(self.req(&path)).await
+  }
+
   async fn parse(&self, response: reqwest::Response) -> Result<AnyTwine, ResolutionError> {
-    match response.error_for_status_ref() {
-      Ok(_) => {},
-      Err(e) => {
-        if let Some(StatusCode::NOT_FOUND) = e.status() {
-          return Err(ResolutionError::NotFound);
-        }
-        return Err(ResolutionError::Fetch(e.to_string()));
-      },
-    }
     let tp = response.headers().get(CONTENT_TYPE).map(|h| h.to_str().unwrap_or("")).unwrap_or("");
     match tp {
       "application/vnd.ipld.car"|"application/octet-stream" => {
@@ -141,28 +182,6 @@ impl HttpStore {
     } else {
       Err(ResolutionError::Invalid(VerificationError::CidMismatch { expected: expected.to_string(), actual: twine.cid().to_string() }))
     }
-  }
-
-  async fn get_tixel(&self, path: &str) -> Result<Arc<Tixel>, ResolutionError> {
-    let response = self.req(&path).send().await;
-    let response = response.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-    let tixel = self.parse(response).await?.try_into()?;
-    Ok(Arc::new(tixel))
-  }
-
-  async fn fetch_tixel_range(&self, strand: &Cid, upper: u64, lower: u64) -> Result<reqwest::Response, ResolutionError> {
-    let path = format!("chains/{}/pulses/{}-{}", strand, upper, lower);
-    let response = self.req(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-    match response.error_for_status_ref() {
-      Ok(_) => {},
-      Err(e) => {
-        if let Some(StatusCode::NOT_FOUND) = e.status() {
-          return Err(ResolutionError::NotFound);
-        }
-        return Err(ResolutionError::Fetch(e.to_string()));
-      },
-    }
-    Ok(response)
   }
 
   async fn parse_collection_response(&self, response: reqwest::Response) -> Result<impl Stream<Item = Result<AnyTwine, ResolutionError>>, ResolutionError> {
@@ -204,24 +223,24 @@ impl HttpStore {
 impl BaseResolver for HttpStore {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
     let path = format!("chains/{}/pulses/{}", strand.as_cid(), index);
-    let response = self.head(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+    let response = self.send(self.head(&path)).await?;
     Ok(response.status() == StatusCode::OK)
   }
 
   async fn has_twine(&self, strand: &Cid, tixel: &Cid) -> Result<bool, ResolutionError> {
     let path = format!("chains/{}/pulses/{}", strand.as_cid(), tixel.as_cid());
-    let response = self.head(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+    let response = self.send(self.head(&path)).await?;
     Ok(response.status() == StatusCode::OK)
   }
 
   async fn has_strand(&self, strand: &Cid) -> Result<bool, ResolutionError> {
     let path = format!("chains/{}", strand.as_cid());
-    let response = self.head(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+    let response = self.send(self.head(&path)).await?;
     Ok(response.status() == StatusCode::OK)
   }
 
   async fn strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
-    let response = self.req("chains").send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+    let response = self.send(self.req("chains")).await?;
     use futures::stream::StreamExt;
     let stream = self.parse_collection_response(response).await?;
     let stream = stream.map(|t| {
@@ -234,7 +253,7 @@ impl BaseResolver for HttpStore {
   async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
     let cid = strand.as_cid();
     let path = format!("chains/{}", cid);
-    let response = self.req(&path).send().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+    let response = self.send(self.req(&path)).await?;
     Ok(self.parse_expect(cid, response).await?.try_into()?)
   }
 
@@ -300,11 +319,12 @@ impl Store for HttpStore {
       AnyTwine::Tixel(_) => format!("chains/{}/pulses", strand_cid),
       AnyTwine::Strand(_) => format!("chains"),
     };
-    let res = self.post_json(&path)
-      .body(twine.dag_json())
-      .send()
+    let res = self.send(
+        self.post_json(&path)
+          .body(twine.dag_json())
+      )
       .await;
-    handle_save_result(res).await
+    handle_save_result(res)
   }
 
   async fn save_many<I: Into<AnyTwine> + Send, S: Iterator<Item = I> + Send, T: IntoIterator<Item = I, IntoIter = S> + Send>(&self, twines: T) -> Result<(), StoreError> {
@@ -338,11 +358,12 @@ impl Store for HttpStore {
         let data = to_car_stream(futures::stream::iter(group), roots);
         // let vec = data.collect::<Vec<_>>().await;
         let path = format!("chains/{}/pulses", strand_cid);
-        let res = self.post(&path)
-          .body(reqwest::Body::wrap_stream(data.map(|b| Ok::<_, reqwest::Error>(b))))
-          .send()
+        let res = self.send(
+            self.post(&path)
+              .body(reqwest::Body::wrap_stream(data.map(|b| Ok::<_, reqwest::Error>(b))))
+          )
           .await;
-        handle_save_result(res).await
+        handle_save_result(res)
       })
       .try_collect().await?;
     }
@@ -356,9 +377,11 @@ impl Store for HttpStore {
   }
 
   async fn delete<C: AsCid + Send>(&self, cid: C) -> Result<(), StoreError> {
-    let res = self.client.delete(
-      self.options.url.join(&format!("cid/{}", cid.as_cid())).expect("Invalid path")
-    ).send().await;
-    handle_save_result(res).await
+    let res = self.send(
+        self.client.delete(
+          self.options.url.join(&format!("cid/{}", cid.as_cid())).expect("Invalid path")
+        )
+      ).await;
+    handle_save_result(res)
   }
 }
