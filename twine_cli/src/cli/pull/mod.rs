@@ -109,7 +109,7 @@ impl PullCommand {
           ProgressBar::new(r.upper()).with_message(format!("Pulling strand: {}", r.strand_cid()))
         );
         pb.set_style(
-          ProgressStyle::with_template( "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg} (eta: {eta})")
+          ProgressStyle::with_template( "[{elapsed_precise}] {bar:40.cyan/blue} {human_pos:>7}/{human_len:7} {msg} (eta: {eta})")
             .unwrap()
             .progress_chars("=> ")
         );
