@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use futures::{Stream, TryStreamExt};
-use reqwest::{header::{ACCEPT, CONTENT_TYPE}, Request, StatusCode, Url};
+use reqwest::{header::{ACCEPT, CONTENT_TYPE}, StatusCode, Url};
 use fvm_ipld_car::CarReader;
 use std::{pin::Pin, sync::Arc};
 use std::time::Duration;
