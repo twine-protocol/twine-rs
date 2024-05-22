@@ -73,6 +73,7 @@ impl PullCommand {
               Ok(twine) => {
                 let latest_index = twine.index();
                 // if we have latest, then assume we're done
+                log::debug!("Latest index for strand {}: {}", range.strand_cid(), latest_index);
                 if latest_index >= range.upper() {
                   return Ok(AbsoluteRange::new(
                     *range.strand_cid(),
