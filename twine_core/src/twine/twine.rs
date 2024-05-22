@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::{as_cid::AsCid, errors::VerificationError, specification::Subspec, twine::{Strand, Tixel}, verify::Verifiable};
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Twine {
   // so we have the option of not duplicating immutable data
   strand: Arc<Strand>,

@@ -13,6 +13,15 @@ use super::{container::TwineContainer, Strand};
 
 pub type Tixel = TwineContainer<TixelContent>;
 
+impl PartialOrd for Tixel {
+  fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    if self.strand_cid() != other.strand_cid() {
+      return None;
+    }
+    Some(self.index().cmp(&other.index()))
+  }
+}
+
 impl Tixel {
   pub fn strand_cid(&self) -> Cid {
     self.content().strand_cid()

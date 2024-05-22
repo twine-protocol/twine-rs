@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::hash::Hash;
 use std::sync::Arc;
 use crate::Cid;
 use ipld_core::codec::Codec;
@@ -19,7 +20,7 @@ pub trait TwineContent: Clone + Verifiable + Send {
   fn bytes(&self) -> Vec<u8>;
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TwineContainer<C: TwineContent> {
   #[serde(skip)]
   cid: Cid,
@@ -28,6 +29,20 @@ pub struct TwineContainer<C: TwineContent> {
   pub(super)
   signature: String,
 }
+
+impl<C> Hash for TwineContainer<C> where C: TwineContent {
+  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    Hash::hash(&self.cid, state);
+  }
+}
+
+impl<C> PartialEq for TwineContainer<C> where C: TwineContent {
+  fn eq(&self, other: &Self) -> bool {
+    self.cid == other.cid
+  }
+}
+
+impl<C> Eq for TwineContainer<C> where C: TwineContent {}
 
 impl<C: TwineContent> TwineContainer<C> {
   pub fn cid(&self) -> Cid {

@@ -13,7 +13,7 @@ use super::TwineBlock;
 use crate::errors::VerificationError;
 use std::convert::TryFrom;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 #[serde(untagged)]
 pub enum AnyTwine {
   Strand(Arc<Strand>),
@@ -57,6 +57,22 @@ impl AnyTwine {
   /// Is this twine a Tixel?
   pub fn is_tixel(&self) -> bool {
     matches!(self, Self::Tixel(_))
+  }
+
+  /// Unwrap a Tixel or panic
+  pub fn unwrap_tixel(&self) -> Arc<Tixel> {
+    match self {
+      Self::Tixel(t) => t.clone(),
+      _ => panic!("Expected Tixel, found Strand"),
+    }
+  }
+
+  /// Unwrap a Strand or panic
+  pub fn unwrap_strand(&self) -> Arc<Strand> {
+    match self {
+      Self::Strand(s) => s.clone(),
+      _ => panic!("Expected Strand, found Tixel"),
+    }
   }
 
   fn assert_cid(&self, expected: Cid) -> Result<(), VerificationError> {
