@@ -443,6 +443,17 @@ impl FromStr for RangeQuery {
 
   // TODO: test this
   fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn index_from_str(s: &str) -> Result<i64, ConversionError> {
+      if s.is_empty() {
+        return Ok(0);
+      }
+      if s == "latest" {
+        return Ok(-1);
+      }
+      let s = s.parse()?;
+      Ok(s)
+    }
+
     let parts: Vec<&str> = s.split(':').collect();
     if !parts.len() == 3 {
       return Err(ConversionError::InvalidFormat("Invalid range query string".to_string()));
@@ -454,22 +465,22 @@ impl FromStr for RangeQuery {
     match (*maybe_start, *maybe_end) {
       ("", "") => Ok((cid, ..).into()),
       (start, "") => {
-        let start: i64 = start.parse()?;
+        let start: i64 = index_from_str(start)?;
         Ok((cid, start..).into())
       },
       ("", end) => {
         let parts = end.split('=').collect::<Vec<_>>();
         if parts.len() == 2 {
-          let end: i64 = parts[1].parse()?;
+          let end: i64 = index_from_str(parts[1])?;
           Ok((cid, ..=end).into())
         } else {
-          let end: i64 = end.parse()?;
+          let end: i64 = index_from_str(end)?;
           Ok((cid, ..end).into())
         }
       },
       (start, end) => {
-        let start: i64 = start.parse()?;
-        let end: i64 = end.parse()?;
+        let start: i64 = index_from_str(start)?;
+        let end: i64 = index_from_str(end)?;
         Ok((cid, start..end).into())
       }
     }
