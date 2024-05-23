@@ -3,6 +3,7 @@ use clap::Parser;
 use anyhow::Result;
 use clap_stdin::MaybeStdin;
 use twine_core::Cid;
+use crate::cid_str::CidStr;
 
 #[derive(Debug, Parser)]
 pub struct SyncCommand {
@@ -15,7 +16,7 @@ impl SyncCommand {
       Some(ref strands) => {
         let set = strands.iter()
           .flat_map(|s| s.split_whitespace())
-          .map(|s| Cid::from_str(&s).map_err(|e| anyhow::anyhow!(e)))
+          .map(|s| CidStr::from_str(&s).map_err(|e| anyhow::anyhow!(e)))
           .collect::<Result<std::collections::HashSet<_, RandomState>>>()?;
         config.sync_strands = &config.sync_strands | &set;
         log::info!("Now synchronizing changes from strands: {}", set.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(", "));

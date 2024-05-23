@@ -1,9 +1,11 @@
 use std::{collections::HashSet, hash::Hash, str::FromStr, sync::Arc};
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
-use twine_core::{resolver::BaseResolver, Cid};
+use twine_core::resolver::BaseResolver;
 use twine_http_store::{HttpStore, HttpStoreOptions, reqwest};
 use twine_sled_store::{SledStore, SledStoreOptions, sled};
+
+use crate::cid_str::CidStr;
 
 lazy_static::lazy_static! {
   static ref STORE: Arc<SledStore> = {
@@ -182,7 +184,7 @@ impl Resolvers {
 pub(crate) struct Config {
   pub resolvers: Resolvers,
   #[serde(default)]
-  pub sync_strands: HashSet<Cid>,
+  pub sync_strands: HashSet<CidStr>,
 }
 
 impl Default for Config {
@@ -244,6 +246,7 @@ impl Config {
 pub(crate) fn load_config() -> Result<Config> {
   use std::env::temp_dir;
   let tmpdir = temp_dir();
+  log::debug!("Loading config from: {:?}", tmpdir.join("config.toml"));
   Ok(confy::load_path(tmpdir.join("config.toml"))?)
 }
 

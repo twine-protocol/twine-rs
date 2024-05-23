@@ -5,6 +5,7 @@ use simplelog::{ConfigBuilder, TermLogger};
 mod config;
 mod cli;
 mod selector;
+pub(crate) mod cid_str;
 
 #[derive(Debug)]
 pub(crate) struct Context {
