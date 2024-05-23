@@ -1,5 +1,5 @@
 use futures::{StreamExt, TryStreamExt};
-use twine_core::{as_cid::AsCid, twine::Twine};
+use twine_core::twine::Twine;
 use twine_sled_store::*;
 use twine_core::resolver::*;
 use twine_core::store::Store;
@@ -58,13 +58,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   println!("saved next_n");
 
   let start_time = std::time::Instant::now();
-  let results = store.resolve_range((strand.clone(), 0..=count as i64)).await?
-    .inspect_ok(|twine| {
-      // println!("Resolved twine: {}", twine.index());
-    })
-    .inspect_err(|err| {
-      // println!("Error: {:?}", err);
-    })
+  store.resolve_range((strand.clone(), 0..=count as i64)).await?
+    // .inspect_ok(|twine| {
+    //   println!("Resolved twine: {}", twine.index());
+    // })
+    // .inspect_err(|err| {
+    //   println!("Error: {:?}", err);
+    // })
     .collect::<Vec<_>>().await;
 
   // check that they're in order

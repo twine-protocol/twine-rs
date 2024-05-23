@@ -500,9 +500,7 @@ impl Display for RangeQuery {
 
 #[cfg(test)]
 mod test {
-  use ipld_core::cid::CidGeneric;
-
-use super::*;
+  use super::*;
   use crate::Cid;
 
   #[test]

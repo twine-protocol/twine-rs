@@ -1,6 +1,6 @@
 use clap::Parser;
 use indicatif::MultiProgress;
-use simplelog::{Config, ConfigBuilder, TermLogger};
+use simplelog::{ConfigBuilder, TermLogger};
 
 mod config;
 mod cli;
@@ -48,6 +48,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   ).await?;
 
   config.save()?;
-  // multi_progress.clear().unwrap();
   Ok(())
 }
