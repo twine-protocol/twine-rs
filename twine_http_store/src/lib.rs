@@ -126,6 +126,8 @@ impl HttpStore {
       .timeout(self.options.timeout)
   }
 
+  // TODO: Use HEAD for has when able
+  #[allow(dead_code)]
   fn head(&self, path: &str) -> reqwest::RequestBuilder {
     self.client.head(self.options.url.join(&path).expect("Invalid path"))
       .timeout(self.options.timeout)
