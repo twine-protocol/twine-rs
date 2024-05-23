@@ -14,12 +14,18 @@ keywords = ["twine"]
 categories = []
 edition = "2021"
 
+
+[[bin]]
+name = "twine"
+path = "twine_cli/src/main.rs"
+
 [workspace]
 members = [
   "./twine_core",
   "./twine_builder",
   "./twine_http_store",
-  "./twine_sled_store", "twine_cli",
+  "./twine_sled_store",
+  "twine_cli",
 ]
 
 [dependencies]
