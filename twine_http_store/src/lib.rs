@@ -223,20 +223,29 @@ impl HttpStore {
 impl BaseResolver for HttpStore {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
     let path = format!("chains/{}/pulses/{}", strand.as_cid(), index);
-    let response = self.send(self.head(&path)).await?;
-    Ok(response.status() == StatusCode::OK)
+    match self.send(self.req(&path)).await {
+      Ok(response) => Ok(response.status() == StatusCode::OK),
+      Err(ResolutionError::NotFound) => Ok(false),
+      Err(e) => Err(e),
+    }
   }
 
   async fn has_twine(&self, strand: &Cid, tixel: &Cid) -> Result<bool, ResolutionError> {
     let path = format!("chains/{}/pulses/{}", strand.as_cid(), tixel.as_cid());
-    let response = self.send(self.head(&path)).await?;
-    Ok(response.status() == StatusCode::OK)
+    match self.send(self.req(&path)).await {
+      Ok(response) => Ok(response.status() == StatusCode::OK),
+      Err(ResolutionError::NotFound) => Ok(false),
+      Err(e) => Err(e),
+    }
   }
 
   async fn has_strand(&self, strand: &Cid) -> Result<bool, ResolutionError> {
     let path = format!("chains/{}", strand.as_cid());
-    let response = self.send(self.head(&path)).await?;
-    Ok(response.status() == StatusCode::OK)
+    match self.send(self.req(&path)).await {
+      Ok(response) => Ok(response.status() == StatusCode::OK),
+      Err(ResolutionError::NotFound) => Ok(false),
+      Err(e) => Err(e),
+    }
   }
 
   async fn strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
