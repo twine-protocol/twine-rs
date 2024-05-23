@@ -3,6 +3,10 @@ name = "twine_cli"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "twine"
+path = "src/main.rs"
+
 [dependencies]
 twine_core = { path = "../twine_core" }
 twine_builder = { path = "../twine_builder" }
