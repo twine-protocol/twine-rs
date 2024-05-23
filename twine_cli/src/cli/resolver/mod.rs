@@ -1,6 +1,21 @@
 use clap::{Subcommand, Parser};
 use anyhow::Result;
 
+fn print_resolvers(resolvers: &crate::config::Resolvers) {
+  if resolvers.len() == 0 {
+    println!("No resolvers configured");
+    return;
+  }
+  for (index, resolver) in resolvers.iter().enumerate() {
+    let default = if resolver.default {
+      " (default)"
+    } else {
+      ""
+    };
+    println!("[ {} ] (p{}) {}{}{}", index, resolver.priority.unwrap_or(0), resolver.uri, resolver.name.as_ref().map(|n| format!(" ({})", n)).unwrap_or_default(), default);
+  }
+}
+
 #[derive(Debug, Parser)]
 pub struct ResolverCommand {
   #[command(subcommand)]
@@ -37,20 +52,22 @@ mod add {
 
   #[derive(Debug, Parser)]
   pub struct AddCommand {
+    /// URI of the resolver (e.g. "http://localhost:8080/api/v0")
     pub uri: String,
+    /// Optional name for the resolver
     #[arg(short, long)]
     pub name: Option<String>,
+    /// Set this resolver as the default
     #[arg(short, long)]
     pub default: bool,
+    /// Priority of the resolver (higher priority resolves earlier)
+    #[arg(short, long)]
+    pub priority: Option<u8>,
   }
 
   impl AddCommand {
     pub fn run(&self, config: &mut crate::config::Config, _ctx: crate::Context) -> Result<()> {
-      config.resolvers.add_resolver(self.uri.clone(), self.name.clone(), self.default)?;
-      match &self.name {
-        Some(name) => log::info!("Added resolver {} with name {}", self.uri, name),
-        None => log::info!("Added resolver {}", self.uri),
-      }
+      config.resolvers.add_resolver(self.uri.clone(), self.name.clone(), self.priority, self.default)?;
       Ok(())
     }
   }
@@ -81,15 +98,7 @@ mod list {
 
   impl ListCommand {
     pub fn run(&self, config: &crate::config::Config, _ctx: crate::Context) -> Result<()> {
-      let default = config.resolvers.get_default().map(|r| r.name.as_deref()).flatten();
-      for (index, resolver) in config.resolvers.iter().enumerate() {
-        let default = if resolver.name.as_deref() == default {
-          " (default)"
-        } else {
-          ""
-        };
-        println!("({}) {}{}{}", index, resolver.uri, resolver.name.as_ref().map(|n| format!(" ({})", n)).unwrap_or_default(), default);
-      }
+      print_resolvers(&config.resolvers);
       Ok(())
     }
   }

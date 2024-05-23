@@ -21,6 +21,7 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum SubCommands {
   /// Manage resolvers
+  #[clap(alias = "resolvers")]
   Resolver(resolver::ResolverCommand),
   /// List strands
   Ls(list::ListCommand),

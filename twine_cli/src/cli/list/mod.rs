@@ -228,7 +228,7 @@ impl ListCommand {
           let details = format_ipld(strand.details(), self.depth, locale);
           println!("  Details: {}", indent::indent_all_by(2, details));
         } else {
-          println!("{} (latest: {})", cid, latest_index.unwrap_or("unknown".to_string()));
+          println!("{}", cid);
         }
         Ok(())
       }).await?;

@@ -30,3 +30,4 @@ async-trait = "0.1"
 num-format = { version = "0.4", features = ["with-system-locale"] }
 indent = "0.1"
 lazy_static = "1.4"
+clap-stdin = "0.4"
