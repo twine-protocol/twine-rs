@@ -34,7 +34,7 @@ impl Strand {
     self.content().radix()
   }
 
-  pub fn details(&self) -> Ipld {
+  pub fn details(&self) -> &Ipld {
     self.content().details()
   }
 
@@ -108,9 +108,9 @@ impl StrandContent {
     }
   }
 
-  pub fn details(&self) -> Ipld {
+  pub fn details(&self) -> &Ipld {
     match self {
-      StrandContent::V1(v) => v.meta.clone(),
+      StrandContent::V1(v) => &v.meta,
     }
   }
 

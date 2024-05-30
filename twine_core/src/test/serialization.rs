@@ -86,7 +86,7 @@ fn test_simple_payload_unpack(){
 
   // let strand = Strand::from_dag_json(STRANDJSON).unwrap();
   let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
-  let t: Timestamped = from_ipld(tixel.payload()).unwrap();
+  let t: Timestamped = tixel.extract_payload().unwrap();
   assert_eq!(t.timestamp, "2023-10-26T21:25:56.936Z");
 }
 

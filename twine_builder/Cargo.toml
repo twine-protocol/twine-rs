@@ -11,6 +11,7 @@ thiserror = "1.0.40"
 futures = "0.3"
 josekit = "0.8"
 anyhow = "1.0"
+serde = "1.0"
 
 [dev-dependencies]
 serde_json = "1.0"

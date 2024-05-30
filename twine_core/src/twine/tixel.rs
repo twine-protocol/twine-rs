@@ -3,7 +3,9 @@ use crate::verify::Verifiable;
 use crate::{errors::VerificationError, schemas::v1};
 use crate::Cid;
 use crate::Ipld;
+use ipld_core::serde::{from_ipld, SerdeError};
 use semver::Version;
+use serde::de::DeserializeOwned;
 use serde::{Serialize, Deserialize};
 use ipld_core::codec::Codec;
 use serde_ipld_dagcbor::codec::DagCborCodec;
@@ -39,11 +41,16 @@ impl Tixel {
     self.content().subspec()
   }
 
-  pub fn payload(&self) -> Ipld {
+  pub fn payload(&self) -> &Ipld {
     self.content().payload()
   }
 
-  pub fn source(&self) -> String {
+  pub fn extract_payload<T: DeserializeOwned>(&self) -> Result<T, SerdeError> {
+    let payload = self.payload();
+    from_ipld(payload.clone())
+  }
+
+  pub fn source(&self) -> &str {
     self.content().source()
   }
 
@@ -118,15 +125,15 @@ impl TixelContent {
     }
   }
 
-  pub fn payload(&self) -> Ipld {
+  pub fn payload(&self) -> &Ipld {
     match self {
-      TixelContent::V1(v) => v.payload.clone(),
+      TixelContent::V1(v) => &v.payload,
     }
   }
 
-  pub fn source(&self) -> String {
+  pub fn source(&self) -> &str {
     match self {
-      TixelContent::V1(v) => v.source.clone(),
+      TixelContent::V1(v) => v.source.as_str(),
     }
   }
 }

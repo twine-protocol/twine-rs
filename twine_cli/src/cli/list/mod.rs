@@ -25,10 +25,10 @@ pub struct ListCommand {
   depth: u8,
 }
 
-fn format_ipld(thing: Ipld, depth: u8, locale: &SystemLocale) -> String {
+fn format_ipld(thing: &Ipld, depth: u8, locale: &SystemLocale) -> String {
   match thing {
     Ipld::String(s) => {
-      s
+      s.to_string()
     },
     Ipld::Bool(b) => {
       b.to_string()

@@ -1,12 +1,7 @@
 use std::sync::Arc;
 
 use twine_core::{
-  errors::{SpecificationError, VerificationError},
-  semver::Version,
-  multihash_codetable::{Code, MultihashDigest},
-  skiplist::get_layer_pos,
-  specification::Subspec,
-  twine::{
+  errors::{SpecificationError, VerificationError}, ipld_core::serde::to_ipld, multihash_codetable::{Code, MultihashDigest}, semver::Version, skiplist::get_layer_pos, specification::Subspec, twine::{
     container::TwineContent,
     CrossStitches,
     Stitch,
@@ -15,9 +10,7 @@ use twine_core::{
     Tixel,
     TixelContent,
     Twine
-  },
-  verify::Verified,
-  Ipld
+  }, verify::Verified, Ipld
 };
 use crate::{signer::SigningError, Signer};
 
@@ -94,8 +87,8 @@ impl <'a, S: Signer> TixelBuilder<'a, S> {
     self
   }
 
-  pub fn payload(mut self, payload: Ipld) -> Self {
-    self.payload = payload;
+  pub fn payload<P>(mut self, payload: P) -> Self where P: serde::ser::Serialize {
+    self.payload = to_ipld(payload).unwrap();
     self
   }
 
@@ -393,5 +386,36 @@ mod test {
     }
 
     dbg!(signatures);
+  }
+
+  #[test]
+  fn test_struct_payload() {
+    use serde::{Serialize, Deserialize};
+    #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+    struct Timestamped {
+      timestamp: String,
+    }
+
+    let signer = jwk::Jwk::generate_ed_key(jwk::alg::ed::EdCurve::Ed25519).unwrap();
+    let builder = TwineBuilder::new(signer);
+    let strand = builder.build_strand()
+      .version("1.0.0".to_string())
+      .details(ipld!({
+        "foo": "bar",
+      }))
+      .done()
+      .unwrap();
+
+    let my_struct = Timestamped {
+      timestamp: "2023-10-26T21:25:56.936Z".to_string(),
+    };
+
+    let tixel = builder.build_first(strand)
+      .payload(my_struct)
+      .done()
+      .unwrap();
+
+    let t: Timestamped = tixel.extract_payload().unwrap();
+    assert_eq!(t.timestamp, "2023-10-26T21:25:56.936Z");
   }
 }
