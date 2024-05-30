@@ -200,8 +200,8 @@ impl <'a, S: Signer> StrandBuilder<'a, S> {
     self
   }
 
-  pub fn details(mut self, details: Ipld) -> Self {
-    self.details = details;
+  pub fn details<P>(mut self, details: P) -> Self where P: serde::ser::Serialize {
+    self.details = to_ipld(details).unwrap();
     self
   }
 
