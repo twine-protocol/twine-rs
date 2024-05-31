@@ -20,10 +20,14 @@ members = [
   "./twine_builder",
   "./twine_http_store",
   "./twine_sled_store",
-  "twine_cli",
+  "./twine_cli",
 ]
+
+[features]
+build = ["dep:twine_builder"]
 
 [dependencies]
 twine_core = { path = "./twine_core" }
+twine_builder = { path = "./twine_builder", optional = true }
 
 [dev-dependencies]

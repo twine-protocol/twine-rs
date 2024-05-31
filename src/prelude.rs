@@ -10,3 +10,7 @@ pub use twine_core::resolver::*;
 pub use twine_core::store::*;
 #[doc(no_inline)]
 pub use twine_core::as_cid::AsCid;
+
+#[doc(no_inline)]
+#[cfg(feature = "build")]
+pub use twine_builder::{TwineBuilder, BuildError, Signer, SignerError};

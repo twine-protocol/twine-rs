@@ -61,7 +61,7 @@ pub fn to_car_stream<I: TwineBlock, S: Stream<Item=I>>(stream: S, roots: Vec<Cid
 #[cfg(test)]
 mod test {
   use super::*;
-  use async_std::io::Cursor;
+  use futures::io::Cursor;
   use std::error::Error;
   use rs_car::CarReader;
   use crate::twine::*;
