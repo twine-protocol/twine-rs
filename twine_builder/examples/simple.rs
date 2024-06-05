@@ -1,27 +1,29 @@
+use rsa::pkcs1::EncodeRsaPrivateKey;
 use twine_builder::TwineBuilder;
 use twine_core::ipld_core::ipld;
-use josekit::jwk;
 
 fn main() {
-  let signer = jwk::Jwk::generate_ed_key(jwk::alg::ed::EdCurve::Ed25519).unwrap();
+  let mut rng = rand::thread_rng();
+  let rsa = rsa::RsaPrivateKey::new(&mut rng, 2048).expect("failed to generate a key");
+  let keypair = ring::signature::RsaKeyPair::from_der(rsa.to_pkcs1_der().unwrap().as_bytes()).unwrap();
+  let signer = twine_builder::BiscuitSigner::new(
+    biscuit::jws::Secret::RsaKeyPair(keypair.into()),
+    "RS256".to_string(),
+  );
   let builder = TwineBuilder::new(signer);
   let strand = builder.build_strand()
-    .version("1.0.0".to_string())
     .details(ipld!({
       "foo": "bar",
     }))
     .done()
     .unwrap();
 
-  let mut signatures = vec![];
   let mut prev = builder.build_first(strand.clone())
     .payload(ipld!({
       "baz": null,
     }))
     .done()
     .unwrap();
-
-  signatures.push(prev.signature().to_string());
 
   let n = 1000;
   let start_time = std::time::Instant::now();
@@ -34,7 +36,6 @@ fn main() {
       .done()
       .unwrap();
 
-    signatures.push(prev.signature().to_string());
   }
 
   let elapsed = start_time.elapsed();

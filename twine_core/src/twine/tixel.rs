@@ -45,6 +45,12 @@ impl Verifiable for TixelContainer {
   }
 }
 
+impl From<v1::ContainerV1<PulseContentV1>> for TixelContainer {
+  fn from(v: v1::ContainerV1<PulseContentV1>) -> Self {
+    TixelContainer::V1(v)
+  }
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 pub struct Tixel(Verified<TixelContainer>);
 
@@ -58,6 +64,11 @@ impl PartialOrd for Tixel {
 }
 
 impl Tixel {
+  pub fn try_new<T: Into<TixelContainer>>(container: T) -> Result<Self, VerificationError> {
+    let verified = Verified::try_new(container.into())?;
+    Ok(Self(verified))
+  }
+
   pub fn cid(&self) -> Cid {
     match &*self.0 {
       TixelContainer::V1(v) => v.cid().clone(),

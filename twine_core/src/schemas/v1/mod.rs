@@ -79,6 +79,13 @@ impl<C> ContainerV1<C> where C: Clone + Verifiable + Send + Serialize + for<'de>
 }
 
 impl ContainerV1<ChainContentV1> {
+
+  pub fn new_from_parts(hasher: Code, content: Verified<ChainContentV1>, signature: String) -> Self {
+    let mut chain = Self { cid: Cid::default(), content, signature };
+    chain.compute_cid(hasher);
+    chain
+  }
+
   pub fn key(&self) -> JWK<()> {
     self.content.key.clone()
   }
@@ -114,6 +121,12 @@ impl Verifiable for ContainerV1<PulseContentV1> {
 }
 
 impl ContainerV1<PulseContentV1> {
+  pub fn new_from_parts(hasher: Code, content: Verified<PulseContentV1>, signature: String) -> Self {
+    let mut pulse = Self { cid: Cid::default(), content, signature };
+    pulse.compute_cid(hasher);
+    pulse
+  }
+
   pub fn strand_cid(&self) -> &Cid {
     &self.content.chain
   }

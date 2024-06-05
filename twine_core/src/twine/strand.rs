@@ -35,10 +35,21 @@ impl Verifiable for StrandContainer {
   }
 }
 
+impl From<v1::ContainerV1<ChainContentV1>> for StrandContainer {
+  fn from(v: v1::ContainerV1<ChainContentV1>) -> Self {
+    StrandContainer::V1(v)
+  }
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 pub struct Strand(Verified<StrandContainer>);
 
 impl Strand {
+  pub fn try_new<C: Into<StrandContainer>>(container: C) -> Result<Self, VerificationError> {
+    let verified = Verified::try_new(container.into())?;
+    Ok(Self(verified))
+  }
+
   pub fn cid(&self) -> Cid {
     match &*self.0 {
       StrandContainer::V1(v) => v.cid().clone(),
@@ -85,6 +96,10 @@ impl Strand {
         v.verify_signature(String::from_utf8(tixel.signature()).unwrap(), tixel.content_hash())
       }
     }
+  }
+
+  pub fn hasher(&self) -> Code {
+    get_hasher(&self.cid()).unwrap()
   }
 }
 
