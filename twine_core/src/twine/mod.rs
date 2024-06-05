@@ -1,5 +1,4 @@
 mod twine_block;
-pub mod container;
 mod stitch;
 mod strand;
 mod tixel;

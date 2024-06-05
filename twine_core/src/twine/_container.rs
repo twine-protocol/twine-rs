@@ -164,11 +164,6 @@ impl<C> TwineBlock for TwineContainer<C> where C: TwineContent + Serialize + for
   }
 }
 
-impl<C> Display for TwineContainer<C> where C: TwineContent + Serialize + for<'de> Deserialize<'de> {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}", self.clone().to_dag_json_pretty())
-  }
-}
 
 #[cfg(test)]
 mod test {

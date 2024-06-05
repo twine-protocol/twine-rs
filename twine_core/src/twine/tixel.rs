@@ -1,19 +1,52 @@
+use std::fmt::Display;
+use std::sync::Arc;
+
+use crate::as_cid::AsCid;
+use crate::crypto::get_hasher;
+use crate::dag_json::TwineContainerJson;
+use crate::schemas::v1::PulseContentV1;
 use crate::specification::Subspec;
-use crate::verify::Verifiable;
+use crate::verify::{Verifiable, Verified};
 use crate::{errors::VerificationError, schemas::v1};
 use crate::Cid;
 use crate::Ipld;
 use ipld_core::serde::{from_ipld, SerdeError};
+use multihash_codetable::Code;
 use semver::Version;
 use serde::de::DeserializeOwned;
 use serde::{Serialize, Deserialize};
 use ipld_core::codec::Codec;
 use serde_ipld_dagcbor::codec::DagCborCodec;
-use super::container::TwineContent;
-use super::{CrossStitches, Stitch};
-use super::{container::TwineContainer, Strand};
+use serde_ipld_dagjson::codec::DagJsonCodec;
+use super::{CrossStitches, Stitch, TwineBlock};
+use super::Strand;
 
-pub type Tixel = TwineContainer<TixelContent>;
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
+#[serde(untagged)]
+pub enum TixelContainer {
+  V1(v1::ContainerV1<PulseContentV1>),
+}
+
+impl TixelContainer {
+  pub fn compute_cid(&mut self, hasher: Code) {
+    match self {
+      TixelContainer::V1(v) => {
+        v.compute_cid(hasher);
+      }
+    }
+  }
+}
+
+impl Verifiable for TixelContainer {
+  fn verify(&self) -> Result<(), VerificationError> {
+    match self {
+      TixelContainer::V1(v) => v.verify(),
+    }
+  }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
+pub struct Tixel(Verified<TixelContainer>);
 
 impl PartialOrd for Tixel {
   fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -25,24 +58,40 @@ impl PartialOrd for Tixel {
 }
 
 impl Tixel {
+  pub fn cid(&self) -> Cid {
+    match &*self.0 {
+      TixelContainer::V1(v) => v.cid().clone(),
+    }
+  }
+
   pub fn strand_cid(&self) -> Cid {
-    self.content().strand_cid()
+    match &*self.0 {
+      TixelContainer::V1(v) => v.strand_cid().clone(),
+    }
   }
 
   pub fn index(&self) -> u64 {
-    self.content().index()
+    match &*self.0 {
+      TixelContainer::V1(v) => v.index(),
+    }
   }
 
   pub fn version(&self) -> Version {
-    self.content().version()
+    match &*self.0 {
+      TixelContainer::V1(_) => Version::parse("1.0.0").unwrap(),
+    }
   }
 
   pub fn subspec(&self) -> Option<Subspec> {
-    self.content().subspec()
+    match &*self.0 {
+      TixelContainer::V1(_) => None,
+    }
   }
 
   pub fn payload(&self) -> &Ipld {
-    self.content().payload()
+    match &*self.0 {
+      TixelContainer::V1(v) => &v.payload(),
+    }
   }
 
   pub fn extract_payload<T: DeserializeOwned>(&self) -> Result<T, SerdeError> {
@@ -51,7 +100,25 @@ impl Tixel {
   }
 
   pub fn source(&self) -> &str {
-    self.content().source()
+    match &*self.0 {
+      TixelContainer::V1(v) => v.source(),
+    }
+  }
+
+  pub fn back_stitches(&self) -> Vec<Stitch> {
+    match &*self.0 {
+      TixelContainer::V1(v) => v.back_stitches(),
+    }
+  }
+
+  pub fn cross_stitches(&self) -> CrossStitches {
+    match &*self.0 {
+      TixelContainer::V1(v) => v.cross_stitches(),
+    }
+  }
+
+  pub fn bytes(&self) -> Arc<[u8]> {
+    DagCborCodec::encode_to_vec(self).unwrap().into()
   }
 
   pub fn verify_with(&self, strand: &Strand) -> Result<(), VerificationError> {
@@ -61,85 +128,88 @@ impl Tixel {
   pub fn previous(&self) -> Option<Stitch> {
     self.back_stitches().first().cloned()
   }
-}
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-#[serde(untagged)]
-pub enum TixelContent {
-  V1(v1::PulseContentV1),
-}
-
-impl Verifiable for TixelContent {
-  fn verify(&self) -> Result<(), VerificationError> {
-    match self {
-      TixelContent::V1(v) => v.verify(),
+  pub(crate) fn signature(&self) -> Vec<u8> {
+    match &*self.0 {
+      TixelContainer::V1(v) => v.signature().as_bytes().to_vec(),
     }
   }
 }
 
-impl TwineContent for TixelContent {
-  fn back_stitches(&self) -> Vec<Stitch> {
-    let links: &Vec<Cid> = match self {
-      TixelContent::V1(v) => &v.links,
+impl From<Tixel> for Cid {
+  fn from(t: Tixel) -> Self {
+    t.cid()
+  }
+}
+
+impl AsCid for Tixel {
+  fn as_cid(&self) -> &Cid {
+    match &*self.0 {
+      TixelContainer::V1(v) => v.cid(),
+    }
+  }
+}
+
+impl TwineBlock for Tixel {
+  fn cid(&self) -> &Cid {
+    self.as_cid()
+  }
+  /// Decode from DAG-JSON
+  ///
+  /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
+  fn from_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
+    let j: TwineContainerJson<TixelContainer> = DagJsonCodec::decode_from_slice(json.to_string().as_bytes())?;
+    let mut container = j.data;
+    let cid = j.cid;
+    let hasher = get_hasher(&cid)?;
+    container.compute_cid(hasher);
+    let twine = Self(Verified::try_new(container)?);
+    twine.verify_cid(&cid)?;
+    Ok(twine)
+  }
+
+  /// Decode from raw bytes without checking CID
+  fn from_bytes_unchecked(hasher: Code, bytes: Vec<u8>) -> Result<Self, VerificationError> {
+    let mut twine: TixelContainer = DagCborCodec::decode_from_slice(bytes.as_slice())?;
+    twine.compute_cid(hasher);
+    let twine = Self(Verified::try_new(twine)?);
+    Ok(twine)
+  }
+
+  /// Decode from a Block
+  ///
+  /// A block is a cid and DAG-CBOR bytes. CID is verified.
+  fn from_block<T: AsRef<[u8]>>(cid: Cid, bytes: T) -> Result<Self, VerificationError> {
+    let hasher = get_hasher(&cid)?;
+    let twine = Self::from_bytes_unchecked(hasher, bytes.as_ref().to_vec())?;
+    twine.verify_cid(&cid)?;
+    Ok(twine)
+  }
+
+  /// Encode to DAG-JSON
+  fn dag_json(&self) -> String {
+    format!(
+      "{{\"cid\":{},\"data\":{}}}",
+      String::from_utf8(DagJsonCodec::encode_to_vec(&self.cid()).unwrap()).unwrap(),
+      String::from_utf8(DagJsonCodec::encode_to_vec(self).unwrap()).unwrap()
+    )
+  }
+
+  /// Encode to raw bytes
+  fn bytes(&self) -> Arc<[u8]> {
+    DagCborCodec::encode_to_vec(self).unwrap().as_slice().into()
+  }
+
+  fn content_bytes(&self) -> Arc<[u8]> {
+    let bytes = match &*self.0 {
+      TixelContainer::V1(v) => DagCborCodec::encode_to_vec(v.content()).unwrap(),
     };
-
-    let strand = self.strand_cid();
-    links.iter().map(|&tixel| Stitch{ strand, tixel }).collect()
-  }
-
-  fn cross_stitches(&self) -> CrossStitches {
-    match self {
-      TixelContent::V1(v) => CrossStitches::new(
-        v.mixins.iter().cloned().collect::<Vec<Stitch>>()
-      ),
-    }
-  }
-
-  fn bytes(&self) -> Vec<u8> {
-    DagCborCodec::encode_to_vec(self).unwrap()
+    bytes.as_slice().into()
   }
 }
 
-impl TixelContent {
-  pub fn strand_cid(&self) -> Cid {
-    match self {
-      TixelContent::V1(v) => v.chain,
-    }
-  }
-
-  pub fn index(&self) -> u64 {
-    match self {
-      TixelContent::V1(v) => v.index as u64,
-    }
-  }
-
-  pub fn version(&self) -> Version {
-    match self {
-      TixelContent::V1(_) => Version::parse("1.0.0").unwrap(),
-    }
-  }
-
-  pub fn subspec(&self) -> Option<Subspec> {
-    match self {
-      TixelContent::V1(_) => None,
-    }
-  }
-
-  pub fn payload(&self) -> &Ipld {
-    match self {
-      TixelContent::V1(v) => &v.payload,
-    }
-  }
-
-  pub fn source(&self) -> &str {
-    match self {
-      TixelContent::V1(v) => v.source.as_str(),
-    }
-  }
-}
-
-impl From<v1::PulseContentV1> for TixelContent {
-  fn from(content: v1::PulseContentV1) -> Self {
-    TixelContent::V1(content)
+impl Display for Tixel {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}", self.to_dag_json_pretty())
   }
 }

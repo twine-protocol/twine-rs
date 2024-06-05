@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use crate::errors::VerificationError;
 use serde::{Deserialize, Serialize};
 
@@ -17,8 +19,22 @@ pub trait Verifiable {
 }
 
 /// Container that identifies an inner structure that has been verified.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Verified<T: Verifiable>(T);
+
+impl<T> PartialEq for Verified<T> where T: Verifiable + PartialEq {
+  fn eq(&self, other: &Self) -> bool {
+    self.as_inner() == other.as_inner()
+  }
+}
+
+impl<T> Eq for Verified<T> where T: Verifiable + Eq {}
+
+impl<T> Hash for Verified<T> where T: Verifiable + Hash {
+  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    self.as_inner().hash(state);
+  }
+}
 
 impl<T: Verifiable> Verified<T> {
   pub fn try_new(inner: T) -> Result<Self, VerificationError> {
@@ -40,6 +56,12 @@ impl<T: Verifiable> std::ops::Deref for Verified<T> {
 
   fn deref(&self) -> &Self::Target {
     self.as_inner()
+  }
+}
+
+impl<T: Verifiable> std::ops::DerefMut for Verified<T> {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.0
   }
 }
 

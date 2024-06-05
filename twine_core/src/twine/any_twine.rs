@@ -42,13 +42,6 @@ impl AnyTwine {
     }
   }
 
-  pub fn signature(&self) -> &str {
-    match self {
-      Self::Strand(s) => s.signature(),
-      Self::Tixel(t) => t.signature(),
-    }
-  }
-
   /// Is this twine a Strand?
   pub fn is_strand(&self) -> bool {
     matches!(self, Self::Strand(_))
@@ -75,8 +68,8 @@ impl AnyTwine {
     }
   }
 
-  fn assert_cid(&self, expected: Cid) -> Result<(), VerificationError> {
-    assert_cid(expected, self.cid())
+  fn assert_cid(&self, expected: &Cid) -> Result<(), VerificationError> {
+    assert_cid(expected, &self.cid())
   }
 
   pub fn from_dag_json_array<S: AsRef<str>>(json: S) -> Result<Vec<Self>, VerificationError> {
@@ -214,9 +207,8 @@ impl From<AnyTwine> for Cid {
 }
 
 impl TwineBlock for AnyTwine {
-
-  fn cid(&self) -> Cid {
-    self.cid()
+  fn cid(&self) -> &Cid {
+    self.as_cid()
   }
   /// Decode from DAG-JSON
   ///
@@ -257,7 +249,7 @@ impl TwineBlock for AnyTwine {
   fn from_block<T: AsRef<[u8]>>(cid: Cid, bytes: T) -> Result<Self, VerificationError> {
     let hasher = get_hasher(&cid)?;
     let twine = Self::from_bytes_unchecked(hasher, bytes.as_ref().to_vec())?;
-    twine.assert_cid(cid)?;
+    twine.assert_cid(&cid)?;
     Ok(twine)
   }
 
@@ -274,6 +266,13 @@ impl TwineBlock for AnyTwine {
     match self {
       Self::Strand(s) => s.bytes(),
       Self::Tixel(t) => t.bytes(),
+    }
+  }
+
+  fn content_bytes(&self) -> Arc<[u8]> {
+    match self {
+      Self::Strand(s) => s.content_bytes(),
+      Self::Tixel(t) => t.content_bytes(),
     }
   }
 }

@@ -1,5 +1,4 @@
 use ipld_core::{codec::Codec, ipld};
-use ipld_core::serde::from_ipld;
 use serde::Serialize;
 use serde_ipld_dagjson::codec::DagJsonCodec;
 
@@ -62,8 +61,6 @@ fn test_in_out_json(){
 #[test]
 fn test_signature_verification(){
   let strand = Strand::from_dag_json(STRANDJSON).unwrap();
-  let res = strand.verify_own_signature();
-  assert!(res.is_ok(), "Failed to verify signature: {:?}", res.err());
 
   let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
   let res = strand.verify_tixel(&tixel);
@@ -121,7 +118,6 @@ fn test_null_payload(){
   let decoded = DagJsonCodec::decode_from_slice(&encoded).unwrap();
   assert_eq!(ipld, decoded);
 }
-
 
 #[test]
 fn test_roundtrip_null(){

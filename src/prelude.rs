@@ -13,4 +13,4 @@ pub use twine_core::as_cid::AsCid;
 
 #[doc(no_inline)]
 #[cfg(feature = "build")]
-pub use twine_builder::{TwineBuilder, BuildError, Signer, SignerError};
+pub use twine_builder::{TwineBuilder, builder::BuildError, Signer, signer::SigningError};

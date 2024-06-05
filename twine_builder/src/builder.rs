@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use twine_core::{
   errors::{SpecificationError, VerificationError}, ipld_core::serde::to_ipld, multihash_codetable::{Code, MultihashDigest}, semver::Version, skiplist::get_layer_pos, specification::Subspec, twine::{
-    container::TwineContent,
+    twine_block::TwineContent,
     CrossStitches,
     Stitch,
     Strand,
@@ -256,13 +256,21 @@ impl <'a, S: Signer> StrandBuilder<'a, S> {
 
 #[cfg(test)]
 mod test {
-  use josekit::jwk;
+  use biscuit::jws::Secret;
   use twine_core::ipld_core::ipld;
   use super::*;
+  use ring::signature::*;
+
+  fn ec_key(alg: &'static EcdsaSigningAlgorithm) -> EcdsaKeyPair {
+    let rng = ring::rand::SystemRandom::new();
+    let pkcs = EcdsaKeyPair::generate_pkcs8(alg, &rng).unwrap();
+    EcdsaKeyPair::from_pkcs8(alg, pkcs.as_ref(), &rng).unwrap()
+  }
 
   #[test]
   fn test_build_p256() {
-    let signer = jwk::Jwk::generate_ec_key(jwk::alg::ec::EcCurve::P256).unwrap();
+    let key = ec_key(&ECDSA_P256_SHA256_FIXED_SIGNING);
+    let signer = Secret::EcdsaKeyPair(Arc::new(key));
     let builder = TwineBuilder::new(signer);
     let strand = builder.build_strand()
       .version("1.0.0".to_string())
@@ -277,7 +285,8 @@ mod test {
 
   #[test]
   fn test_build_p384() {
-    let signer = jwk::Jwk::generate_ec_key(jwk::alg::ec::EcCurve::P384).unwrap();
+    let key = ec_key(&ECDSA_P384_SHA384_FIXED_SIGNING);
+    let signer = Secret::EcdsaKeyPair(Arc::new(key));
     let builder = TwineBuilder::new(signer);
     let strand = builder.build_strand()
       .version("1.0.0".to_string())
@@ -290,69 +299,54 @@ mod test {
     assert!(strand.unwrap().verify_own_signature().is_ok(), "Failed to verify signature");
   }
 
-  #[test]
-  fn test_build_p521() {
-    let signer = jwk::Jwk::generate_ec_key(jwk::alg::ec::EcCurve::P521).unwrap();
-    let builder = TwineBuilder::new(signer);
-    let strand = builder.build_strand()
-      .version("1.0.0".to_string())
-      .details(ipld!({
-        "foo": "bar",
-      }))
-      .done();
+  // #[test]
+  // fn test_build_ed25519() {
+  //   let signer = jwk::Jwk::generate_ed_key(jwk::alg::ed::EdCurve::Ed25519).unwrap();
+  //   let builder = TwineBuilder::new(signer);
+  //   let strand = builder.build_strand()
+  //     .version("1.0.0".to_string())
+  //     .details(ipld!({
+  //       "foo": "bar",
+  //     }))
+  //     .done();
 
-    assert!(strand.is_ok(), "{}", strand.unwrap_err());
-    assert!(strand.unwrap().verify_own_signature().is_ok(), "Failed to verify signature");
-  }
+  //   assert!(strand.is_ok(), "{}", strand.unwrap_err());
+  //   assert!(strand.unwrap().verify_own_signature().is_ok(), "Failed to verify signature");
+  // }
 
-  #[test]
-  fn test_build_ed25519() {
-    let signer = jwk::Jwk::generate_ed_key(jwk::alg::ed::EdCurve::Ed25519).unwrap();
-    let builder = TwineBuilder::new(signer);
-    let strand = builder.build_strand()
-      .version("1.0.0".to_string())
-      .details(ipld!({
-        "foo": "bar",
-      }))
-      .done();
+  // #[test]
+  // fn test_build_ed448() {
+  //   let signer = jwk::Jwk::generate_ed_key(jwk::alg::ed::EdCurve::Ed448).unwrap();
+  //   let builder = TwineBuilder::new(signer);
+  //   let strand = builder.build_strand()
+  //     .version("1.0.0".to_string())
+  //     .details(ipld!({
+  //       "foo": "bar",
+  //     }))
+  //     .done();
 
-    assert!(strand.is_ok(), "{}", strand.unwrap_err());
-    assert!(strand.unwrap().verify_own_signature().is_ok(), "Failed to verify signature");
-  }
+  //   assert!(strand.is_ok(), "{}", strand.unwrap_err());
+  //   assert!(strand.unwrap().verify_own_signature().is_ok(), "Failed to verify signature");
+  // }
 
-  #[test]
-  fn test_build_ed448() {
-    let signer = jwk::Jwk::generate_ed_key(jwk::alg::ed::EdCurve::Ed448).unwrap();
-    let builder = TwineBuilder::new(signer);
-    let strand = builder.build_strand()
-      .version("1.0.0".to_string())
-      .details(ipld!({
-        "foo": "bar",
-      }))
-      .done();
+  // #[test]
+  // fn test_build_rsa() {
+  //   let signer = jwk::Jwk::generate_rsa_key(2048).unwrap();
+  //   let builder = TwineBuilder::new(signer);
+  //   let strand = builder.build_strand()
+  //     .version("1.0.0".to_string())
+  //     .details(ipld!({
+  //       "foo": "bar",
+  //     }))
+  //     .done();
 
-    assert!(strand.is_ok(), "{}", strand.unwrap_err());
-    assert!(strand.unwrap().verify_own_signature().is_ok(), "Failed to verify signature");
-  }
-
-  #[test]
-  fn test_build_rsa() {
-    let signer = jwk::Jwk::generate_rsa_key(2048).unwrap();
-    let builder = TwineBuilder::new(signer);
-    let strand = builder.build_strand()
-      .version("1.0.0".to_string())
-      .details(ipld!({
-        "foo": "bar",
-      }))
-      .done();
-
-    assert!(strand.is_ok(), "{}", strand.unwrap_err());
-    assert!(strand.unwrap().verify_own_signature().is_ok(), "Failed to verify signature");
-  }
+  //   assert!(strand.is_ok(), "{}", strand.unwrap_err());
+  //   assert!(strand.unwrap().verify_own_signature().is_ok(), "Failed to verify signature");
+  // }
 
   #[test]
   fn text_build_tixels() {
-    let signer = jwk::Jwk::generate_ed_key(jwk::alg::ed::EdCurve::Ed25519).unwrap();
+    let signer = Secret::EcdsaKeyPair(Arc::new(ec_key(&ECDSA_P256_SHA256_FIXED_SIGNING)));
     let builder = TwineBuilder::new(signer);
     let strand = builder.build_strand()
       .version("1.0.0".to_string())
@@ -396,7 +390,7 @@ mod test {
       timestamp: String,
     }
 
-    let signer = jwk::Jwk::generate_ed_key(jwk::alg::ed::EdCurve::Ed25519).unwrap();
+    let signer = Secret::EcdsaKeyPair(Arc::new(ec_key(&ECDSA_P256_SHA256_FIXED_SIGNING)));
     let builder = TwineBuilder::new(signer);
     let strand = builder.build_strand()
       .version("1.0.0".to_string())

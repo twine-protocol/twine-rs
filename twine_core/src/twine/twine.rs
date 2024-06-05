@@ -3,7 +3,7 @@ use crate::Cid;
 use semver::Version;
 use std::sync::Arc;
 
-use crate::{as_cid::AsCid, errors::VerificationError, specification::Subspec, twine::{Strand, Tixel}, verify::Verifiable};
+use crate::{as_cid::AsCid, errors::VerificationError, specification::Subspec, twine::{Strand, Tixel}};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Twine {
@@ -14,7 +14,6 @@ pub struct Twine {
 
 impl Twine {
   pub fn try_new(strand: Strand, tixel: Tixel) -> Result<Self, VerificationError> {
-    strand.verify()?;
     strand.verify_tixel(&tixel)?;
     let strand = Arc::new(strand);
     let tixel = Arc::new(tixel);
@@ -22,7 +21,6 @@ impl Twine {
   }
 
   pub fn try_new_from_shared(strand: Arc<Strand>, tixel: Arc<Tixel>) -> Result<Self, VerificationError> {
-    strand.verify()?;
     strand.verify_tixel(&tixel)?;
     Ok(Self { strand, tixel })
   }

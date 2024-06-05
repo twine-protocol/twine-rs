@@ -13,7 +13,7 @@ pub fn get_cid<D: AsRef<[u8]>>(hasher: Code, dat: D) -> Cid {
   Cid::new_v1(code, mh)
 }
 
-pub fn assert_cid(expected: Cid, actual: Cid) -> Result<(), VerificationError> {
+pub fn assert_cid(expected: &Cid, actual: &Cid) -> Result<(), VerificationError> {
   if expected != actual {
     return Err(VerificationError::CidMismatch {
       expected: expected.to_string(),

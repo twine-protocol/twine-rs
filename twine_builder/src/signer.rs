@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use josekit::jwk::Jwk;
+use biscuit::{jwk::JWK, jws::Secret};
 use crate::crypto::sign;
 
 #[derive(Debug, thiserror::Error)]
@@ -13,15 +13,21 @@ impl Display for SigningError {
 
 pub trait Signer {
   fn sign<T: AsRef<[u8]>>(&self, data: T) -> Result<String, SigningError>;
-  fn public_key(&self) -> Jwk;
+  fn public_key(&self) -> JWK<()>;
 }
 
-impl Signer for Jwk {
+impl Signer for Secret {
   fn sign<T: AsRef<[u8]>>(&self, data: T) -> Result<String, SigningError> {
     sign(self, data)
   }
 
-  fn public_key(&self) -> Jwk {
-    self.to_public_key().expect("Could not get public key")
+  fn public_key(&self) -> JWK<()> {
+    use ring::signature::KeyPair;
+    unimplemented!()
+    // match self {
+    //   Secret::RsaKeyPair(rsa) => Secret::PublicKey(rsa.public_key().as_ref()),
+    //   Secret::EcKeyPair(ec) => ec.public_key(),
+    //   _ => panic!("Unsupported key type"),
+    // }
   }
 }
