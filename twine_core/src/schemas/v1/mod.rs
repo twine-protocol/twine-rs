@@ -25,6 +25,7 @@ pub use chain::*;
 pub use pulse::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct ContainerV1<C: Clone + Verifiable + Send> {
   #[serde(skip)]
   cid: Cid,
@@ -49,7 +50,6 @@ impl<C> Hash for ContainerV1<C> where C: Clone + Verifiable + Send {
 
 impl Verifiable for ContainerV1<ChainContentV1> {
   fn verify(&self) -> Result<(), VerificationError> {
-    self.content.verify()?;
     let hasher = get_hasher(&self.cid)?;
     let computed = get_cid(hasher, DagCborCodec::encode_to_vec(self).unwrap());
     assert_cid(&self.cid, &computed)?;
@@ -106,7 +106,6 @@ impl ContainerV1<ChainContentV1> {
 
 impl Verifiable for ContainerV1<PulseContentV1> {
   fn verify(&self) -> Result<(), VerificationError> {
-    self.content.verify()?;
     let hasher = get_hasher(&self.cid)?;
     let computed = get_cid(hasher, DagCborCodec::encode_to_vec(self).unwrap());
     assert_cid(&self.cid, &computed)?;

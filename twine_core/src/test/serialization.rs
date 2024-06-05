@@ -12,6 +12,16 @@ fn test_deserialize_tixel_json() {
   assert!(res.is_ok(), "Failed to deserialize Tixel: {:?}", res.err());
 }
 
+
+#[test]
+fn test_invalid_signature_tixel_json() {
+  let strand = Strand::from_dag_json(STRANDJSON).unwrap();
+  let tixel = Tixel::from_dag_json(INVALID_SIGNATURE_TIXELJSON).unwrap();
+  let res = strand.verify_tixel(&tixel);
+  dbg!(&res);
+  assert!(res.is_err(), "Signature verification should have failed");
+}
+
 #[test]
 fn test_deserialize_strand_json(){
   let res = Strand::from_dag_json(STRANDJSON);

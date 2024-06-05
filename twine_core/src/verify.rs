@@ -94,12 +94,39 @@ mod test {
     }
   }
 
+  #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+  struct WithNested {
+    value: u32,
+    nested: Verified<TestStruct>,
+  }
+
+  impl Verifiable for WithNested {
+    fn verify(&self) -> Result<(), VerificationError> {
+      if self.value == 42 {
+        Ok(())
+      } else {
+        Err(VerificationError::InvalidTwineFormat("Value is not 42".to_string()))
+      }
+    }
+  }
+
   #[test]
   fn test_verified_struct() {
     let res = Verified::try_new(TestStruct { value: 42 });
     assert!(res.is_ok());
 
     let res = Verified::try_new(TestStruct { value: 9 });
+    assert!(res.is_err());
+  }
+
+  #[test]
+  fn test_nested_deserialize(){
+    let data = r#"{"value": 42, "nested": {"value": 42}}"#;
+    let res: Result<WithNested, _> = serde_json::from_str(data);
+    assert!(res.is_ok());
+
+    let data = r#"{"value": 42, "nested": {"value": 9}}"#;
+    let res: Result<WithNested, _> = serde_json::from_str(data);
     assert!(res.is_err());
   }
 }

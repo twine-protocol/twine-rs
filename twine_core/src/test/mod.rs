@@ -168,4 +168,43 @@ pub (crate) const INVALID_TIXELJSON: &'static str = r#"
   }
 "#;
 
+pub (crate) const INVALID_SIGNATURE_TIXELJSON: &'static str = r#"
+  {
+    "cid": {
+      "/": "bafyriqhmhtplcjfixyodttbtstfayqeytew27iykigpoi7vhkpxxfg6mx57jieoeu2qzouljopni3t25yp2a3vggzybciu7ftpy2tyuwbx2po"
+    },
+    "data": {
+      "content": {
+        "chain": {
+          "/": "bafyriqe3zxf5g4ifgqhea5zozxpdcfi5qcpkfpogtxzbizmmuxdjuzuq44a2cifbr7xplo4kcfsdz2c5pxfxektavrqxxb3nvbmclxz7qiz6e"
+        },
+        "index": 99,
+        "links": [
+          {
+            "/": "bafyriqgqnqyqrjpq54oy5zv4w3ev4zm36rjuhbmmvw2noaqeii2ru3azvm6tc7qcknrdzegh44rbszdd3lr6m5cwnl7eohzubx2uolhqab2qm"
+          },
+          {
+            "/": "bafyriqdibseq7reosvlqhnhw6eudtcv2e2nzqdsmvnp3w43wybriiqkqfbbwhw4sysddgtfzlhv4tzv264snd3lmy4hqz64qva4kjjlptr6re"
+          }
+        ],
+        "mixins": [
+          {
+            "chain": {
+              "/": "bafyriqhijw5soalbtppuwwjbskfiriqy6swa5qd5trgbzx4nypnu7mp7iyhx7m2iin2nxnglmngvjgirzb7bvlisxq3uygoik7ozbybxnftiw"
+            },
+            "value": {
+              "/": "bafyriqgrnibxorlgvxtbinfbbo5preifuvjq3p7lnvg6wqrwq43nfag5pgc5p7x5yblu2asgmhl65wefgqxrr7trsx6otikmy3s47rsrrwo6q"
+            }
+          }
+        ],
+        "payload": {
+          "garbage": "foo"
+        },
+        "source": "random.colorado.edu"
+      },
+      "signature": "eyJhbGciOiJub25lIn0.FEAnDYJjM3kQ-woX_46Bp5mRTlAzNqZPqx3jyOqmB9W_jR2cHxZT-Hc8o16E4eUotiquqHiYyL__Ck4JHKQWz65f.ZXWAko1_jvapXljIDAGxNDj0WiwA4pb5CXM7GrpvuJbEhg-sFlPCVYegvFAQqvIa-Bqyv6CsDxISh73vJAXzRFqoJy4Yt716yRsJ-bZsL-L5r9gT8xYMnlAW0F7Q8Rm2_fL38gdoKZI8BMfn87AlR-DaTtEivwocE5hlBIwo2DSsiQCBa-9Q4cnlimhM8nzbTMFZc-QdHR1Y2lvm7NAqXFa72OzizQOICNTY0Ff0eY4HXDopv6f_9c-bkhVA3VchpkH7hilximBdqP7KW_9G1byGmxXWdyTyi3C0Jujvnf7sl0Mx9kaD8Jx7xRyFGCsGISgd4D90uSjgvqOHgUkRAm4KyK9tHZS1zX0FoiuRax2D7EY6caV7JPtu0GFyVv6LlsdJ81Q6kj6_aDHUJ54cz4YaZbQ_qbobkdp0Yo-WnxC3c_SwgkJyujD3qlWxpAcvriafY6VNI_U9lX-xvfuhe5b1wZam03oHc-dZau1fFYIHRU1Zweo9-l0wJ3btEPRbERAXIAWbw99YLqy0-BDoomTCc6PBL0e8D5FNy0etO4ThI0cjybz_KKsyd2Smk3aWBJ6PsrdDCXWEwcJt91cneKXb5keG1tQCpcDsTjjS5suAwu4xJk49Xi7fkmqr3LE8TtZKgXeMl2nOJem7BT90ZbN78ZKThB52JXsKRAyevys"
+    }
+  }
+"#;
+
 mod serialization;

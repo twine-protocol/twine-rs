@@ -6,6 +6,7 @@ use crate::{errors::VerificationError, verify::{is_all_unique, Verifiable}};
 use super::{V1, Mixin};
 
 #[derive(Debug, Serialize, Deserialize, Clone,  PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ChainContentV1 {
   pub specification: V1,
   pub key: JWK<()>,

@@ -5,6 +5,7 @@ use super::Mixin;
 use crate::verify::is_all_unique;
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct PulseContentV1<P = Ipld>{
   pub chain: Cid,
   pub index: u32, // note: DAG-CBOR supports i64, but we don't
