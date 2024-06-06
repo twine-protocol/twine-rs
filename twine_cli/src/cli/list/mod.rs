@@ -215,7 +215,6 @@ impl ListCommand {
           println!("{}", cid);
           println!("  Latest: {}", latest_index.unwrap_or("unknown".to_string()));
           if maybe_latest.is_some() {
-            use twine_core::twine::TwineBlock;
             let latest = maybe_latest.unwrap();
             let byte_count = latest.bytes().len();
             println!(
