@@ -252,7 +252,7 @@ impl <'a, S: Signer> StrandBuilder<'a, S> {
 mod test {
   use biscuit::jws::Secret;
   use twine_core::ipld_core::ipld;
-  use crate::signer::BiscuitSigner;
+  use crate::BiscuitSigner;
 
   use super::*;
   use ring::signature::*;

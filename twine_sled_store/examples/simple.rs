@@ -3,7 +3,8 @@ use twine_core::twine::Twine;
 use twine_sled_store::*;
 use twine_core::resolver::*;
 use twine_core::store::Store;
-use twine_builder::{TwineBuilder, Jwk};
+use twine_builder::{TwineBuilder, BiscuitSigner, biscuit::jws::Secret};
+use twine_builder::ring::{rand, signature::{EcdsaKeyPair, ECDSA_P256_SHA256_FIXED_SIGNING}};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -11,8 +12,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let db = sled::Config::new().temporary(true).path(tmp_dir.path()).open()?;
   let store = SledStore::new(db, SledStoreOptions::default());
 
-  let key = Jwk::generate_rsa_key(2048).unwrap();
-  let builder = TwineBuilder::new(key);
+  let rng = rand::SystemRandom::new();
+  let alg = &ECDSA_P256_SHA256_FIXED_SIGNING;
+  let pkcs = EcdsaKeyPair::generate_pkcs8(alg, &rng).unwrap();
+  let key = EcdsaKeyPair::from_pkcs8(alg, pkcs.as_ref(), &rng).unwrap();
+  let secret = Secret::EcdsaKeyPair(key.into());
+  let signer = BiscuitSigner::new(secret, "ES256".to_string());
+  let builder = TwineBuilder::new(signer);
   let strand = builder.build_strand()
     .radix(2)
     .done()?;
