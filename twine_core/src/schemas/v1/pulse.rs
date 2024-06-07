@@ -21,6 +21,11 @@ impl Verifiable for PulseContentV1 {
       return Err(VerificationError::InvalidTwineFormat("Contains mixins with duplicate chains".into()));
     }
 
+    // can't have a mixin on own chain
+    if self.mixins.iter().any(|mixin| mixin.chain == self.chain) {
+      return Err(VerificationError::InvalidTwineFormat("Contains mixin on own chain".into()));
+    }
+
     if self.links.len() == 0 && self.index != 0 {
       return Err(VerificationError::InvalidTwineFormat("Non-starting pulse has zero links".into()));
     }

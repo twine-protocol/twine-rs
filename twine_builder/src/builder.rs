@@ -98,7 +98,7 @@ impl <'a, S: Signer> TixelBuilder<'a, S> {
 
   fn next_back_stitches(&self) -> Result<Vec<Stitch>, BuildError> {
     if let Some(prev) = &self.prev {
-      let mut stitches = prev.back_stitches();
+      let mut stitches = prev.back_stitches().into_inner();
       let radix = self.strand.radix();
       let pindex = prev.index();
       if pindex == 0 {

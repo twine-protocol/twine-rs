@@ -18,7 +18,7 @@ use serde::{Serialize, Deserialize};
 use ipld_core::codec::Codec;
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use serde_ipld_dagjson::codec::DagJsonCodec;
-use super::{CrossStitches, Stitch, TwineBlock};
+use super::{BackStitches, CrossStitches, Stitch, TwineBlock};
 use super::Strand;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
@@ -116,7 +116,7 @@ impl Tixel {
     }
   }
 
-  pub fn back_stitches(&self) -> Vec<Stitch> {
+  pub fn back_stitches(&self) -> BackStitches {
     match &*self.0 {
       TixelContainer::V1(v) => v.back_stitches(),
     }
@@ -137,7 +137,7 @@ impl Tixel {
   }
 
   pub fn previous(&self) -> Option<Stitch> {
-    self.back_stitches().first().cloned()
+    self.back_stitches().get(0).cloned()
   }
 
   pub(crate) fn signature(&self) -> Vec<u8> {

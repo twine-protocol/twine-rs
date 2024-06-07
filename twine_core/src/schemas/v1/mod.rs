@@ -6,7 +6,7 @@ use multihash_codetable::Code;
 use semver::Version;
 use serde::{Serialize, Deserialize};
 use serde_ipld_dagcbor::codec::DagCborCodec;
-use crate::{crypto::{assert_cid, get_cid, get_hasher, verify_signature}, errors::VerificationError, specification::Subspec, twine::{CrossStitches, Stitch}, verify::{Verifiable, Verified}};
+use crate::{crypto::{assert_cid, get_cid, get_hasher, verify_signature}, errors::VerificationError, specification::Subspec, twine::{BackStitches, CrossStitches, Stitch}, verify::{Verifiable, Verified}};
 
 mod chain;
 mod mixin;
@@ -143,9 +143,9 @@ impl ContainerV1<PulseContentV1> {
     &self.content.payload
   }
 
-  pub fn back_stitches(&self) -> Vec<Stitch> {
+  pub fn back_stitches(&self) -> BackStitches {
     let strand = self.strand_cid().clone();
-    self.content.links.iter().cloned().map(|tixel| Stitch { strand, tixel }).collect()
+    BackStitches::new(strand, self.content.links.clone())
   }
 
   pub fn cross_stitches(&self) -> CrossStitches {
