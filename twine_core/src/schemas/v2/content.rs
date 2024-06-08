@@ -4,12 +4,12 @@ use super::*;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ContentV2<T: Clone + Send + Verifiable> {
   #[serde(rename = "h")]
-  pub(super) code: HashCode,
+  pub code: HashCode,
   #[serde(rename = "v")]
-  pub(super) specification: V2,
+  pub specification: V2,
 
   #[serde(flatten)]
-  fields: Verified<T>,
+  pub fields: Verified<T>,
 }
 
 impl<T> ContentV2<T> where T: Clone + Send + Verifiable {

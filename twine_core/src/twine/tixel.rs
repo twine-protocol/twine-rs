@@ -56,6 +56,12 @@ impl From<v1::ContainerV1<PulseContentV1>> for TixelContainerVersion {
   }
 }
 
+impl From<v2::TixelContainerV2> for TixelContainerVersion {
+  fn from(v: v2::TixelContainerV2) -> Self {
+    TixelContainerVersion::V2(v)
+  }
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 pub struct Tixel(Verified<TixelContainerVersion>);
 

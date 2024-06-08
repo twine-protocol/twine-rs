@@ -46,6 +46,12 @@ impl From<v1::ContainerV1<ChainContentV1>> for StrandContainerVersion {
   }
 }
 
+impl From<v2::StrandContainerV2> for StrandContainerVersion {
+  fn from(v: v2::StrandContainerV2) -> Self {
+    StrandContainerVersion::V2(v)
+  }
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 pub struct Strand(Verified<StrandContainerVersion>);
 

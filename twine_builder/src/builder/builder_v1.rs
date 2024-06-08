@@ -1,5 +1,5 @@
+use super::*;
 use std::sync::Arc;
-
 use twine_core::{
   errors::{SpecificationError, VerificationError}, ipld_core::{codec::Codec, serde::to_ipld}, multihash_codetable::{Code, MultihashDigest}, semver::Version, skiplist::get_layer_pos, specification::Subspec, twine::{
     CrossStitches,
@@ -10,45 +10,9 @@ use twine_core::{
   }, verify::Verified, Ipld
 };
 use twine_core::schemas::v1::{ContainerV1, ChainContentV1, PulseContentV1};
-use crate::{signer::SigningError, Signer};
+use biscuit::jwk::JWK;
 
-#[derive(Debug, thiserror::Error)]
-pub enum BuildError {
-  #[error("Bad twine data: {0}")]
-  BadData(#[from] VerificationError),
-  #[error("Bad specification: {0}")]
-  BadSpecification(#[from] SpecificationError),
-  #[error("Problem signing: {0}")]
-  ProblemSigning(#[from] SigningError),
-  #[error("Tixel index maximum reached")]
-  IndexMaximum,
-}
-
-pub struct TwineBuilder<S: Signer> {
-  signer: S,
-}
-
-impl <S: Signer> TwineBuilder<S> {
-  pub fn new(signer: S) -> Self {
-    Self {
-      signer,
-    }
-  }
-
-  pub fn build_strand<'a>(&'a self) -> StrandBuilder<'a, S> {
-    StrandBuilder::new(&self.signer)
-  }
-
-  pub fn build_first<'a>(&'a self, strand: Strand) -> TixelBuilder<'a, S> {
-    TixelBuilder::new_first(&self.signer, Arc::new(strand))
-  }
-
-  pub fn build_next<'a>(&'a self, prev: Twine) -> TixelBuilder<'a, S> {
-    TixelBuilder::new_next(&self.signer, prev)
-  }
-}
-
-pub struct TixelBuilder<'a, S: Signer> {
+pub struct TixelBuilder<'a, S: Signer<Key = JWK<()>>> {
   signer: &'a S,
   strand: Arc<Strand>,
   prev: Option<Twine>,
@@ -57,7 +21,7 @@ pub struct TixelBuilder<'a, S: Signer> {
   source: String,
 }
 
-impl <'a, S: Signer> TixelBuilder<'a, S> {
+impl <'a, S: Signer<Key = JWK<()>>> TixelBuilder<'a, S> {
   pub fn new_first(signer: &'a S, strand: Arc<Strand>) -> Self {
     Self {
       signer,
@@ -156,7 +120,7 @@ impl <'a, S: Signer> TixelBuilder<'a, S> {
     let hasher = self.strand.hasher();
     let bytes = twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
     let dat = hasher.digest(&bytes).to_bytes();
-    let signature = self.signer.sign(&dat)?;
+    let signature = String::from_utf8(self.signer.sign(&dat)?).unwrap();
 
     let container = ContainerV1::<PulseContentV1>::new_from_parts(hasher, Verified::try_new(content)?, signature);
     let tixel = Tixel::try_new(container)?;
@@ -164,7 +128,7 @@ impl <'a, S: Signer> TixelBuilder<'a, S> {
   }
 }
 
-pub struct StrandBuilder<'a, S: Signer> {
+pub struct StrandBuilder<'a, S: Signer<Key = JWK<()>>> {
   signer: &'a S,
   hasher: Code,
   version: Version,
@@ -175,7 +139,7 @@ pub struct StrandBuilder<'a, S: Signer> {
   source: String,
 }
 
-impl <'a, S: Signer> StrandBuilder<'a, S> {
+impl <'a, S: Signer<Key = JWK<()>>> StrandBuilder<'a, S> {
   pub fn new(signer: &'a S) -> Self {
     Self {
       signer,
@@ -242,165 +206,8 @@ impl <'a, S: Signer> StrandBuilder<'a, S> {
 
     let bytes = twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
     let dat = self.hasher.digest(&bytes).to_bytes();
-    let signature = self.signer.sign(&dat)?;
+    let signature = String::from_utf8(self.signer.sign(&dat)?).unwrap();
     let container = ContainerV1::<ChainContentV1>::new_from_parts(self.hasher, Verified::try_new(content)?, signature);
     Ok(Strand::try_new(container)?)
-  }
-}
-
-#[cfg(test)]
-mod test {
-  use biscuit::jws::Secret;
-  use twine_core::ipld_core::ipld;
-  use crate::BiscuitSigner;
-
-  use super::*;
-  use ring::signature::*;
-
-  fn ec_key(alg: &'static EcdsaSigningAlgorithm) -> EcdsaKeyPair {
-    let rng = ring::rand::SystemRandom::new();
-    let pkcs = EcdsaKeyPair::generate_pkcs8(alg, &rng).unwrap();
-    EcdsaKeyPair::from_pkcs8(alg, pkcs.as_ref(), &rng).unwrap()
-  }
-
-  #[test]
-  fn test_build_es256() {
-    let key = ec_key(&ECDSA_P256_SHA256_FIXED_SIGNING);
-    let secret = Secret::EcdsaKeyPair(Arc::new(key));
-    let signer = BiscuitSigner::new(secret, "ES256".to_string());
-    let builder = TwineBuilder::new(signer);
-    let strand = builder.build_strand()
-      .details(ipld!({
-        "foo": "bar",
-      }))
-      .done();
-
-    assert!(strand.is_ok(), "{}", strand.unwrap_err());
-  }
-
-  #[test]
-  fn test_build_es384() {
-    let key = ec_key(&ECDSA_P384_SHA384_FIXED_SIGNING);
-    let secret = Secret::EcdsaKeyPair(Arc::new(key));
-    let signer = BiscuitSigner::new(secret, "ES384".to_string());
-    let builder = TwineBuilder::new(signer);
-    let strand = builder.build_strand()
-      .details(ipld!({
-        "foo": "bar",
-      }))
-      .done();
-
-    assert!(strand.is_ok(), "{}", strand.unwrap_err());
-  }
-
-  // #[test]
-  // fn test_build_ed25519() {
-  //   let signer = jwk::Jwk::generate_ed_key(jwk::alg::ed::EdCurve::Ed25519).unwrap();
-  //   let builder = TwineBuilder::new(signer);
-  //   let strand = builder.build_strand()
-  //     .version("1.0.0".to_string())
-  //     .details(ipld!({
-  //       "foo": "bar",
-  //     }))
-  //     .done();
-
-  //   assert!(strand.is_ok(), "{}", strand.unwrap_err());
-  //   assert!(strand.unwrap().verify_own_signature().is_ok(), "Failed to verify signature");
-  // }
-
-  // #[test]
-  // fn test_build_ed448() {
-  //   let signer = jwk::Jwk::generate_ed_key(jwk::alg::ed::EdCurve::Ed448).unwrap();
-  //   let builder = TwineBuilder::new(signer);
-  //   let strand = builder.build_strand()
-  //     .version("1.0.0".to_string())
-  //     .details(ipld!({
-  //       "foo": "bar",
-  //     }))
-  //     .done();
-
-  //   assert!(strand.is_ok(), "{}", strand.unwrap_err());
-  //   assert!(strand.unwrap().verify_own_signature().is_ok(), "Failed to verify signature");
-  // }
-
-  // #[test]
-  // fn test_build_rsa() {
-  //   let rng = ring::rand::SystemRandom::new();
-  //   let pkcs = RsaKeyPair::generate_pkcs8(alg, &rng).unwrap();
-  //   let key = RsaKeyPair::from_pkcs8(alg, pkcs.as_ref(), &rng).unwrap()
-
-  //   let builder = TwineBuilder::new(signer);
-  //   let strand = builder.build_strand()
-  //     .version("1.0.0".to_string())
-  //     .details(ipld!({
-  //       "foo": "bar",
-  //     }))
-  //     .done();
-
-  //   assert!(strand.is_ok(), "{}", strand.unwrap_err());
-  // }
-
-  #[test]
-  fn text_build_tixels() {
-    let key = ec_key(&ECDSA_P256_SHA256_FIXED_SIGNING);
-    let secret = Secret::EcdsaKeyPair(Arc::new(key));
-    let signer = BiscuitSigner::new(secret, "ES256".to_string());
-    let builder = TwineBuilder::new(signer);
-    let strand = builder.build_strand()
-      .details(ipld!({
-        "foo": "bar",
-      }))
-      .radix(2)
-      .done()
-      .unwrap();
-
-    let mut prev = builder.build_first(strand.clone())
-      .payload(ipld!({
-        "baz": "qux",
-      }))
-      .done()
-      .unwrap();
-
-    for i in 1..10 {
-      prev = builder.build_next(prev)
-        .payload(ipld!({
-          "baz": "qux",
-          "index": i,
-        }))
-        .done()
-        .unwrap();
-    }
-  }
-
-  #[test]
-  fn test_struct_payload() {
-    use serde::{Serialize, Deserialize};
-    #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-    struct Timestamped {
-      timestamp: String,
-    }
-
-    let key = ec_key(&ECDSA_P256_SHA256_FIXED_SIGNING);
-    let secret = Secret::EcdsaKeyPair(Arc::new(key));
-    let signer = BiscuitSigner::new(secret, "ES256".to_string());
-    let builder = TwineBuilder::new(signer);
-    let strand = builder.build_strand()
-      .details(ipld!({
-        "foo": "bar",
-      }))
-      .done()
-      .unwrap();
-
-    let my_struct = Timestamped {
-      timestamp: "2023-10-26T21:25:56.936Z".to_string(),
-    };
-
-    let tixel = builder.build_first(strand)
-      .payload(my_struct)
-      .done()
-      .unwrap();
-
-    let t: Timestamped = tixel.extract_payload().unwrap();
-    assert_eq!(t.timestamp, "2023-10-26T21:25:56.936Z");
   }
 }

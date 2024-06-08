@@ -4,7 +4,7 @@ use super::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(from = "Vec<(Cid, Cid)>", into = "Vec<(Cid, Cid)>")]
-pub(super) struct EncodedCrossStitches(CrossStitches);
+pub struct EncodedCrossStitches(CrossStitches);
 
 impl From<Vec<(Cid, Cid)>> for EncodedCrossStitches {
   fn from(v: Vec<(Cid, Cid)>) -> Self {
@@ -15,6 +15,12 @@ impl From<Vec<(Cid, Cid)>> for EncodedCrossStitches {
 impl From<EncodedCrossStitches> for Vec<(Cid, Cid)> {
   fn from(v: EncodedCrossStitches) -> Self {
     v.0.into()
+  }
+}
+
+impl From<CrossStitches> for EncodedCrossStitches {
+  fn from(v: CrossStitches) -> Self {
+    Self(v)
   }
 }
 
@@ -29,17 +35,17 @@ impl Deref for EncodedCrossStitches {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TixelFields {
   #[serde(rename = "s")]
-  pub(super) strand: Cid,
+  pub strand: Cid,
   #[serde(rename = "i")]
-  pub(super) index: u64,
+  pub index: u64,
   #[serde(rename = "x")]
-  pub(super) cross_stitches: EncodedCrossStitches,
+  pub cross_stitches: EncodedCrossStitches,
   #[serde(rename = "b")]
-  pub(super) back_stitches: Vec<Option<Cid>>,
+  pub back_stitches: Vec<Option<Cid>>,
   #[serde(rename = "d")]
-  pub(super) drop: u64,
+  pub drop: u64,
   #[serde(rename = "p")]
-  pub(super) payload: Ipld,
+  pub payload: Ipld,
 }
 
 pub type TixelContentV2 = ContentV2<TixelFields>;

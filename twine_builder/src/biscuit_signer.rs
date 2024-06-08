@@ -24,14 +24,16 @@ impl From<EcdsaKeyPair> for BiscuitSigner {
 }
 
 impl Signer for BiscuitSigner {
-  fn sign<T: AsRef<[u8]>>(&self, data: T) -> Result<String, SigningError> {
+  type Key = JWK<()>;
+
+  fn sign<T: AsRef<[u8]>>(&self, data: T) -> Result<Vec<u8>, SigningError> {
     let mut header = Header::default();
     header.registered.algorithm = serde_json::from_value(json!(&self.1)).unwrap();
     header.registered.media_type = None;
     let jws = biscuit::jws::Compact::<_, ()>::new_decoded(header, data.as_ref().to_vec());
     let signature = jws.encode(&self.0)
       .map_err(|e| SigningError(format!("Failed to sign: {}", e)))?;
-    Ok(signature.encoded().unwrap().encode())
+    Ok(signature.encoded().unwrap().encode().as_bytes().to_vec())
   }
 
   fn public_key(&self) -> JWK<()> {

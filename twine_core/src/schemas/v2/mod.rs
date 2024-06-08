@@ -17,8 +17,8 @@ mod tixel;
 mod strand;
 
 use content::*;
-pub use tixel::TixelContentV2;
-pub use strand::StrandContentV2;
+pub use tixel::{TixelContentV2, TixelFields};
+pub use strand::{StrandContentV2, StrandFields};
 
 use super::{StrandContainer, TixelContainer, TwineContainer};
 
@@ -46,6 +46,12 @@ impl HashCode {
   pub fn get_cid<S: Serialize>(&self, input: S) -> Result<Cid, serde_ipld_dagcbor::EncodeError<std::collections::TryReserveError>> {
     let dat = crypto_serialize(input)?;
     Ok(get_cid(**self, dat))
+  }
+}
+
+impl From<Code> for HashCode {
+  fn from(value: Code) -> Self {
+    HashCode(value)
   }
 }
 
@@ -79,6 +85,22 @@ pub struct ContainerV2<C: Clone + Send + Verifiable> {
 
   #[serde(flatten)]
   fields: ContainerFields<C>,
+}
+
+impl<C> ContainerV2<C> where C: Clone + Send + Verifiable + Serialize {
+  pub fn new_from_parts(content: Verified<ContentV2<C>>, signature: Signature) -> Self {
+    let fields = ContainerFields {
+      content,
+      signature,
+    };
+
+    let cid = fields.content.code().get_cid(&fields).unwrap();
+
+    ContainerV2 {
+      cid,
+      fields,
+    }
+  }
 }
 
 impl<C> TwineContainer for ContainerV2<C> where C: Clone + Send + Verifiable + Serialize {
@@ -144,8 +166,8 @@ impl<'de, T> Deserialize<'de> for ContainerV2<T> where T: Clone + Send + Verifia
   }
 }
 
-pub type StrandContainerV2 = ContainerV2<StrandContentV2>;
-pub type TixelContainerV2 = ContainerV2<TixelContentV2>;
+pub type StrandContainerV2 = ContainerV2<StrandFields>;
+pub type TixelContainerV2 = ContainerV2<TixelFields>;
 
 impl StrandContainer for StrandContainerV2 {
   fn key(&self) -> &PublicKey {
