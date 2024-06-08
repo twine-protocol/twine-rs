@@ -4,9 +4,9 @@ use super::*;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ContentV2<T: Clone + Send + Verifiable> {
   #[serde(rename = "h")]
-  code: HashCode,
+  pub(super) code: HashCode,
   #[serde(rename = "v")]
-  specification: V2,
+  pub(super) specification: V2,
 
   #[serde(flatten)]
   fields: Verified<T>,

@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::errors::VerificationError;
@@ -175,3 +176,44 @@ impl From<Vec<Stitch>> for CrossStitches {
   }
 }
 
+impl From<CrossStitches> for Vec<Stitch> {
+  fn from(cross_stitches: CrossStitches) -> Self {
+    cross_stitches.stitches()
+  }
+}
+
+impl From<HashMap<Cid, Cid>> for CrossStitches {
+  fn from(cross_stitches: HashMap<Cid, Cid>) -> Self {
+    Self(cross_stitches.into_iter().map(|(strand, tixel)| (strand, Stitch { strand, tixel })).collect())
+  }
+}
+
+impl From<CrossStitches> for HashMap<Cid, Cid> {
+  fn from(cross_stitches: CrossStitches) -> Self {
+    cross_stitches.0.into_iter().map(|(strand, stitch)| (strand, stitch.tixel)).collect()
+  }
+}
+
+impl From<HashMap<Cid, Stitch>> for CrossStitches {
+  fn from(cross_stitches: HashMap<Cid, Stitch>) -> Self {
+    Self(cross_stitches)
+  }
+}
+
+impl From<CrossStitches> for HashMap<Cid, Stitch> {
+  fn from(cross_stitches: CrossStitches) -> Self {
+    cross_stitches.0
+  }
+}
+
+impl From<Vec<(Cid, Cid)>> for CrossStitches {
+  fn from(cross_stitches: Vec<(Cid, Cid)>) -> Self {
+    Self(cross_stitches.into_iter().map(|(strand, tixel)| (strand, Stitch { strand, tixel })).collect())
+  }
+}
+
+impl From<CrossStitches> for Vec<(Cid, Cid)> {
+  fn from(cross_stitches: CrossStitches) -> Self {
+    cross_stitches.0.into_iter().map(|(strand, stitch)| (strand, stitch.tixel)).collect()
+  }
+}

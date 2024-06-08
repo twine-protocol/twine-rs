@@ -1,11 +1,14 @@
-use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use multihash_codetable::Code;
+use semver::Version;
 use serde::Deserializer;
 use serde::{Serialize, Deserialize};
-use crate::crypto::crypto_serialize;
+use crate::crypto::{crypto_serialize, PublicKey, Signature};
 use crate::crypto::get_cid;
-use crate::Cid;
+use crate::errors::VerificationError;
+use crate::twine::{BackStitches, CrossStitches};
+use crate::{Bytes, Cid};
 use crate::Ipld;
 use crate::verify::{Verified, Verifiable};
 
@@ -17,7 +20,8 @@ use content::*;
 pub use tixel::TixelContentV2;
 pub use strand::StrandContentV2;
 
-pub type Bytes = Vec<u8>;
+use super::{StrandContainer, TixelContainer, TwineContainer};
+
 pub type V2 = crate::specification::Specification<2>;
 
 impl Default for V2 {
@@ -60,19 +64,6 @@ impl From<HashCode> for u64 {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum SignatureAlgorithm {
-  RSA,
-  ECDSA,
-  ED25519,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct PublicKey {
-  alg: SignatureAlgorithm,
-  key: Bytes,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ContainerFields<C: Clone + Send + Verifiable> {
   #[serde(rename = "c")]
   content: Verified<ContentV2<C>>,
@@ -90,11 +81,48 @@ pub struct ContainerV2<C: Clone + Send + Verifiable> {
   fields: ContainerFields<C>,
 }
 
+impl<C> TwineContainer for ContainerV2<C> where C: Clone + Send + Verifiable + Serialize {
+  fn cid(&self) -> &Cid {
+    &self.cid
+  }
+
+  fn version(&self) -> Version {
+    self.fields.content.specification.semver()
+  }
+
+  fn subspec(&self) -> Option<crate::specification::Subspec> {
+    self.fields.content.specification.subspec()
+  }
+
+  fn signature(&self) -> Signature {
+    self.fields.signature.clone()
+  }
+
+  fn content_bytes(&self) -> Result<Bytes, VerificationError> {
+    crypto_serialize(&self.fields.content)
+      .map_err(|e| VerificationError::General(e.to_string()))
+  }
+}
+
+impl<C> PartialEq for ContainerV2<C> where C: Clone + Send + Verifiable {
+  fn eq(&self, other: &Self) -> bool {
+    self.cid == other.cid
+  }
+}
+
+impl<C> Eq for ContainerV2<C> where C: Clone + Send + Verifiable {}
+
 impl<C> Deref for ContainerV2<C> where C: Clone + Send + Verifiable {
   type Target = ContainerFields<C>;
 
   fn deref(&self) -> &Self::Target {
     &self.fields
+  }
+}
+
+impl<C> Hash for ContainerV2<C> where C: Clone + Send + Verifiable {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    Hash::hash(&self.cid, state);
   }
 }
 
@@ -113,5 +141,55 @@ impl<'de, T> Deserialize<'de> for ContainerV2<T> where T: Clone + Send + Verifia
       cid,
       fields,
     })
+  }
+}
+
+pub type StrandContainerV2 = ContainerV2<StrandContentV2>;
+pub type TixelContainerV2 = ContainerV2<TixelContentV2>;
+
+impl StrandContainer for StrandContainerV2 {
+  fn key(&self) -> &PublicKey {
+    &self.fields.content.key
+  }
+
+  fn radix(&self) -> u8 {
+    self.fields.content.radix
+  }
+
+  fn details(&self) -> &Ipld {
+    &self.fields.content.details
+  }
+}
+
+impl Verifiable for StrandContainerV2 {
+  fn verify(&self) -> Result<(), VerificationError> {
+    self.verify_signature(&self.key())
+  }
+}
+
+impl TixelContainer for TixelContainerV2 {
+  fn index(&self) -> u64 {
+    self.fields.content.index
+  }
+
+  fn strand_cid(&self) -> &Cid {
+    &self.fields.content.strand
+  }
+
+  fn cross_stitches(&self) -> CrossStitches {
+    (*self.fields.content.cross_stitches).clone()
+  }
+
+  fn back_stitches(&self) -> crate::twine::BackStitches {
+    // checked in verify method
+    BackStitches::try_new_from_condensed(*self.strand_cid(), self.fields.content.back_stitches.clone()).unwrap()
+  }
+
+  fn drop(&self) -> u64 {
+    self.fields.content.drop
+  }
+
+  fn payload(&self) -> &Ipld {
+    &self.fields.content.payload
   }
 }

@@ -5,6 +5,7 @@ use crate::as_cid::AsCid;
 use crate::crypto::get_hasher;
 use crate::dag_json::TwineContainerJson;
 use crate::schemas::v1::PulseContentV1;
+use crate::schemas::v2;
 use crate::specification::Subspec;
 use crate::verify::{Verifiable, Verified};
 use crate::{errors::VerificationError, schemas::v1};
@@ -20,39 +21,43 @@ use serde_ipld_dagcbor::codec::DagCborCodec;
 use serde_ipld_dagjson::codec::DagJsonCodec;
 use super::{BackStitches, CrossStitches, Stitch, TwineBlock};
 use super::Strand;
+use crate::schemas::{TixelContainer, TwineContainer};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 #[serde(untagged)]
-pub enum TixelContainer {
+pub enum TixelContainerVersion {
   V1(v1::ContainerV1<PulseContentV1>),
+  V2(v2::TixelContainerV2),
 }
 
-impl TixelContainer {
+impl TixelContainerVersion {
   pub fn compute_cid(&mut self, hasher: Code) {
     match self {
-      TixelContainer::V1(v) => {
+      TixelContainerVersion::V1(v) => {
         v.compute_cid(hasher);
-      }
+      },
+      TixelContainerVersion::V2(_) => unimplemented!(),
     }
   }
 }
 
-impl Verifiable for TixelContainer {
+impl Verifiable for TixelContainerVersion {
   fn verify(&self) -> Result<(), VerificationError> {
     match self {
-      TixelContainer::V1(v) => v.verify(),
+      TixelContainerVersion::V1(v) => v.verify(),
+      TixelContainerVersion::V2(_) => Ok(()),
     }
   }
 }
 
-impl From<v1::ContainerV1<PulseContentV1>> for TixelContainer {
+impl From<v1::ContainerV1<PulseContentV1>> for TixelContainerVersion {
   fn from(v: v1::ContainerV1<PulseContentV1>) -> Self {
-    TixelContainer::V1(v)
+    TixelContainerVersion::V1(v)
   }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
-pub struct Tixel(Verified<TixelContainer>);
+pub struct Tixel(Verified<TixelContainerVersion>);
 
 impl PartialOrd for Tixel {
   fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -64,44 +69,50 @@ impl PartialOrd for Tixel {
 }
 
 impl Tixel {
-  pub fn try_new<T: Into<TixelContainer>>(container: T) -> Result<Self, VerificationError> {
+  pub fn try_new<T: Into<TixelContainerVersion>>(container: T) -> Result<Self, VerificationError> {
     let verified = Verified::try_new(container.into())?;
     Ok(Self(verified))
   }
 
   pub fn cid(&self) -> Cid {
     match &*self.0 {
-      TixelContainer::V1(v) => v.cid().clone(),
+      TixelContainerVersion::V1(v) => v.cid().clone(),
+      TixelContainerVersion::V2(v) => v.cid().clone(),
     }
   }
 
   pub fn strand_cid(&self) -> Cid {
     match &*self.0 {
-      TixelContainer::V1(v) => v.strand_cid().clone(),
+      TixelContainerVersion::V1(v) => v.strand_cid().clone(),
+      TixelContainerVersion::V2(v) => v.strand_cid().clone(),
     }
   }
 
   pub fn index(&self) -> u64 {
     match &*self.0 {
-      TixelContainer::V1(v) => v.index(),
+      TixelContainerVersion::V1(v) => v.index(),
+      TixelContainerVersion::V2(v) => v.index(),
     }
   }
 
   pub fn version(&self) -> Version {
     match &*self.0 {
-      TixelContainer::V1(_) => Version::parse("1.0.0").unwrap(),
+      TixelContainerVersion::V1(_) => Version::parse("1.0.0").unwrap(),
+      TixelContainerVersion::V2(v) => v.version(),
     }
   }
 
   pub fn subspec(&self) -> Option<Subspec> {
     match &*self.0 {
-      TixelContainer::V1(_) => None,
+      TixelContainerVersion::V1(_) => None,
+      TixelContainerVersion::V2(v) => v.subspec(),
     }
   }
 
   pub fn payload(&self) -> &Ipld {
     match &*self.0 {
-      TixelContainer::V1(v) => &v.payload(),
+      TixelContainerVersion::V1(v) => &v.payload(),
+      TixelContainerVersion::V2(v) => &v.payload(),
     }
   }
 
@@ -110,21 +121,17 @@ impl Tixel {
     from_ipld(payload.clone())
   }
 
-  pub fn source(&self) -> &str {
-    match &*self.0 {
-      TixelContainer::V1(v) => v.source(),
-    }
-  }
-
   pub fn back_stitches(&self) -> BackStitches {
     match &*self.0 {
-      TixelContainer::V1(v) => v.back_stitches(),
+      TixelContainerVersion::V1(v) => v.back_stitches(),
+      TixelContainerVersion::V2(v) => v.back_stitches(),
     }
   }
 
   pub fn cross_stitches(&self) -> CrossStitches {
     match &*self.0 {
-      TixelContainer::V1(v) => v.cross_stitches(),
+      TixelContainerVersion::V1(v) => v.cross_stitches(),
+      TixelContainerVersion::V2(v) => v.cross_stitches(),
     }
   }
 
@@ -142,7 +149,15 @@ impl Tixel {
 
   pub(crate) fn signature(&self) -> Vec<u8> {
     match &*self.0 {
-      TixelContainer::V1(v) => v.signature().as_bytes().to_vec(),
+      TixelContainerVersion::V1(v) => v.signature().as_bytes().to_vec(),
+      TixelContainerVersion::V2(v) => v.signature(),
+    }
+  }
+
+  pub(super) fn v2_container(&self) -> &v2::TixelContainerV2 {
+    match &*self.0 {
+      TixelContainerVersion::V2(v) => v,
+      _ => panic!("Tixel is not a V2 container"),
     }
   }
 }
@@ -156,7 +171,8 @@ impl From<Tixel> for Cid {
 impl AsCid for Tixel {
   fn as_cid(&self) -> &Cid {
     match &*self.0 {
-      TixelContainer::V1(v) => v.cid(),
+      TixelContainerVersion::V1(v) => v.cid(),
+      TixelContainerVersion::V2(v) => v.cid(),
     }
   }
 }
@@ -169,11 +185,17 @@ impl TwineBlock for Tixel {
   ///
   /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
   fn from_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
-    let j: TwineContainerJson<TixelContainer> = DagJsonCodec::decode_from_slice(json.to_string().as_bytes())?;
-    let mut container = j.data;
+    let j: TwineContainerJson<TixelContainerVersion> = DagJsonCodec::decode_from_slice(json.to_string().as_bytes())?;
     let cid = j.cid;
-    let hasher = get_hasher(&cid)?;
-    container.compute_cid(hasher);
+    let container = match j.data {
+      // v1 requires recomputing the CID
+      mut container@TixelContainerVersion::V1(_) => {
+        let hasher = get_hasher(&cid)?;
+        container.compute_cid(hasher);
+        container
+      },
+      container@TixelContainerVersion::V2(_) => container,
+    };
     let twine = Self(Verified::try_new(container)?);
     twine.verify_cid(&cid)?;
     Ok(twine)
@@ -181,8 +203,11 @@ impl TwineBlock for Tixel {
 
   /// Decode from raw bytes without checking CID
   fn from_bytes_unchecked(hasher: Code, bytes: Vec<u8>) -> Result<Self, VerificationError> {
-    let mut twine: TixelContainer = DagCborCodec::decode_from_slice(bytes.as_slice())?;
-    twine.compute_cid(hasher);
+    let mut twine: TixelContainerVersion = DagCborCodec::decode_from_slice(bytes.as_slice())?;
+    // if v1... recompute cid
+    if let TixelContainerVersion::V1(_) = twine {
+      twine.compute_cid(hasher);
+    }
     let twine = Self(Verified::try_new(twine)?);
     Ok(twine)
   }
@@ -213,7 +238,8 @@ impl TwineBlock for Tixel {
 
   fn content_bytes(&self) -> Arc<[u8]> {
     let bytes = match &*self.0 {
-      TixelContainer::V1(v) => DagCborCodec::encode_to_vec(v.content()).unwrap(),
+      TixelContainerVersion::V1(v) => DagCborCodec::encode_to_vec(v.content()).unwrap(),
+      TixelContainerVersion::V2(v) => v.content_bytes().unwrap(),
     };
     bytes.as_slice().into()
   }

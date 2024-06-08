@@ -60,13 +60,13 @@ impl Verifiable for ContainerV1<ChainContentV1> {
 }
 
 impl<C> ContainerV1<C> where C: Clone + Verifiable + Send + Serialize + for<'de> Deserialize<'de> {
-  pub fn cid(&self) -> &Cid {
-    &self.cid
-  }
-
   pub fn compute_cid(&mut self, hasher: Code) {
     let dat = DagCborCodec::encode_to_vec(self).unwrap();
     self.cid = get_cid(hasher, dat.as_slice());
+  }
+
+  pub fn cid(&self) -> &Cid {
+    &self.cid
   }
 
   pub fn content(&self) -> &C {
@@ -152,4 +152,3 @@ impl ContainerV1<PulseContentV1> {
     CrossStitches::new(self.content.mixins.iter().cloned().collect::<Vec<Stitch>>())
   }
 }
-

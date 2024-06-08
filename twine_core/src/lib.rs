@@ -4,6 +4,8 @@
 //!
 // pub(crate) mod serde_utils;
 
+pub type Bytes = Vec<u8>;
+
 pub mod errors;
 pub mod crypto;
 pub mod as_cid;

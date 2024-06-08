@@ -223,7 +223,7 @@ impl ListCommand {
             );
           }
           println!("  Subspec: {}", subspec);
-          println!("  Key: {}", strand.key().key_type());
+          println!("  Key: {}", strand.key().alg);
           let details = format_ipld(strand.details(), self.depth, locale);
           println!("  Details: {}", indent::indent_all_by(2, details));
         } else {

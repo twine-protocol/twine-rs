@@ -33,6 +33,8 @@ pub enum VerificationError {
   },
   #[error("Bad Specification: {0}")]
   BadSpecification(#[from] SpecificationError),
+  #[error("General error: {0}")]
+  General(String),
 }
 
 

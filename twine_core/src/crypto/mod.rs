@@ -1,8 +1,13 @@
 mod hash;
-mod signature;
+mod jws;
 
 pub use hash::*;
-pub use signature::*;
+pub use jws::*;
 
 mod serialize;
 pub use serialize::*;
+
+mod public_key;
+pub use public_key::*;
+
+pub type Signature = Vec<u8>;

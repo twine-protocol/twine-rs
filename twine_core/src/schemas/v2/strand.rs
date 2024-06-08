@@ -6,15 +6,15 @@ use super::*;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StrandFields {
   #[serde(rename = "k")]
-  key: PublicKey,
+  pub(super) key: PublicKey,
   #[serde(rename = "r")]
-  radix: u8,
+  pub(super) radix: u8,
   #[serde(rename = "d")]
-  details: Ipld,
+  pub(super) details: Ipld,
   #[serde(rename = "g")]
-  genesis: DateTime<Utc>,
+  pub(super) genesis: DateTime<Utc>,
   #[serde(rename = "e")]
-  expiry: Option<DateTime<Utc>>,
+  pub(super) expiry: Option<DateTime<Utc>>,
 }
 
 pub type StrandContentV2 = ContentV2<StrandFields>;

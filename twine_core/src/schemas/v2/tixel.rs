@@ -1,24 +1,45 @@
-use crate::{errors::VerificationError, verify::is_all_unique};
+use crate::{errors::VerificationError, twine::BackStitches};
 
 use super::*;
-use serde_with::serde_as;
 
-#[serde_as]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(from = "Vec<(Cid, Cid)>", into = "Vec<(Cid, Cid)>")]
+pub(super) struct EncodedCrossStitches(CrossStitches);
+
+impl From<Vec<(Cid, Cid)>> for EncodedCrossStitches {
+  fn from(v: Vec<(Cid, Cid)>) -> Self {
+    Self(v.into())
+  }
+}
+
+impl From<EncodedCrossStitches> for Vec<(Cid, Cid)> {
+  fn from(v: EncodedCrossStitches) -> Self {
+    v.0.into()
+  }
+}
+
+impl Deref for EncodedCrossStitches {
+  type Target = CrossStitches;
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TixelFields {
   #[serde(rename = "s")]
-  strand: Cid,
+  pub(super) strand: Cid,
   #[serde(rename = "i")]
-  index: u32,
+  pub(super) index: u64,
   #[serde(rename = "x")]
-  #[serde_as(as = "Vec<(_, _)>")]
-  cross_stitches: HashMap<Cid, Cid>,
+  pub(super) cross_stitches: EncodedCrossStitches,
   #[serde(rename = "b")]
-  back_stitches: Vec<Option<Cid>>,
+  pub(super) back_stitches: Vec<Option<Cid>>,
   #[serde(rename = "d")]
-  drop: u32,
+  pub(super) drop: u64,
   #[serde(rename = "p")]
-  payload: Ipld,
+  pub(super) payload: Ipld,
 }
 
 pub type TixelContentV2 = ContentV2<TixelFields>;
@@ -30,8 +51,11 @@ impl Verifiable for TixelFields {
       return Err(VerificationError::InvalidTwineFormat("Non-starting tixel has zero links".into()));
     }
 
+    // ensure back-stitches are valid condensed form
+    BackStitches::try_new_from_condensed(self.strand, self.back_stitches.clone())?;
+
     // cross-stitches can't contain own strand
-    if self.cross_stitches.contains_key(&self.strand) {
+    if self.cross_stitches.get(&self.strand).is_some() {
       return Err(VerificationError::InvalidTwineFormat("Contains cross-stitch on own strand".into()));
     }
 
