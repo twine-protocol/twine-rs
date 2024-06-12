@@ -1,7 +1,7 @@
 use super::*;
 use std::sync::Arc;
 use twine_core::{
-  crypto::PublicKey, errors::{SpecificationError, VerificationError}, ipld_core::{codec::Codec, serde::to_ipld}, multihash_codetable::{Code, MultihashDigest}, schemas::v2::V2, semver::Version, skiplist::get_layer_pos, specification::Subspec, twine::{
+  crypto::PublicKey, errors::{SpecificationError, VerificationError}, ipld_core::{codec::Codec, serde::to_ipld}, multihash_codetable::Code, schemas::v2::V2, semver::Version, skiplist::get_layer_pos, specification::Subspec, twine::{
     CrossStitches,
     Stitch,
     Strand,
@@ -117,10 +117,8 @@ impl <'a, S: Signer<Key = PublicKey>> TixelBuilder<'a, S> {
       )),
     };
 
-    let hasher = self.strand.hasher();
     let bytes = twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
-    let dat = hasher.digest(&bytes).to_bytes();
-    let signature = self.signer.sign(&dat)?;
+    let signature = self.signer.sign(&bytes)?;
 
     let container = v2::ContainerV2::new_from_parts(Verified::try_new(content)?, signature);
     let tixel = Tixel::try_new(container)?;
@@ -200,8 +198,7 @@ impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
     };
 
     let bytes = twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
-    let dat = self.hasher.digest(&bytes).to_bytes();
-    let signature = self.signer.sign(&dat)?;
+    let signature = self.signer.sign(&bytes)?;
     let container = v2::ContainerV2::new_from_parts(Verified::try_new(content)?, signature);
     Ok(Strand::try_new(container)?)
   }

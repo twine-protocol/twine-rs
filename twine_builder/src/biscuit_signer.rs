@@ -1,6 +1,7 @@
 use biscuit::{jwk::{AlgorithmParameters, JWK}, jws::{Header, Secret}};
 use ring::signature::{EcdsaKeyPair, RsaKeyPair};
 use serde_json::json;
+use twine_core::crypto::Signature;
 use crate::{Signer, SigningError};
 
 pub struct BiscuitSigner(Secret, String);
@@ -26,14 +27,14 @@ impl From<EcdsaKeyPair> for BiscuitSigner {
 impl Signer for BiscuitSigner {
   type Key = JWK<()>;
 
-  fn sign<T: AsRef<[u8]>>(&self, data: T) -> Result<Vec<u8>, SigningError> {
+  fn sign<T: AsRef<[u8]>>(&self, data: T) -> Result<Signature, SigningError> {
     let mut header = Header::default();
     header.registered.algorithm = serde_json::from_value(json!(&self.1)).unwrap();
     header.registered.media_type = None;
     let jws = biscuit::jws::Compact::<_, ()>::new_decoded(header, data.as_ref().to_vec());
     let signature = jws.encode(&self.0)
       .map_err(|e| SigningError(format!("Failed to sign: {}", e)))?;
-    Ok(signature.encoded().unwrap().encode().as_bytes().to_vec())
+    Ok(signature.encoded().unwrap().encode().as_bytes().into())
   }
 
   fn public_key(&self) -> JWK<()> {

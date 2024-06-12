@@ -123,6 +123,7 @@ impl<C> TwineContainer for ContainerV2<C> where C: Clone + Send + Verifiable + S
   fn content_bytes(&self) -> Result<Bytes, VerificationError> {
     crypto_serialize(&self.fields.content)
       .map_err(|e| VerificationError::General(e.to_string()))
+      .map(Bytes)
   }
 }
 

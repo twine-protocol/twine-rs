@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 use crate::as_cid::AsCid;
-use crate::crypto::get_hasher;
+use crate::crypto::{get_hasher, Signature};
 use crate::dag_json::TwineContainerJson;
 use crate::schemas::v1::PulseContentV1;
 use crate::schemas::v2;
@@ -153,9 +153,9 @@ impl Tixel {
     self.back_stitches().get(0).cloned()
   }
 
-  pub(crate) fn signature(&self) -> Vec<u8> {
+  pub(crate) fn signature(&self) -> Signature {
     match &*self.0 {
-      TixelContainerVersion::V1(v) => v.signature().as_bytes().to_vec(),
+      TixelContainerVersion::V1(v) => v.signature().as_bytes().to_vec().into(),
       TixelContainerVersion::V2(v) => v.signature(),
     }
   }
@@ -245,7 +245,7 @@ impl TwineBlock for Tixel {
   fn content_bytes(&self) -> Arc<[u8]> {
     let bytes = match &*self.0 {
       TixelContainerVersion::V1(v) => DagCborCodec::encode_to_vec(v.content()).unwrap(),
-      TixelContainerVersion::V2(v) => v.content_bytes().unwrap(),
+      TixelContainerVersion::V2(v) => v.content_bytes().unwrap().into(),
     };
     bytes.as_slice().into()
   }

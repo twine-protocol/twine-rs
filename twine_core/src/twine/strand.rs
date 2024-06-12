@@ -110,7 +110,7 @@ impl Strand {
         if tixel.strand_cid() != self.cid() {
           return Err(VerificationError::TixelNotOnStrand);
         }
-        v.verify_signature(String::from_utf8(tixel.signature()).unwrap(), tixel.content_hash())
+        v.verify_signature(String::from_utf8(tixel.signature().into()).unwrap(), tixel.content_hash())
       },
       StrandContainerVersion::V2(v) => v.verify_tixel(tixel.v2_container()),
     }
@@ -199,7 +199,7 @@ impl TwineBlock for Strand {
   fn content_bytes(&self) -> Arc<[u8]> {
     let bytes = match &*self.0 {
       StrandContainerVersion::V1(v) => DagCborCodec::encode_to_vec(v.content()).unwrap(),
-      StrandContainerVersion::V2(v) => v.content_bytes().unwrap(),
+      StrandContainerVersion::V2(v) => v.content_bytes().unwrap().into(),
     };
     bytes.as_slice().into()
   }

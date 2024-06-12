@@ -10,4 +10,4 @@ pub use serialize::*;
 mod public_key;
 pub use public_key::*;
 
-pub type Signature = Vec<u8>;
+pub type Signature = crate::Bytes;

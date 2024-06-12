@@ -4,7 +4,49 @@
 //!
 // pub(crate) mod serde_utils;
 
-pub type Bytes = Vec<u8>;
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct Bytes(
+  #[serde(with = "serde_bytes")]
+  pub Vec<u8>
+);
+
+impl Bytes {
+  pub fn to_vec(&self) -> Vec<u8> {
+    self.0.clone()
+  }
+}
+
+impl Deref for Bytes {
+  type Target = [u8];
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
+
+impl From<Vec<u8>> for Bytes {
+  fn from(v: Vec<u8>) -> Self {
+    Self(v)
+  }
+}
+
+impl From<&[u8]> for Bytes {
+  fn from(v: &[u8]) -> Self {
+    Self(v.to_vec())
+  }
+}
+
+impl From<Bytes> for Vec<u8> {
+  fn from(v: Bytes) -> Self {
+    v.0
+  }
+}
+
+impl AsRef<[u8]> for Bytes {
+  fn as_ref(&self) -> &[u8] {
+    &self.0
+  }
+}
 
 pub mod errors;
 pub mod crypto;
@@ -17,6 +59,8 @@ pub mod resolver;
 pub mod store;
 pub mod car;
 pub mod skiplist;
+
+use std::ops::Deref;
 
 pub use semver;
 pub use twine::dag_json;

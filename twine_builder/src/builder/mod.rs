@@ -69,7 +69,7 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<PublicKey, S> {
 #[cfg(test)]
 mod test {
   use biscuit::jws::Secret;
-  use twine_core::ipld_core::ipld;
+  use twine_core::{ipld_core::ipld, twine::TwineBlock};
   use crate::BiscuitSigner;
 
   use super::*;
@@ -235,7 +235,7 @@ mod test {
       .done()
       .unwrap();
 
-    println!("{}", &strand);
+    println!("{}", &strand.dag_json());
 
     let mut prev = builder.build_first(strand.clone())
       .payload(ipld!({

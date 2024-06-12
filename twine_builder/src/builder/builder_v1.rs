@@ -120,7 +120,7 @@ impl <'a, S: Signer<Key = JWK<()>>> TixelBuilder<'a, S> {
     let hasher = self.strand.hasher();
     let bytes = twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
     let dat = hasher.digest(&bytes).to_bytes();
-    let signature = String::from_utf8(self.signer.sign(&dat)?).unwrap();
+    let signature = String::from_utf8(self.signer.sign(&dat)?.into()).unwrap();
 
     let container = ContainerV1::<PulseContentV1>::new_from_parts(hasher, Verified::try_new(content)?, signature);
     let tixel = Tixel::try_new(container)?;
@@ -206,7 +206,7 @@ impl <'a, S: Signer<Key = JWK<()>>> StrandBuilder<'a, S> {
 
     let bytes = twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
     let dat = self.hasher.digest(&bytes).to_bytes();
-    let signature = String::from_utf8(self.signer.sign(&dat)?).unwrap();
+    let signature = String::from_utf8(self.signer.sign(&dat)?.into()).unwrap();
     let container = ContainerV1::<ChainContentV1>::new_from_parts(self.hasher, Verified::try_new(content)?, signature);
     Ok(Strand::try_new(container)?)
   }

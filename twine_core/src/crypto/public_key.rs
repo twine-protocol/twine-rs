@@ -36,7 +36,9 @@ impl Display for SignatureAlgorithm {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PublicKey {
+  #[serde(rename = "a")]
   pub alg: SignatureAlgorithm,
+  #[serde(rename = "k")]
   pub key: Bytes,
 }
 
@@ -157,7 +159,7 @@ impl From<JWK<()>> for PublicKey {
       _ => unimplemented!(),
     };
 
-    Self { alg, key: key.as_bytes().to_vec() }
+    Self { alg, key: key.as_bytes().into() }
   }
 }
 
@@ -176,7 +178,7 @@ mod test {
     // Sign the message "hello, world".
     const MESSAGE: &[u8] = b"hello, world";
     let sig = key_pair.sign(MESSAGE);
-    let sig_bytes = sig.as_ref().to_vec();
+    let sig_bytes = sig.as_ref().into();
 
     let pk = PublicKey::new(SignatureAlgorithm::ED25519, Bytes::from(key_pair.public_key().as_ref()));
     pk.verify(sig_bytes, MESSAGE).unwrap();

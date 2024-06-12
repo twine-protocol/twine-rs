@@ -1,6 +1,6 @@
 use std::fmt::Display;
-use ring::{signature::{Ed25519KeyPair}};
-use twine_core::crypto::{PublicKey, SignatureAlgorithm};
+use ring::signature::Ed25519KeyPair;
+use twine_core::crypto::{PublicKey, SignatureAlgorithm, Signature};
 
 #[derive(Debug, thiserror::Error)]
 pub struct SigningError(pub String);
@@ -13,21 +13,21 @@ impl Display for SigningError {
 
 pub trait Signer {
   type Key;
-  fn sign<T: AsRef<[u8]>>(&self, data: T) -> Result<Vec<u8>, SigningError>;
+  fn sign<T: AsRef<[u8]>>(&self, data: T) -> Result<Signature, SigningError>;
   fn public_key(&self) -> Self::Key;
 }
 
 impl Signer for Ed25519KeyPair {
   type Key = PublicKey;
 
-  fn sign<T: AsRef<[u8]>>(&self, data: T) -> Result<Vec<u8>, SigningError> {
-    Ok(self.sign(data.as_ref()).as_ref().to_vec())
+  fn sign<T: AsRef<[u8]>>(&self, data: T) -> Result<Signature, SigningError> {
+    Ok(self.sign(data.as_ref()).as_ref().into())
   }
 
   fn public_key(&self) -> Self::Key {
     PublicKey {
       alg: SignatureAlgorithm::ED25519,
-      key: ring::signature::KeyPair::public_key(self).as_ref().to_vec(),
+      key: ring::signature::KeyPair::public_key(self).as_ref().into(),
     }
   }
 }

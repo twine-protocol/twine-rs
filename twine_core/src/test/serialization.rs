@@ -131,10 +131,27 @@ fn test_null_payload(){
 
 #[test]
 fn test_roundtrip_null(){
-    let test = ipld!({
-      "test": null
-    });
-    let s = DagJsonCodec::encode_to_vec(&test).unwrap();
-    let decoded: ipld_core::ipld::Ipld = DagJsonCodec::decode_from_slice(&s).unwrap();
-    assert_eq!(test, decoded);
+  let test = ipld!({
+    "test": null
+  });
+  let s = DagJsonCodec::encode_to_vec(&test).unwrap();
+  let decoded: ipld_core::ipld::Ipld = DagJsonCodec::decode_from_slice(&s).unwrap();
+  assert_eq!(test, decoded);
+}
+
+#[test]
+fn test_bytes(){
+  #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+  struct MyStruct {
+    foo: crate::Bytes,
+  }
+
+  let test = MyStruct {
+    foo: vec![1, 2, 3, 4, 5].into(),
+  };
+
+  let s = DagJsonCodec::encode_to_vec(&test).unwrap();
+  dbg!(String::from_utf8(s.clone()).unwrap());
+  let decoded: MyStruct = DagJsonCodec::decode_from_slice(&s).unwrap();
+  assert_eq!(test, decoded);
 }
