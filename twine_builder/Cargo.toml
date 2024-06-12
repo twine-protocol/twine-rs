@@ -3,6 +3,10 @@ name = "twine_builder"
 version = "0.0.1"
 edition = "2021"
 
+[features]
+default = []
+rsa = ["dep:rsa", "dep:rand"]
+
 [dependencies]
 twine_core = { path = "../twine_core/" }
 thiserror = "1.0.40"
@@ -14,6 +18,8 @@ serde = "1.0"
 serde_json = "1.0"
 num-bigint = "0.4"
 chrono = "0.4"
+rsa = { version = "0.9", optional = true }
+rand = { version = "0.8", optional = true }
 
 [dev-dependencies]
 serde_json = "1.0"

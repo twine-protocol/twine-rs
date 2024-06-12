@@ -8,4 +8,7 @@ pub use biscuit;
 mod biscuit_signer;
 pub use biscuit_signer::BiscuitSigner;
 
+mod ring_signer;
+pub use ring_signer::RingSigner;
+
 pub use ring;

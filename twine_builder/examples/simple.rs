@@ -1,15 +1,8 @@
-use rsa::pkcs1::EncodeRsaPrivateKey;
-use twine_builder::TwineBuilder;
+use twine_builder::{TwineBuilder, RingSigner};
 use twine_core::ipld_core::ipld;
 
 fn main() {
-  let mut rng = rand::thread_rng();
-  let rsa = rsa::RsaPrivateKey::new(&mut rng, 2048).expect("failed to generate a key");
-  let keypair = ring::signature::RsaKeyPair::from_der(rsa.to_pkcs1_der().unwrap().as_bytes()).unwrap();
-  let signer = twine_builder::BiscuitSigner::new(
-    biscuit::jws::Secret::RsaKeyPair(keypair.into()),
-    "RS256".to_string(),
-  );
+  let signer = RingSigner::generate_ed25519().unwrap();
   let builder = TwineBuilder::new(signer);
   let strand = builder.build_strand()
     .details(ipld!({
@@ -35,7 +28,6 @@ fn main() {
       }))
       .done()
       .unwrap();
-
   }
 
   let elapsed = start_time.elapsed();
