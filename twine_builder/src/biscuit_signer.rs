@@ -7,6 +7,7 @@ use crate::{Signer, SigningError};
 pub struct BiscuitSigner(Secret, String);
 
 impl BiscuitSigner {
+  #[deprecated(note = "Use `RingSigner` with twine/2.0.0 instead")]
   pub fn new(secret: Secret, alg: String) -> Self {
     Self(secret, alg)
   }

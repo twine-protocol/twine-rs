@@ -65,7 +65,7 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<PublicKey, S> {
   }
 }
 
-
+#[allow(deprecated)]
 #[cfg(test)]
 mod test {
   use biscuit::jws::Secret;
