@@ -21,7 +21,7 @@ fn main() {
   let n = 1000;
   let start_time = std::time::Instant::now();
   for i in 1..n {
-    prev = builder.build_next(prev)
+    prev = builder.build_next(&prev)
       .payload(ipld!({
         "baz": "qux",
         "index": i,

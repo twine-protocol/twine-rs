@@ -10,16 +10,16 @@ use twine_core::{
   }, verify::Verified, Ipld
 };
 
-pub struct TixelBuilder<'a, S: Signer<Key = PublicKey>> {
+pub struct TixelBuilder<'a, 'b, S: Signer<Key = PublicKey>> {
   signer: &'a S,
   strand: Arc<Strand>,
-  prev: Option<Twine>,
+  prev: Option<&'b Twine>,
   stitches: CrossStitches,
   payload: Ipld,
   spec: V2,
 }
 
-impl <'a, S: Signer<Key = PublicKey>> TixelBuilder<'a, S> {
+impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
   pub fn new_first(signer: &'a S, strand: Arc<Strand>) -> Self {
     Self {
       signer,
@@ -31,7 +31,7 @@ impl <'a, S: Signer<Key = PublicKey>> TixelBuilder<'a, S> {
     }
   }
 
-  pub fn new_next(signer: &'a S, prev: Twine) -> Self {
+  pub fn new_next(signer: &'a S, prev: &'b Twine) -> Self {
     Self {
       signer,
       strand: prev.strand(),
@@ -58,7 +58,7 @@ impl <'a, S: Signer<Key = PublicKey>> TixelBuilder<'a, S> {
       let radix = self.strand.radix();
       let pindex = prev.index();
       if pindex == 0 {
-        return Ok(vec![prev.clone().into()]);
+        return Ok(vec![(*prev).clone().into()]);
       }
 
       let expected_len = if radix == 0 {
@@ -75,15 +75,15 @@ impl <'a, S: Signer<Key = PublicKey>> TixelBuilder<'a, S> {
       }
 
       if radix == 0 {
-        return Ok(vec![prev.clone().into()]);
+        return Ok(vec![(*prev).clone().into()]);
       }
 
       let z = get_layer_pos(radix, pindex) + 1;
       if z > stitches.len() {
-        stitches.resize(z, prev.clone().into());
+        stitches.resize(z, (*prev).clone().into());
       }
 
-      stitches.splice(0..z, std::iter::repeat(prev.clone().into()).take(z));
+      stitches.splice(0..z, std::iter::repeat((*prev).clone().into()).take(z));
       Ok(stitches)
     } else {
       Ok(vec![])

@@ -42,11 +42,11 @@ impl<S: Signer<Key = JWK<()>>> TwineBuilder<JWK<()>, S> {
     builder_v1::StrandBuilder::new(&self.signer)
   }
 
-  pub fn build_first<'a>(&'a self, strand: Strand) -> builder_v1::TixelBuilder<'a, S> {
+  pub fn build_first<'a>(&'a self, strand: Strand) -> builder_v1::TixelBuilder<'a, '_, S> {
     builder_v1::TixelBuilder::new_first(&self.signer, Arc::new(strand))
   }
 
-  pub fn build_next<'a>(&'a self, prev: Twine) -> builder_v1::TixelBuilder<'a, S> {
+  pub fn build_next<'a, 'b>(&'a self, prev: &'b Twine) -> builder_v1::TixelBuilder<'a, 'b, S> {
     builder_v1::TixelBuilder::new_next(&self.signer, prev)
   }
 }
@@ -56,11 +56,11 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<PublicKey, S> {
     builder_v2::StrandBuilder::new(&self.signer)
   }
 
-  pub fn build_first<'a>(&'a self, strand: Strand) -> builder_v2::TixelBuilder<'a, S> {
+  pub fn build_first<'a>(&'a self, strand: Strand) -> builder_v2::TixelBuilder<'a, '_, S> {
     builder_v2::TixelBuilder::new_first(&self.signer, Arc::new(strand))
   }
 
-  pub fn build_next<'a>(&'a self, prev: Twine) -> builder_v2::TixelBuilder<'a, S> {
+  pub fn build_next<'a, 'b>(&'a self, prev: &'b Twine) -> builder_v2::TixelBuilder<'a, 'b, S> {
     builder_v2::TixelBuilder::new_next(&self.signer, prev)
   }
 }
@@ -180,7 +180,7 @@ mod test {
       .unwrap();
 
     for i in 1..10 {
-      prev = builder.build_next(prev)
+      prev = builder.build_next(&prev)
         .payload(ipld!({
           "baz": "qux",
           "index": i,
@@ -247,7 +247,7 @@ mod test {
     println!("{}", &prev);
 
     for i in 1..10 {
-      prev = builder.build_next(prev)
+      prev = builder.build_next(&prev)
         .payload(ipld!({
           "baz": "qux",
           "index": i,
