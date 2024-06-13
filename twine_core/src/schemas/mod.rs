@@ -8,6 +8,7 @@ pub mod v2;
 pub trait TwineContainer {
   fn cid(&self) -> &Cid;
   fn version(&self) -> Version;
+  fn spec_str(&self) -> &str;
   fn subspec(&self) -> Option<Subspec>;
   fn signature(&self) -> Signature;
   fn content_bytes(&self) -> Result<Bytes, VerificationError>;

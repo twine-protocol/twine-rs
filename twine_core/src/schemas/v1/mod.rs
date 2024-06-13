@@ -90,6 +90,10 @@ impl ContainerV1<ChainContentV1> {
     self.content.key.clone()
   }
 
+  pub fn spec_str(&self) -> &str {
+    self.content.specification.0.as_str()
+  }
+
   pub fn radix(&self) -> u8 {
     self.content.links_radix as u8
   }
@@ -129,6 +133,10 @@ impl ContainerV1<PulseContentV1> {
 
   pub fn strand_cid(&self) -> &Cid {
     &self.content.chain
+  }
+
+  pub fn spec_str(&self) -> &str {
+    "twine/1.0.x"
   }
 
   pub fn index(&self) -> u64 {

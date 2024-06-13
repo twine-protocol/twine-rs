@@ -112,6 +112,10 @@ impl<C> TwineContainer for ContainerV2<C> where C: Clone + Send + Verifiable + S
     self.fields.content.specification.semver()
   }
 
+  fn spec_str(&self) -> &str {
+    self.fields.content.specification.0.as_str()
+  }
+
   fn subspec(&self) -> Option<crate::specification::Subspec> {
     self.fields.content.specification.subspec()
   }

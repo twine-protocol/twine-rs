@@ -101,6 +101,13 @@ impl Tixel {
     }
   }
 
+  pub fn spec_str(&self) -> &str {
+    match &*self.0 {
+      TixelContainerVersion::V1(v) => v.spec_str(),
+      TixelContainerVersion::V2(v) => v.spec_str(),
+    }
+  }
+
   pub fn version(&self) -> Version {
     match &*self.0 {
       TixelContainerVersion::V1(_) => Version::parse("1.0.0").unwrap(),

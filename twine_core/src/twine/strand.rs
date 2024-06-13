@@ -82,6 +82,13 @@ impl Strand {
     }
   }
 
+  pub fn spec_str(&self) -> &str {
+    match &*self.0 {
+      StrandContainerVersion::V1(v) => v.spec_str(),
+      StrandContainerVersion::V2(v) => v.spec_str(),
+    }
+  }
+
   pub fn version(&self) -> Version {
     match &*self.0 {
       StrandContainerVersion::V1(v) => v.version(),
