@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .done()?;
 
   let first = builder.build_first(strand.clone()).done()?;
-  let next = builder.build_next(first.clone()).done()?;
+  let next = builder.build_next(&first).done()?;
 
   println!("first: {}", first);
   println!("next: {}", next);
@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   let count = 1000;
   let next_n: Vec<Twine> = (latest.index()..count).into_iter().scan(latest, |prev, _| {
-    let next = builder.build_next(prev.clone()).done().unwrap();
+    let next = builder.build_next(&prev).done().unwrap();
     *prev = next.clone();
     Some(next)
   }).collect();
