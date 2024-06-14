@@ -1,10 +1,10 @@
 use futures::{StreamExt, TryStreamExt};
+use twine_builder::RingSigner;
 use twine_core::twine::Twine;
 use twine_sled_store::*;
 use twine_core::resolver::*;
 use twine_core::store::Store;
-use twine_builder::{TwineBuilder, BiscuitSigner, biscuit::jws::Secret};
-use twine_builder::ring::{rand, signature::{EcdsaKeyPair, ECDSA_P256_SHA256_FIXED_SIGNING}};
+use twine_builder::TwineBuilder;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,12 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let db = sled::Config::new().temporary(true).path(tmp_dir.path()).open()?;
   let store = SledStore::new(db, SledStoreOptions::default());
 
-  let rng = rand::SystemRandom::new();
-  let alg = &ECDSA_P256_SHA256_FIXED_SIGNING;
-  let pkcs = EcdsaKeyPair::generate_pkcs8(alg, &rng).unwrap();
-  let key = EcdsaKeyPair::from_pkcs8(alg, pkcs.as_ref(), &rng).unwrap();
-  let secret = Secret::EcdsaKeyPair(key.into());
-  let signer = BiscuitSigner::new(secret, "ES256".to_string());
+  let signer = RingSigner::generate_ed25519().unwrap();
   let builder = TwineBuilder::new(signer);
   let strand = builder.build_strand()
     .radix(2)
