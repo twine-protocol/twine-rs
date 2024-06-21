@@ -115,9 +115,9 @@ impl Display for Query {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub struct AbsoluteRange {
-  strand: Cid,
-  start: u64,
-  end: u64,
+  pub strand: Cid,
+  pub start: u64,
+  pub end: u64,
 }
 
 impl AbsoluteRange {
@@ -131,14 +131,6 @@ impl AbsoluteRange {
 
   pub fn is_decreasing(&self) -> bool {
     self.start > self.end
-  }
-
-  pub fn start(&self) -> u64 {
-    self.start
-  }
-
-  pub fn end(&self) -> u64 {
-    self.end
   }
 
   pub fn lower(&self) -> u64 {
@@ -199,7 +191,7 @@ impl AbsoluteRange {
 
 impl Display for AbsoluteRange {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}:{}:={}", self.strand, self.start(), self.end())
+    write!(f, "{}:{}:={}", self.strand, self.start, self.end)
   }
 }
 
@@ -628,8 +620,8 @@ mod test {
   fn test_to_absolute(){
     let range: RangeQuery = (Cid::default(), -1..=2).into();
     let absolute = range.to_absolute(10);
-    assert_eq!(absolute.start(), 10);
-    assert_eq!(absolute.end(), 2);
+    assert_eq!(absolute.start, 10);
+    assert_eq!(absolute.end, 2);
     assert_eq!(absolute, AbsoluteRange::new(Cid::default(), 10, 2));
   }
 

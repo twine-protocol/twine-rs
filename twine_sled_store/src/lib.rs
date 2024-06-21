@@ -225,13 +225,8 @@ impl BaseResolver for SledStore {
 
   async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
     use futures::stream::StreamExt;
-    let strand_cid = range.strand_cid().clone();
-    let (start, end) = if range.is_increasing() {
-      (range.start(), range.end() + 1)
-    } else {
-      (range.end(), range.start() + 1)
-    };
-    let sled_range = get_index_key(&strand_cid, start)..get_index_key(&strand_cid, end);
+    let strand_cid = range.strand;
+    let sled_range = get_index_key(&strand_cid, range.start)..=get_index_key(&strand_cid, range.end);
     use either::Either;
     let iter = if range.is_decreasing() {
       Either::Left(self.db.range(sled_range).rev())
@@ -240,7 +235,6 @@ impl BaseResolver for SledStore {
     };
     let stream = futures::stream::iter(iter)
       .map(move |item| {
-        let strand_cid = strand_cid.clone();
         async move {
           let (_, cid) = item.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
           let cid = Cid::try_from(cid.to_vec()).map_err(|e| ResolutionError::BadData(e.to_string()))?;
