@@ -214,6 +214,6 @@ impl TwineBlock for Strand {
 
 impl Display for Strand {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}", self.to_dag_json_pretty())
+    write!(f, "{}", self.dag_json_pretty())
   }
 }

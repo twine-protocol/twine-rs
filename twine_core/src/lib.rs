@@ -4,7 +4,7 @@
 //!
 // pub(crate) mod serde_utils;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, ::serde::Serialize, ::serde::Deserialize)]
 pub struct Bytes(
   #[serde(with = "serde_bytes")]
   pub Vec<u8>
@@ -59,6 +59,7 @@ pub mod resolver;
 pub mod store;
 pub mod car;
 pub mod skiplist;
+pub mod serde;
 
 use std::ops::Deref;
 

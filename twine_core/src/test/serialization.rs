@@ -155,3 +155,10 @@ fn test_bytes(){
   let decoded: MyStruct = DagJsonCodec::decode_from_slice(&s).unwrap();
   assert_eq!(test, decoded);
 }
+
+#[test]
+fn test_deserialize_strand_v2(){
+  let res = Strand::from_dag_json(STRAND_V2_JSON);
+  assert!(res.is_ok(), "Failed to deserialize Strand: {:?}", res.err());
+  println!("{}", res.unwrap().dag_json_pretty());
+}

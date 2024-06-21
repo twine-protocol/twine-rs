@@ -2,7 +2,7 @@ use std::{collections::HashSet, hash::Hash, str::FromStr, sync::Arc};
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use twine_core::resolver::BaseResolver;
-use twine_http_store::{HttpStore, HttpStoreOptions, reqwest};
+use twine_http_store::{v1::{HttpStore, HttpStoreOptions}, reqwest};
 use twine_sled_store::{SledStore, SledStoreOptions, sled};
 
 use crate::cid_str::CidStr;

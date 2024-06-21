@@ -207,4 +207,36 @@ pub (crate) const INVALID_SIGNATURE_TIXELJSON: &'static str = r#"
   }
 "#;
 
+pub (crate) const STRAND_V2_JSON: &'static str = r#"
+{
+  "cid": {
+    "/": "bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune"
+  },
+  "data": {
+    "c": {
+      "h": 20,
+      "v": "twine/2.0.0",
+      "k": {
+        "a": "ED25519",
+        "k": {
+          "/": {
+            "bytes": "F7WhDGX9A6/qyAemypkayzcAbirt4mgM6ixVNwdp9yg"
+          }
+        }
+      },
+      "r": 32,
+      "d": {
+        "hello": "world"
+      },
+      "g": "2024-06-13T00:55:29.509Z",
+      "e": null
+    },
+    "s": {
+      "/": {
+        "bytes": "iiiTldByhe/CSqjBp9aWhKGtLWIzAjXDsvtAdfqViGQ6DnnLzS9X9UP4LaZeAmUiFHJ083nXzPivAsoueoLdCg"
+      }
+    }
+  }
+}"#;
+
 mod serialization;

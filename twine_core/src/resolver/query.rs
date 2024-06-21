@@ -87,7 +87,7 @@ impl FromStr for Query {
     } else if parts.len() == 2 {
       let arg = parts.get(1).unwrap();
       match *arg {
-        "latest"|"" => Ok(strand_cid.into()),
+        "latest"|""|"-1" => Ok(strand_cid.into()),
         _ => {
           if let Ok(cid) = Cid::try_from(arg.to_string()) {
             Ok((strand_cid, cid).into())
@@ -115,9 +115,9 @@ impl Display for Query {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub struct AbsoluteRange {
-  pub strand: Cid,
-  pub start: u64,
-  pub end: u64,
+  strand: Cid,
+  start: u64,
+  end: u64,
 }
 
 impl AbsoluteRange {
@@ -133,6 +133,14 @@ impl AbsoluteRange {
     self.start > self.end
   }
 
+  pub fn start(&self) -> u64 {
+    self.start
+  }
+
+  pub fn end(&self) -> u64 {
+    self.end
+  }
+
   pub fn lower(&self) -> u64 {
     if self.is_increasing() {
       self.start
@@ -143,37 +151,38 @@ impl AbsoluteRange {
 
   pub fn upper(&self) -> u64 {
     if self.is_increasing() {
-      self.end - 1
+      self.end
     } else {
-      self.start - 1
+      self.start
     }
   }
 
   pub fn len(&self) -> u64 {
     if self.is_increasing() {
-      self.end - self.start
+      self.end - self.start + 1
     } else {
-      self.start - self.end
+      self.start - self.end + 1
     }
   }
 
   pub fn batches(&self, size: u64) -> Vec<Self> {
     let mut batches = Vec::new();
+    assert!(size > 0, "Batch size must be greater than 0");
     if self.is_decreasing() {
       // decreasing
       let mut upper = self.start;
       while upper > self.end {
-        let lower = upper.saturating_sub(size).max(self.end);
+        let lower = upper.saturating_sub(size - 1).max(self.end);
         batches.push(Self::new(self.strand.clone(), upper, lower));
-        upper = lower;
+        upper = lower.saturating_sub(1);
       }
     } else {
       // increasing
       let mut lower = self.start;
       while lower < self.end {
-        let upper = (lower + size).min(self.end);
+        let upper = (lower + size - 1).min(self.end);
         batches.push(Self::new(self.strand.clone(), lower, upper));
-        lower = upper;
+        lower = upper + 1;
       }
     }
     batches
@@ -188,10 +197,16 @@ impl AbsoluteRange {
   }
 }
 
+impl Display for AbsoluteRange {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}:{}:={}", self.strand, self.start(), self.end())
+  }
+}
+
 #[derive(Debug, Clone)]
 pub struct AbsoluteRangeIter {
   range: AbsoluteRange,
-  current: u64,
+  current: Option<u64>,
   decreasing: bool,
 }
 
@@ -207,7 +222,7 @@ impl IntoIterator for AbsoluteRange {
 impl AbsoluteRangeIter {
   pub fn new(range: AbsoluteRange) -> Self {
     let decreasing = range.is_decreasing();
-    let current = range.start;
+    let current = Some(range.start);
     Self { current, range, decreasing }
   }
 }
@@ -217,16 +232,20 @@ impl Iterator for AbsoluteRangeIter {
 
   fn next(&mut self) -> Option<Self::Item> {
     if self.decreasing {
-      if self.current > self.range.end {
-        self.current -= 1;
-        Some((self.range.strand.clone(), self.current).into())
+      if let Some(current) = self.current {
+        if current >= self.range.end {
+          self.current = current.checked_sub(1);
+          Some((self.range.strand.clone(), current).into())
+        } else {
+          None
+        }
       } else {
         None
       }
     } else {
-      if self.current < self.range.end {
-        let current = self.current;
-        self.current += 1;
+      let current = self.current.unwrap();
+      if current <= self.range.end {
+        self.current = Some(current + 1);
         Some((self.range.strand.clone(), current).into())
       } else {
         None
@@ -336,10 +355,10 @@ impl RangeQuery {
       // 1, 1 is empty
       // larger number is always exclusive
       let (start, end) = match (start, end) {
-        (Bound::Included(s), Bound::Included(e)) => if e > s { (*s, e + 1) } else { (s + 1, *e) },
-        (Bound::Included(s), Bound::Excluded(e)) => if e > s { (*s, *e) } else { (s + 1, e + 1) },
-        (Bound::Excluded(s), Bound::Included(e)) => if e > s { (s + 1, e + 1) } else { (*s, *e) },
-        (Bound::Excluded(s), Bound::Excluded(e)) => if e > s { (s + 1, *e) } else { (*s, e + 1) },
+        (Bound::Included(s), Bound::Included(e)) => if e > s { (*s, *e) } else { (*s, *e) },
+        (Bound::Included(s), Bound::Excluded(e)) => if e > s { (*s, e - 1) } else { (*s, e + 1) },
+        (Bound::Excluded(s), Bound::Included(e)) => if e > s { (s + 1, *e) } else { (s - 1, *e) },
+        (Bound::Excluded(s), Bound::Excluded(e)) => if e > s { (s + 1, e - 1) } else { (s - 1, e + 1) },
         _ => unreachable!(),
       };
 
@@ -347,6 +366,7 @@ impl RangeQuery {
     }
   }
 
+  // TODO: THIS IS BROKEN
   pub fn to_absolute(self, latest: u64) -> AbsoluteRange {
     match self {
       Self::Absolute(range) => range,
@@ -363,8 +383,8 @@ impl RangeQuery {
         );
         let e = e.map(|e| if e < 0 { latest as i64 + e + 1 } else { e });
         let e = match e {
-          Bound::Included(e) => e + dir,
-          Bound::Excluded(e) => e,
+          Bound::Included(e) => e,
+          Bound::Excluded(e) => e - dir,
           _ => unreachable!(),
         };
         let s = s.map(|s| if s < 0 { latest as i64 + s + 1 } else { s });
@@ -479,9 +499,15 @@ impl FromStr for RangeQuery {
         }
       },
       (start, end) => {
-        let start: i64 = index_from_str(start)?;
-        let end: i64 = index_from_str(end)?;
-        Ok((cid, start..end).into())
+        let start: i64 = start.parse()?;
+        let parts = end.split('=').collect::<Vec<_>>();
+        if parts.len() == 2 {
+          let end: i64 = index_from_str(parts[1])?;
+          Ok((cid, start..=end).into())
+        } else {
+          let end: i64 = index_from_str(end)?;
+          Ok((cid, start..end).into())
+        }
       }
     }
   }
@@ -490,7 +516,7 @@ impl FromStr for RangeQuery {
 impl Display for RangeQuery {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      RangeQuery::Absolute(range) => write!(f, "{}:{}:{}", range.strand, range.start, range.end),
+      RangeQuery::Absolute(range) => write!(f, "{}", range),
       RangeQuery::Relative(strand, start, end) => {
         let start = match start {
           Bound::Included(s) => s.to_string(),
@@ -518,15 +544,17 @@ mod test {
   fn test_range_query_bounds() {
     let cid = Cid::default();
     let range = RangeQuery::from_range_bounds(&cid, 0..2);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 0, 2)));
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 0, 1)));
     let range = RangeQuery::from_range_bounds(&cid, 4..1);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 5, 2)));
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 4, 2)));
     let range = RangeQuery::from_range_bounds(&cid, 2..=4);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 2, 5)));
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 2, 4)));
     let range = RangeQuery::from_range_bounds(&cid, 3..=1);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 4, 1)));
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 3, 1)));
     let range = RangeQuery::from_range_bounds(&cid, ..=2);
-    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 0, 3)));
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 0, 2)));
+    let range = RangeQuery::from_range_bounds(&cid, 3..=0);
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 3, 0)));
     let range = RangeQuery::from_range_bounds(&cid, -1..);
     assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(-1), Bound::Included(0)));
     let range = RangeQuery::from_range_bounds(&cid, ..=-2);
@@ -544,7 +572,7 @@ mod test {
   }
 
   // -100..20 if latest is 100... would mean: 1..20
-  // but the intention is a decreasing range. so it should be 20..20
+  // but the intention is a decreasing range. so it should be 21..21
   // 20..-100 would mean 20..1 which is also not what we want
   // since the intention is an increasing range, so it should be 20..20
   #[test]
@@ -553,7 +581,11 @@ mod test {
     let cid = Cid::default();
     let range: RangeQuery = (cid.clone(), -100..20).into();
     let absolute = range.to_absolute(latest);
-    assert_eq!(absolute, AbsoluteRange::new(cid, 20, 20));
+    assert_eq!(absolute, AbsoluteRange::new(cid, 21, 21));
+
+    let range: RangeQuery = (cid.clone(), -1..=0).into();
+    let absolute = range.to_absolute(latest);
+    assert_eq!(absolute, AbsoluteRange::new(cid, 100, 0));
 
     let range: RangeQuery = (cid.clone(), 20..-100).into();
     let absolute = range.to_absolute(latest);
@@ -564,15 +596,15 @@ mod test {
   fn test_iter(){
     let range = AbsoluteRange::new(Cid::default(), 0, 100);
     let queries = range.into_iter().collect::<Vec<_>>();
-    assert_eq!(queries.len(), 100);
+    assert_eq!(queries.len(), 101);
     assert_eq!(queries[0], Query::Index(Cid::default(), 0));
-    assert_eq!(queries[99], Query::Index(Cid::default(), 99));
+    assert_eq!(queries[100], Query::Index(Cid::default(), 100));
 
     let range = AbsoluteRange::new(Cid::default(), 100, 0);
     let queries = range.into_iter().collect::<Vec<_>>();
-    assert_eq!(queries.len(), 100);
-    assert_eq!(queries[0], Query::Index(Cid::default(), 99));
-    assert_eq!(queries[99], Query::Index(Cid::default(), 0));
+    assert_eq!(queries.len(), 101);
+    assert_eq!(queries[0], Query::Index(Cid::default(), 100));
+    assert_eq!(queries[100], Query::Index(Cid::default(), 0));
   }
 
   #[test]
@@ -581,14 +613,40 @@ mod test {
     let batches = range.batches(100);
     let cid = Cid::default();
     assert_eq!(batches.len(), 2);
-    assert_eq!(batches[0], AbsoluteRange::new(cid.clone(), 101, 1));
+    assert_eq!(batches[0], AbsoluteRange::new(cid.clone(), 101, 2));
     assert_eq!(batches[1], AbsoluteRange::new(cid, 1, 0));
 
     let range = AbsoluteRange::new(Cid::default(), 0, 101);
     let batches = range.batches(100);
     let cid = Cid::default();
     assert_eq!(batches.len(), 2);
-    assert_eq!(batches[0], AbsoluteRange::new(cid.clone(), 0, 100));
+    assert_eq!(batches[0], AbsoluteRange::new(cid.clone(), 0, 99));
     assert_eq!(batches[1], AbsoluteRange::new(cid, 100, 101));
+  }
+
+  #[test]
+  fn test_to_absolute(){
+    let range: RangeQuery = (Cid::default(), -1..=2).into();
+    let absolute = range.to_absolute(10);
+    assert_eq!(absolute.start(), 10);
+    assert_eq!(absolute.end(), 2);
+    assert_eq!(absolute, AbsoluteRange::new(Cid::default(), 10, 2));
+  }
+
+  #[test]
+  fn test_to_from_string(){
+    let s = "bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune:0:=99";
+    let range: RangeQuery = s.parse().unwrap();
+    assert_eq!(range.to_absolute(0).len(), 100);
+    assert_eq!(&range.to_string(), s);
+
+    let s = "bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune:99:=0";
+    let range: RangeQuery = s.parse().unwrap();
+    assert_eq!(range.to_absolute(0).len(), 100);
+    assert_eq!(&range.to_string(), s);
+
+    let s = "bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune:-1:4";
+    let range: RangeQuery = s.parse().unwrap();
+    assert_eq!(&range.to_string(), s);
   }
 }

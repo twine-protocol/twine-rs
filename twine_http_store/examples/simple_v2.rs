@@ -11,14 +11,8 @@ use twine_core::store::Store;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-  let cfg = v1::HttpStoreOptions::default()
-    .url("https://random.colorado.edu/api");
-  let resolver = v1::HttpStore::new(reqwest::Client::new(), cfg);
-  // let resolver = MemoryCache::new(resolver);
-  // let store = HttpStore::new(
-  //   reqwest::Client::new(),
-  //   HttpStoreOptions::default().url("http://192.168.68.58:8787")
-  // );
+  let resolver = v2::HttpStore::new(reqwest::Client::new())
+    .with_url("http://localhost:8787");
   let store = twine_core::store::MemoryStore::new();
 
   println!("strands:");
@@ -34,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   })
   .for_each(|_| async {}).await;
 
-  let cid = Cid::try_from("bafyriqa5k2d3t3r774geicueaed2wc2fosjwqeexfhwbptfgq7rcn5mwucnhfeuxu2nxbrch3rl6yqjlozhuswo5ln3xwjm35iftt3tpqlcgs").unwrap();
+  let cid = Cid::try_from("bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune").unwrap();
   let twine = resolver.resolve_strand(cid).await?;
   println!("specific strand resolved: {}", twine.cid());
 
@@ -44,7 +38,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let latest = resolver.resolve_latest(&twine).await?;
   println!("latest: {}", latest.cid());
 
-  let twine_stream = resolver.resolve_range((&twine, 100..=0)).await?
+  store.save(twine.clone()).await?;
+  println!("saved twine");
+  let twine_stream = resolver.resolve_range((&twine, ..)).await?
     .inspect_ok(|twine| println!("index: {}, cid: {}", twine.index(), twine.cid()))
     .inspect_err(|err| eprintln!("error: {}", err))
     .filter_map(|twine| async {
@@ -53,8 +49,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   pin!(twine_stream);
 
-  store.save(twine.clone()).await?;
-  println!("saved twine");
   store.save_stream(twine_stream).await?;
 
   // try sequentially

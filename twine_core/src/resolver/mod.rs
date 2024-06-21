@@ -176,9 +176,9 @@ pub trait Resolver: BaseResolver + Send + Sync {
       return Ok::<_, ResolutionError>(futures::stream::once({
         let strand_cid = range.strand_cid().clone();
         async move {
-          let tixel = self.fetch_index(&strand_cid, range.start).await?;
-          if tixel.index() != range.start {
-            return Err(ResolutionError::Fetch("index mismatch".to_string()));
+          let tixel = self.fetch_index(&strand_cid, range.start()).await?;
+          if tixel.index() != range.start() {
+            return Err(ResolutionError::Fetch(format!("index mismatch (expected: {}, got: {})", tixel.index(), range.start())));
           }
           Twine::try_new_from_shared(latest.strand(), tixel).map_err(|e| e.into())
         }
@@ -190,7 +190,7 @@ pub trait Resolver: BaseResolver + Send + Sync {
       .map(move |(tixel, q)| {
         let tixel = tixel?;
         if tixel.index() != q.unwrap_index() as u64 {
-          return Err(ResolutionError::Fetch("index mismatch".to_string()));
+          return Err(ResolutionError::Fetch(format!("index mismatch (expected: {}, got: {})", q.unwrap_index(), tixel.index())));
         }
         Twine::try_new_from_shared(latest.strand(), tixel)
           .map_err(|e| e.into())
@@ -275,7 +275,7 @@ impl BaseResolver for Vec<Box<dyn BaseResolver>> {
   async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
     for resolver in self {
       // TODO: should find a way to merge streams
-      if resolver.has((range.strand, range.start)).await? {
+      if resolver.has((range.strand_cid(), range.start())).await? {
         if let Ok(stream) = resolver.range_stream(range.into()).await {
           return Ok(stream);
         }

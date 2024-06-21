@@ -225,11 +225,11 @@ impl BaseResolver for SledStore {
 
   async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
     use futures::stream::StreamExt;
-    let strand_cid = range.strand;
+    let strand_cid = range.strand_cid().clone();
     let (start, end) = if range.is_increasing() {
-      (range.start, range.end)
+      (range.start(), range.end() + 1)
     } else {
-      (range.end, range.start)
+      (range.end(), range.start() + 1)
     };
     let sled_range = get_index_key(&strand_cid, start)..get_index_key(&strand_cid, end);
     use either::Either;

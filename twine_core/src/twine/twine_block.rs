@@ -27,7 +27,7 @@ pub trait TwineBlock where Self: Sized {
   fn content_bytes(&self) -> Arc<[u8]>;
 
   /// Encode to pretty dag-json
-  fn to_dag_json_pretty(&self) -> String {
+  fn dag_json_pretty(&self) -> String {
     let json = self.dag_json();
     let j: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
     serde_json::to_string_pretty(&j).unwrap()
