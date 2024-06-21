@@ -22,16 +22,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     (_, 2) => log::LevelFilter::Debug,
     (_, _) => log::LevelFilter::Trace,
   };
-  let config = ConfigBuilder::new()
-    .set_time_level(log::LevelFilter::Debug)
-    .set_target_level(log::LevelFilter::Trace)
-    .set_location_level(log::LevelFilter::Off)
-    .set_max_level(log::LevelFilter::Debug)
-    .add_filter_ignore_str("reqwest")
-    .add_filter_ignore_str("sled")
-    .add_filter_ignore_str("hyper_util")
-    .add_filter_ignore_str("tokio_util")
-    .build();
+  let config = {
+    let mut c = ConfigBuilder::new();
+    c
+      .set_time_level(log::LevelFilter::Debug)
+      .set_target_level(log::LevelFilter::Trace)
+      .set_location_level(log::LevelFilter::Off)
+      .set_max_level(log::LevelFilter::Debug);
+
+    #[cfg(not(debug_assertions))]
+    {
+      c
+        .add_filter_ignore_str("reqwest")
+        .add_filter_ignore_str("sled")
+        .add_filter_ignore_str("hyper_util")
+        .add_filter_ignore_str("tokio_util");
+    }
+
+    c.build()
+  };
   let mode = simplelog::TerminalMode::Mixed;
   let color_choice = simplelog::ColorChoice::Auto;
   let logger = TermLogger::new(log_level, config, mode, color_choice);

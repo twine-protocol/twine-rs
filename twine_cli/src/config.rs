@@ -1,8 +1,9 @@
 use std::{collections::HashSet, hash::Hash, str::FromStr, sync::Arc};
+use futures::executor;
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use twine_core::resolver::BaseResolver;
-use twine_http_store::{v1::{HttpStore, HttpStoreOptions}, reqwest};
+use twine_http_store::reqwest;
 use twine_sled_store::{SledStore, SledStoreOptions, sled};
 
 use crate::cid_str::CidStr;
@@ -19,30 +20,60 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ResolverKind {
+  HttpV1,
+  HttpV2,
+  Sled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct ResolverRecord {
   pub uri: String,
+  pub kind: ResolverKind,
   pub name: Option<String>,
   pub priority: Option<u8>,
   pub default: bool,
 }
 
 impl ResolverRecord {
-  pub(crate) fn as_resolver(&self) -> Result<Box<dyn BaseResolver>> {
-    match self.uri.split("://").next().unwrap_or_default() {
+  pub(crate) fn try_new(uri: String, name: Option<String>, priority: Option<u8>, default: bool) -> Result<Self> {
+    // determine the kind
+    let kind = match uri.split("://").next().unwrap_or_default() {
       "http"|"https" => {
-        let cfg = HttpStoreOptions::default()
+        executor::block_on(twine_http_store::determine_version(&uri)).map_or(ResolverKind::HttpV1, |v| {
+          if v == 2 {
+            ResolverKind::HttpV2
+          } else {
+            ResolverKind::HttpV1
+          }
+        })
+      },
+      "sled" => ResolverKind::Sled,
+      _ => return Err(anyhow::anyhow!("Unknown resolver type: {}", uri)),
+    };
+    Ok(Self { uri, kind, name, priority, default })
+  }
+
+  pub(crate) fn as_resolver(&self) -> Result<Box<dyn BaseResolver>> {
+    match self.kind {
+      ResolverKind::HttpV1 => {
+        let cfg = twine_http_store::v1::HttpStoreOptions::default()
           .concurency(20)
           .url(&self.uri);
-        let r = HttpStore::new(reqwest::Client::new(), cfg);
+        let r = twine_http_store::v1::HttpStore::new(reqwest::Client::new(), cfg);
         Ok(Box::new(r))
       },
-      "sled" => {
+      ResolverKind::HttpV2 => {
+        let r = twine_http_store::v2::HttpStore::new(reqwest::Client::new())
+          .with_url(&self.uri);
+        Ok(Box::new(r))
+      },
+      ResolverKind::Sled => {
         let path = self.uri.split_at(5).1;
         let db = sled::Config::new().path(path).open()?;
         let r = SledStore::new(db, SledStoreOptions::default());
         Ok(Box::new(r))
       },
-      _ => Err(anyhow::anyhow!("Unknown resolver type: {}", self.uri)),
     }
   }
 }
@@ -82,7 +113,7 @@ impl FromStr for ResolverRecord {
   type Err = anyhow::Error;
 
   fn from_str(s: &str) -> Result<Self> {
-    Ok(ResolverRecord { uri: s.to_string(), name: None, priority: None, default: false })
+    ResolverRecord::try_new(s.to_string(), None, None, false)
   }
 }
 
@@ -112,7 +143,7 @@ impl Resolvers {
       log::warn!("Using HTTP without TLS is insecure. Consider using HTTPS.");
     }
 
-    let mut record = ResolverRecord { uri, name, priority, default };
+    let mut record = ResolverRecord::try_new(uri, name, priority, default)?;
     let existing = self.0.get(&record).clone();
     if let Some(existing) = existing {
       record.priority = record.priority.or(existing.priority);

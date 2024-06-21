@@ -12,7 +12,7 @@ use twine_core::store::Store;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let resolver = v2::HttpStore::new(reqwest::Client::new())
-    .with_url("http://localhost:8787");
+    .with_url("http://localhost:8787/");
   let store = twine_core::store::MemoryStore::new();
 
   println!("strands:");

@@ -232,30 +232,57 @@ impl<T> std::ops::Deref for ResolverSetSeries<T> where T: BaseResolver {
 #[async_trait]
 impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
-    for resolver in self.iter() {
-      if resolver.has_index(strand, index).await? {
-        return Ok(true);
-      }
-    }
-    Ok(false)
+    let res = futures::stream::iter(self.iter())
+      .then(|r| r.has_index(strand, index))
+      .boxed()
+      .any(|res| {
+        match res {
+          Ok(true) => futures::future::ready(true),
+          Ok(false) => futures::future::ready(false),
+          Err(e) => {
+            log::debug!("error from resolver while executing has_index: {}", e);
+            futures::future::ready(false)
+          },
+        }
+      })
+      .await;
+    Ok(res)
   }
 
   async fn has_twine(&self, strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
-    for resolver in self.iter() {
-      if resolver.has_twine(strand, cid).await? {
-        return Ok(true);
-      }
-    }
-    Ok(false)
+    let res = futures::stream::iter(self.iter())
+      .then(|r| r.has_twine(strand, cid))
+      .boxed()
+      .any(|res| {
+        match res {
+          Ok(true) => futures::future::ready(true),
+          Ok(false) => futures::future::ready(false),
+          Err(e) => {
+            log::debug!("error from resolver while executing has_twine: {}", e);
+            futures::future::ready(false)
+          },
+        }
+      })
+      .await;
+    Ok(res)
   }
 
   async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError> {
-    for resolver in self.iter() {
-      if resolver.has_strand(cid).await? {
-        return Ok(true);
-      }
-    }
-    Ok(false)
+    let res = futures::stream::iter(self.iter())
+      .then(|r| r.has_strand(cid))
+      .boxed()
+      .any(|res| {
+        match res {
+          Ok(true) => futures::future::ready(true),
+          Ok(false) => futures::future::ready(false),
+          Err(e) => {
+            log::debug!("error from resolver while executing has_strand: {}", e);
+            futures::future::ready(false)
+          },
+        }
+      })
+      .await;
+    Ok(res)
   }
 
   async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
@@ -329,12 +356,14 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
         seen.insert(strand.cid());
         ready(Some(Ok(Some(strand))))
       })
-      // TODO: maybe log error?
       .filter_map(|res| async move {
         match res {
           Ok(Some(s)) => Some(Ok(s)),
           Ok(None) => None,
-          Err(_) => None,
+          Err(e) => {
+            log::debug!("error from resolver while executing strands(): {}", e);
+            None
+          },
         }
       })
       .boxed();

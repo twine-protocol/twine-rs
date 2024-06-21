@@ -142,7 +142,7 @@ impl HttpStore {
         } else if e.is_timeout() {
           true
         } else if e.is_connect() {
-          true
+          false
         } else {
           false
         }
@@ -312,24 +312,24 @@ impl BaseResolver for HttpStore {
 impl Resolver for HttpStore {
   async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<Twine, ResolutionError> {
     let q = Query::from(*strand.as_cid());
-    let path = format!("{}?full", q);
-    let response = self.send(self.get(&path)).await?;
+    let path = format!("{}", q);
+    let response = self.send(self.get(&path).query(&[("full", "")])).await?;
     let twine = self.twine_from_response(response).await?;
     Ok(twine)
   }
 
   async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError> {
     let q = Query::from((strand.as_cid(), index));
-    let path = format!("{}?full", q);
-    let response = self.send(self.get(&path)).await?;
+    let path = format!("{}", q);
+    let response = self.send(self.get(&path).query(&[("full", "")])).await?;
     let twine = self.twine_from_response(response).await?;
     Ok(twine)
   }
 
   async fn resolve_stitch<C: AsCid + Send>(&self, strand: C, tixel: C) -> Result<Twine, ResolutionError> {
     let q = Query::from((strand.as_cid(), tixel.as_cid()));
-    let path = format!("{}?full", q);
-    let response = self.send(self.get(&path)).await?;
+    let path = format!("{}", q);
+    let response = self.send(self.get(&path).query(&[("full", "")])).await?;
     let twine = self.twine_from_response(response).await?;
     Ok(twine)
   }

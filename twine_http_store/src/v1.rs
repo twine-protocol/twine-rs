@@ -91,7 +91,7 @@ impl HttpStore {
         } else if e.is_timeout() {
           true
         } else if e.is_connect() {
-          true
+          false
         } else {
           false
         }

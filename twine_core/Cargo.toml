@@ -9,6 +9,7 @@ default = []
 # v2
 
 [dependencies]
+log = "0.4"
 serde = { version = "1.0.152", features = ["rc"] }
 # josekit = "0.8.2"
 biscuit = "0.7.0"
