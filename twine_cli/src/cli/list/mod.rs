@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use clap::Parser;
 use anyhow::Result;
-use twine_core::{errors::ResolutionError, resolver::{Query, RangeQuery, Resolver}, twine::{Strand, Twine}, Cid, Ipld};
+use twine_core::{errors::ResolutionError, resolver::{Query, RangeQuery, Resolver, ResolverSetSeries}, twine::{Strand, Twine}, Cid, Ipld};
 use futures::stream::{Stream, StreamExt, TryStreamExt};
 use num_format::{ToFormattedString, SystemLocale};
 use crate::selector::{Selector, parse_selector};
@@ -85,7 +85,7 @@ impl ListCommand {
     log::trace!("List: {:?}", self);
 
     let store = config.get_local_store()?;
-    let resolver = vec![Box::new(store), config.get_resolver(&self.resolver)?];
+    let resolver = ResolverSetSeries::new(vec![Box::new(store), config.get_resolver(&self.resolver)?]);
 
     match &self.selector {
       Some(selector) => match selector {

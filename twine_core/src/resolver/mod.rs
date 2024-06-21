@@ -201,10 +201,27 @@ pub trait Resolver: BaseResolver + Send + Sync {
 
 impl<R> Resolver for R where R: BaseResolver {}
 
+#[derive(Clone)]
+pub struct ResolverSetSeries<T>(Vec<T>) where T: BaseResolver;
+
+impl<T> ResolverSetSeries<T> where T: BaseResolver {
+  pub fn new(resolvers: Vec<T>) -> Self {
+    Self(resolvers)
+  }
+}
+
+impl<T> std::ops::Deref for ResolverSetSeries<T> where T: BaseResolver {
+  type Target = Vec<T>;
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
+
 #[async_trait]
-impl BaseResolver for Vec<Box<dyn BaseResolver>> {
+impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
-    for resolver in self {
+    for resolver in self.iter() {
       if resolver.has_index(strand, index).await? {
         return Ok(true);
       }
@@ -213,7 +230,7 @@ impl BaseResolver for Vec<Box<dyn BaseResolver>> {
   }
 
   async fn has_twine(&self, strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
-    for resolver in self {
+    for resolver in self.iter() {
       if resolver.has_twine(strand, cid).await? {
         return Ok(true);
       }
@@ -222,7 +239,7 @@ impl BaseResolver for Vec<Box<dyn BaseResolver>> {
   }
 
   async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError> {
-    for resolver in self {
+    for resolver in self.iter() {
       if resolver.has_strand(cid).await? {
         return Ok(true);
       }
@@ -246,7 +263,7 @@ impl BaseResolver for Vec<Box<dyn BaseResolver>> {
   }
 
   async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
-    for resolver in self {
+    for resolver in self.iter() {
       if let Ok(tixel) = resolver.fetch_index(strand, index).await {
         return Ok(tixel);
       }
@@ -255,7 +272,7 @@ impl BaseResolver for Vec<Box<dyn BaseResolver>> {
   }
 
   async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
-    for resolver in self {
+    for resolver in self.iter() {
       if let Ok(t) = resolver.fetch_tixel(strand, tixel).await {
         return Ok(t);
       }
@@ -264,7 +281,7 @@ impl BaseResolver for Vec<Box<dyn BaseResolver>> {
   }
 
   async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
-    for resolver in self {
+    for resolver in self.iter() {
       if let Ok(s) = resolver.fetch_strand(strand).await {
         return Ok(s);
       }
@@ -273,7 +290,7 @@ impl BaseResolver for Vec<Box<dyn BaseResolver>> {
   }
 
   async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
-    for resolver in self {
+    for resolver in self.iter() {
       // TODO: should find a way to merge streams
       if resolver.has((range.strand_cid(), range.start)).await? {
         if let Ok(stream) = resolver.range_stream(range.into()).await {
