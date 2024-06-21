@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use futures::Stream;
 use crate::Cid;
 use crate::errors::{ResolutionError, StoreError};
-use crate::resolver::{AbsoluteRange, BaseResolver};
+use crate::resolver::{AbsoluteRange, BaseResolver, Resolver};
 use crate::twine::{Strand, Tixel};
 use super::Store;
 use crate::as_cid::AsCid;
@@ -125,6 +125,8 @@ impl BaseResolver for MemoryStore {
     }
   }
 }
+
+impl Resolver for MemoryStore {}
 
 #[async_trait]
 impl Store for MemoryStore {

@@ -6,7 +6,7 @@ use zerocopy::FromZeroes;
 use std::collections::{HashMap, HashSet};
 use std::{pin::Pin, sync::Arc};
 use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, Cid};
-use twine_core::resolver::{AbsoluteRange, BaseResolver};
+use twine_core::resolver::{AbsoluteRange, BaseResolver, Resolver};
 use sled::Db;
 use zerocopy::{
   byteorder::{U64, BigEndian}, AsBytes, FromBytes, Unaligned,
@@ -246,6 +246,8 @@ impl BaseResolver for SledStore {
     Ok(stream.boxed())
   }
 }
+
+impl Resolver for SledStore {}
 
 #[async_trait]
 impl Store for SledStore {

@@ -4,7 +4,7 @@ use reqwest::{header::{ACCEPT, CONTENT_TYPE}, StatusCode, Url};
 use fvm_ipld_car::CarReader;
 use std::{pin::Pin, sync::Arc};
 use std::time::Duration;
-use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, Cid, resolver::AbsoluteRange};
+use twine_core::{as_cid::AsCid, errors::*, resolver::{AbsoluteRange, Resolver}, store::Store, twine::{TwineBlock, *}, Cid};
 use twine_core::resolver::BaseResolver;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -314,6 +314,8 @@ impl BaseResolver for HttpStore {
     Ok(stream.boxed())
   }
 }
+
+impl Resolver for HttpStore {}
 
 #[async_trait]
 impl Store for HttpStore {

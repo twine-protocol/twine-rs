@@ -66,6 +66,8 @@ impl<'r> BaseResolver for Box<dyn BaseResolver + 'r> {
   }
 }
 
+impl<'r> Resolver for Box<dyn BaseResolver + 'r> {}
+
 #[async_trait]
 impl<T> BaseResolver for Arc<T> where T: BaseResolver {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
@@ -103,8 +105,9 @@ impl<T> BaseResolver for Arc<T> where T: BaseResolver {
   async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
     self.as_ref().strands().await
   }
-
 }
+
+impl<T> Resolver for Arc<T> where T: BaseResolver {}
 
 #[async_trait]
 pub trait Resolver: BaseResolver + Send + Sync {
@@ -112,8 +115,11 @@ pub trait Resolver: BaseResolver + Send + Sync {
     let query = query.into();
     match query {
       Query::Stitch(stitch) => {
-        self.resolve_twine(stitch.strand, stitch.tixel).await
-      }
+        self.resolve_stitch(stitch.strand, stitch.tixel).await
+      },
+      Query::Index(strand, index) if index == -1 => {
+        self.resolve_latest(strand).await
+      },
       Query::Index(strand, index) => {
         let index = match index {
           i if i < 0 => self.fetch_latest(strand.as_cid()).await?.index() as i64 + i + 1,
@@ -130,7 +136,14 @@ pub trait Resolver: BaseResolver + Send + Sync {
     match query {
       Query::Stitch(stitch) => {
         self.has_twine(stitch.strand.as_cid(), stitch.tixel.as_cid()).await
-      }
+      },
+      Query::Index(strand, index) if index == -1 => {
+        match self.fetch_latest(strand.as_cid()).await {
+          Ok(_) => Ok(true),
+          Err(ResolutionError::NotFound) => Ok(false),
+          Err(e) => Err(e),
+        }
+      },
       Query::Index(strand, index) => {
         let index = match index {
           i if i < 0 => self.fetch_latest(strand.as_cid()).await?.index() as i64 + i + 1,
@@ -158,7 +171,7 @@ pub trait Resolver: BaseResolver + Send + Sync {
     Ok(Twine::try_new_from_shared(strand?, tixel?)?)
   }
 
-  async fn resolve_twine<C: AsCid + Send>(&self, strand: C, tixel: C) -> Result<Twine, ResolutionError> {
+  async fn resolve_stitch<C: AsCid + Send>(&self, strand: C, tixel: C) -> Result<Twine, ResolutionError> {
     use futures::join;
     let (strand, tixel) = join!(self.fetch_strand(&strand.as_cid()), self.fetch_tixel(&strand.as_cid(), &tixel.as_cid()));
     Ok(Twine::try_new_from_shared(strand?, tixel?)?)
@@ -198,8 +211,6 @@ pub trait Resolver: BaseResolver + Send + Sync {
     Ok(stream.boxed())
   }
 }
-
-impl<R> Resolver for R where R: BaseResolver {}
 
 #[derive(Clone)]
 pub struct ResolverSetSeries<T>(Vec<T>) where T: BaseResolver;
@@ -292,7 +303,7 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
   async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
     for resolver in self.iter() {
       // TODO: should find a way to merge streams
-      if resolver.has((range.strand_cid(), range.start)).await? {
+      if resolver.has_index(range.strand_cid(), range.start).await? {
         if let Ok(stream) = resolver.range_stream(range.into()).await {
           return Ok(stream);
         }
@@ -331,3 +342,5 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
     Ok(stream)
   }
 }
+
+impl<T> Resolver for ResolverSetSeries<T> where T: BaseResolver {}

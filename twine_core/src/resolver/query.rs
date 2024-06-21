@@ -59,7 +59,11 @@ impl<C> From<(C, u64)> for Query where C: AsCid {
 
 impl<C> From<(C, i64)> for Query where C: AsCid {
   fn from((strand, index): (C, i64)) -> Self {
-    Self::Index(strand.as_cid().clone(), index)
+    if index == -1 {
+      Self::Latest(strand.as_cid().clone())
+    } else {
+      Self::Index(strand.as_cid().clone(), index)
+    }
   }
 }
 
