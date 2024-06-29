@@ -1,23 +1,23 @@
 use clap::{Subcommand, Parser};
 use anyhow::Result;
 
-fn print_resolvers(resolvers: &crate::config::Resolvers) {
-  if resolvers.len() == 0 {
-    println!("No resolvers configured");
+fn print_stores(stores: &crate::config::Stores) {
+  if stores.len() == 0 {
+    println!("No stores configured");
     return;
   }
-  for (index, resolver) in resolvers.iter().enumerate() {
-    let default = if resolver.default {
+  for (index, store) in stores.iter().enumerate() {
+    let default = if store.default {
       " (default)"
     } else {
       ""
     };
-    println!("[ {} ] (p{}) {}{}{}", index, resolver.priority.unwrap_or(0), resolver.uri, resolver.name.as_ref().map(|n| format!(" ({})", n)).unwrap_or_default(), default);
+    println!("[ {} ] {}{}{}", index, store.uri, store.name.as_ref().map(|n| format!(" ({})", n)).unwrap_or_default(), default);
   }
 }
 
 #[derive(Debug, Parser)]
-pub struct ResolverCommand {
+pub struct StoreCommand {
   #[command(subcommand)]
   pub subcommand: Commands,
 }
@@ -31,7 +31,7 @@ pub enum Commands {
   List(list::ListCommand),
 }
 
-impl ResolverCommand {
+impl StoreCommand {
   pub fn run(&self, config: &mut crate::config::Config, ctx: crate::Context) -> Result<()> {
     match &self.subcommand {
       Commands::Add(add) => {
@@ -52,22 +52,19 @@ mod add {
 
   #[derive(Debug, Parser)]
   pub struct AddCommand {
-    /// URI of the resolver (e.g. "http://localhost:8080/api/v0")
+    /// URI of the store (e.g. "http://localhost:8080/api/v0")
     pub uri: String,
-    /// Optional name for the resolver
+    /// Optional name for the store
     #[arg(short, long)]
     pub name: Option<String>,
-    /// Set this resolver as the default
+    /// Set this store as the default remote store for push
     #[arg(short, long)]
     pub default: bool,
-    /// Priority of the resolver (higher priority resolves earlier)
-    #[arg(short, long)]
-    pub priority: Option<u8>,
   }
 
   impl AddCommand {
     pub fn run(&self, config: &mut crate::config::Config, _ctx: crate::Context) -> Result<()> {
-      config.resolvers.add_resolver(self.uri.clone(), self.name.clone(), self.priority, self.default)?;
+      config.stores.add_store(self.uri.clone(), self.name.clone(), self.default)?;
       Ok(())
     }
   }
@@ -83,8 +80,8 @@ mod remove {
 
   impl RemoveCommand {
     pub fn run(&self, config: &mut crate::config::Config, _ctx: crate::Context) -> Result<()> {
-      config.resolvers.remove_resolver(&self.uri_or_name)?;
-      log::info!("Removed resolver {}", self.uri_or_name);
+      config.stores.remove_store(&self.uri_or_name)?;
+      log::info!("Removed store {}", self.uri_or_name);
       Ok(())
     }
   }
@@ -98,7 +95,7 @@ mod list {
 
   impl ListCommand {
     pub fn run(&self, config: &crate::config::Config, _ctx: crate::Context) -> Result<()> {
-      print_resolvers(&config.resolvers);
+      print_stores(&config.stores);
       Ok(())
     }
   }

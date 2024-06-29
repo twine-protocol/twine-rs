@@ -1,23 +1,10 @@
-use std::{collections::HashSet, hash::Hash, str::FromStr, sync::Arc};
+use std::{collections::HashSet, hash::Hash, str::FromStr};
 use futures::executor;
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use twine_core::resolver::BaseResolver;
 use twine_http_store::reqwest;
 use twine_sled_store::{SledStore, SledStoreOptions, sled};
-
-use crate::cid_str::CidStr;
-
-lazy_static::lazy_static! {
-  static ref STORE: Arc<SledStore> = {
-    let proj = directories::ProjectDirs::from("rs", "twine", "twine_cli")
-      .expect("Could not determine local store path");
-    let path = proj.data_dir().join("local_store");
-    log::trace!("Using local store at: {:?}", path);
-    let db = sled::Config::new().path(path).open().expect("Failed to open local store");
-    Arc::new(SledStore::new(db, SledStoreOptions::default()))
-  };
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ResolverKind {
@@ -137,6 +124,11 @@ impl Resolvers {
       if self.0.iter().any(|r| r.name.as_deref() == Some(name)) {
         return Err(anyhow::anyhow!("Resolver with name {} already exists", name));
       }
+
+      // can't be named "local"
+      if name == "local" {
+        return Err(anyhow::anyhow!("Resolver name cannot be 'local'"));
+      }
     }
 
     if uri.starts_with("http:") {
@@ -209,79 +201,4 @@ impl Resolvers {
   pub(crate) fn len(&self) -> usize {
     self.0.len()
   }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct Config {
-  pub resolvers: Resolvers,
-  #[serde(default)]
-  pub sync_strands: HashSet<CidStr>,
-}
-
-impl Default for Config {
-  fn default() -> Self {
-    Self {
-      resolvers: Resolvers::default(),
-      sync_strands: HashSet::new(),
-    }
-  }
-}
-
-impl Config {
-
-  pub(crate) fn get_resolver(&self, name_or_uri: &Option<String>) -> Result<Box<dyn BaseResolver>> {
-    let r = match name_or_uri.as_deref() {
-      Some("local") => {
-        let store = self.get_local_store()?;
-        return Ok(Box::new(store));
-      },
-      Some(resolver) => {
-        match self.resolvers.get(&resolver) {
-          Some(r) => r,
-          None if resolver.contains("/") => {
-            // try to interpret it as a uri
-            let r = resolver.parse::<ResolverRecord>()?;
-            return r.as_resolver();
-          },
-          None => {
-            return Err(anyhow::anyhow!("Resolver {} not found", resolver));
-          }
-        }
-      },
-      None => self.resolvers.get_default().ok_or(anyhow::anyhow!("No default resolver set. Please specify a resolver with -r"))?,
-    };
-    log::trace!("Using resolver: {:?}", r);
-    r.as_resolver()
-  }
-
-  pub(crate) fn get_local_store(&self) -> Result<Arc<SledStore>> {
-    Ok(STORE.clone())
-  }
-
-  #[cfg(debug_assertions)]
-  pub(crate) fn save(&self) -> Result<()> {
-    use std::env::temp_dir;
-    let tmpdir = temp_dir();
-    confy::store_path(tmpdir.join("config.toml"), self)?;
-    Ok(())
-  }
-
-  #[cfg(not(debug_assertions))]
-  pub(crate) fn save(&self) -> Result<()> {
-    confy::store("twine_cli", Some("config"), self)?;
-    Ok(())
-  }
-}
-
-#[cfg(debug_assertions)]
-pub(crate) fn load_config() -> Result<Config> {
-  use std::env::temp_dir;
-  let tmpdir = temp_dir();
-  log::debug!("Loading config from: {:?}", tmpdir.join("config.toml"));
-  Ok(confy::load_path(tmpdir.join("config.toml"))?)
-}
-
-#[cfg(not(debug_assertions))]
-pub(crate) fn load_config() -> Result<Config> {
-  Ok(confy::load("twine_cli", Some("config"))?)
 }

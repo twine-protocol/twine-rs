@@ -26,7 +26,7 @@ impl Signer for Ed25519KeyPair {
 
   fn public_key(&self) -> Self::Key {
     PublicKey {
-      alg: SignatureAlgorithm::ED25519,
+      alg: SignatureAlgorithm::Ed25519,
       key: ring::signature::KeyPair::public_key(self).as_ref().into(),
     }
   }

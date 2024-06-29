@@ -51,7 +51,7 @@ impl PullCommand {
         }
       },
       None => {
-        config.sync_strands.iter().map(|cid| (cid, ..).into()).collect::<Vec<RangeQuery>>()
+        config.sync_strands().map(|cid| (cid, ..).into()).collect::<Vec<RangeQuery>>()
       }
     };
 

@@ -92,6 +92,10 @@ fn get_strand_from_key(key: &[u8]) -> Cid {
 }
 
 impl SledStore {
+  pub fn flush(&self) -> sled::Result<usize> {
+    self.db.flush()
+  }
+
   async fn get(&self, cid: &Cid) -> Result<AnyTwine, ResolutionError> {
     let bytes = self.db.get(cid.to_bytes())
       .map_err(|e| ResolutionError::Fetch(e.to_string()))?

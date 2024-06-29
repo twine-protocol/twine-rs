@@ -1,4 +1,5 @@
 use std::vec;
+use pkcs8::{DecodePrivateKey, SecretDocument};
 use twine_core::crypto::{PublicKey, Signature, SignatureAlgorithm};
 
 use crate::{Signer, SigningError};
@@ -13,86 +14,86 @@ pub struct RingSigner {
   alg: SignatureAlgorithm,
   keypair: Keys,
   rng: ring::rand::SystemRandom,
-  pkcs8: Vec<u8>,
+  pkcs8: SecretDocument,
 }
 
 impl RingSigner {
-  pub fn new<T: AsRef<[u8]>>(alg: SignatureAlgorithm, pkcs8: T) -> Result<Self, ring::error::KeyRejected> {
+  pub fn new(alg: SignatureAlgorithm, pkcs8: SecretDocument) -> Result<Self, ring::error::KeyRejected> {
     let signer = match alg {
-      SignatureAlgorithm::ED25519 => {
-        let keypair = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref())?;
+      SignatureAlgorithm::Ed25519 => {
+        let keypair = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_bytes())?;
         Self {
           alg,
           keypair: Keys::Ed25519(keypair),
           rng: ring::rand::SystemRandom::new(),
-          pkcs8: pkcs8.as_ref().to_vec(),
+          pkcs8,
         }
       },
       SignatureAlgorithm::EcdsaP256 => {
         let rng = ring::rand::SystemRandom::new();
         let keypair = ring::signature::EcdsaKeyPair::from_pkcs8(
           &ring::signature::ECDSA_P256_SHA256_ASN1_SIGNING,
-          pkcs8.as_ref(),
+          pkcs8.as_bytes(),
           &rng
         )?;
         Self {
           alg,
           keypair: Keys::Ecdsa(keypair),
           rng,
-          pkcs8: pkcs8.as_ref().to_vec(),
+          pkcs8: pkcs8,
         }
       },
       SignatureAlgorithm::EcdsaP384 => {
         let rng = ring::rand::SystemRandom::new();
         let keypair = ring::signature::EcdsaKeyPair::from_pkcs8(
           &ring::signature::ECDSA_P384_SHA384_ASN1_SIGNING,
-          pkcs8.as_ref(),
+          pkcs8.as_bytes(),
           &rng
         )?;
         Self {
           alg,
           keypair: Keys::Ecdsa(keypair),
           rng,
-          pkcs8: pkcs8.as_ref().to_vec(),
+          pkcs8,
         }
       },
       SignatureAlgorithm::Sha256Rsa(bitsize) => {
         let rng = ring::rand::SystemRandom::new();
         let keypair = ring::signature::RsaKeyPair::from_pkcs8(
-          pkcs8.as_ref(),
+          pkcs8.as_bytes(),
         )?;
-        assert!(bitsize == keypair.public().modulus_len());
+        assert_eq!(bitsize, keypair.public().modulus_len() * 8);
         Self {
           alg,
           keypair: Keys::Rsa(keypair),
           rng,
-          pkcs8: pkcs8.as_ref().to_vec(),
+          pkcs8,
         }
       },
       SignatureAlgorithm::Sha384Rsa(bitsize) => {
         let rng = ring::rand::SystemRandom::new();
         let keypair = ring::signature::RsaKeyPair::from_pkcs8(
-          pkcs8.as_ref(),
+          pkcs8.as_bytes(),
         )?;
-        assert!(bitsize == keypair.public().modulus_len());
+        assert_eq!(bitsize, keypair.public().modulus_len() * 8);
         Self {
           alg,
           keypair: Keys::Rsa(keypair),
           rng,
-          pkcs8: pkcs8.as_ref().to_vec(),
+          pkcs8,
         }
       },
       SignatureAlgorithm::Sha512Rsa(bitsize) => {
         let rng = ring::rand::SystemRandom::new();
         let keypair = ring::signature::RsaKeyPair::from_pkcs8(
-          pkcs8.as_ref(),
+          pkcs8.as_bytes(),
         )?;
-        assert!(bitsize == keypair.public().modulus_len());
+        assert_eq!(bitsize, keypair.public().modulus_len() * 8);
         Self {
           alg,
           keypair: Keys::Rsa(keypair),
           rng,
-          pkcs8: pkcs8.as_ref().to_vec(),
+          pkcs8,
         }
       },
       _ => panic!("Unsupported algorithm")
@@ -101,7 +102,7 @@ impl RingSigner {
     Ok(signer)
   }
 
-  pub fn pkcs8(&self) -> &[u8] {
+  pub fn pkcs8(&self) -> &SecretDocument {
     &self.pkcs8
   }
 
@@ -110,7 +111,7 @@ impl RingSigner {
     let keypair = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), bitsize)?;
     use rsa::pkcs8::EncodePrivateKey;
     let pkcs8 = keypair.to_pkcs8_der()?;
-    Ok(Self::new(SignatureAlgorithm::Sha256Rsa(bitsize), pkcs8.as_bytes()).unwrap())
+    Ok(Self::new(SignatureAlgorithm::Sha256Rsa(bitsize), pkcs8).unwrap())
   }
 
   #[cfg(feature = "rsa")]
@@ -118,7 +119,15 @@ impl RingSigner {
     let keypair = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), bitsize)?;
     use rsa::pkcs8::EncodePrivateKey;
     let pkcs8 = keypair.to_pkcs8_der()?;
-    Ok(Self::new(SignatureAlgorithm::Sha384Rsa(bitsize), pkcs8.as_bytes()).unwrap())
+    Ok(Self::new(SignatureAlgorithm::Sha384Rsa(bitsize), pkcs8).unwrap())
+  }
+
+  #[cfg(feature = "rsa")]
+  pub fn generate_rs512(bitsize: usize) -> rsa::Result<Self> {
+    let keypair = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), bitsize)?;
+    use rsa::pkcs8::EncodePrivateKey;
+    let pkcs8 = keypair.to_pkcs8_der()?;
+    Ok(Self::new(SignatureAlgorithm::Sha512Rsa(bitsize), pkcs8).unwrap())
   }
 
   pub fn generate_p256() -> Result<Self, ring::error::Unspecified> {
@@ -127,7 +136,8 @@ impl RingSigner {
       &ring::signature::ECDSA_P256_SHA256_ASN1_SIGNING,
       &rng
     )?;
-    Ok(Self::new(SignatureAlgorithm::EcdsaP256, keypair.as_ref()).unwrap())
+    let pkcs8 = SecretDocument::from_pkcs8_der(keypair.as_ref()).unwrap();
+    Ok(Self::new(SignatureAlgorithm::EcdsaP256, pkcs8).unwrap())
   }
 
   pub fn generate_p384() -> Result<Self, ring::error::Unspecified> {
@@ -136,13 +146,15 @@ impl RingSigner {
       &ring::signature::ECDSA_P384_SHA384_ASN1_SIGNING,
       &rng
     )?;
-    Ok(Self::new(SignatureAlgorithm::EcdsaP384, keypair.as_ref()).unwrap())
+    let pkcs8 = SecretDocument::from_pkcs8_der(keypair.as_ref()).unwrap();
+    Ok(Self::new(SignatureAlgorithm::EcdsaP384, pkcs8).unwrap())
   }
 
   pub fn generate_ed25519() -> Result<Self, ring::error::Unspecified> {
     let rng = ring::rand::SystemRandom::new();
     let keypair = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng)?;
-    Ok(Self::new(SignatureAlgorithm::ED25519, keypair.as_ref()).unwrap())
+    let pkcs8 = SecretDocument::from_pkcs8_der(keypair.as_ref()).unwrap();
+    Ok(Self::new(SignatureAlgorithm::Ed25519, pkcs8).unwrap())
   }
 }
 
@@ -178,7 +190,7 @@ impl Signer for RingSigner {
     match &self.keypair {
       Keys::Ed25519(keypair) => {
         PublicKey {
-          alg: SignatureAlgorithm::ED25519,
+          alg: SignatureAlgorithm::Ed25519,
           key: ring::signature::KeyPair::public_key(keypair).as_ref().into(),
         }
       },
@@ -208,3 +220,4 @@ impl Signer for RingSigner {
     }
   }
 }
+

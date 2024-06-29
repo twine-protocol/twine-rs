@@ -1,9 +1,12 @@
 use anyhow::Result;
 use clap::{Subcommand, Parser};
 mod resolver;
+mod store;
 mod list;
 mod pull;
 mod sync;
+mod create;
+mod strand;
 
 #[derive(Debug, Parser)]
 #[command(version, about)]
@@ -23,6 +26,9 @@ pub enum SubCommands {
   /// Manage resolvers
   #[clap(alias = "resolvers")]
   Resolver(resolver::ResolverCommand),
+  /// Manage stores
+  #[clap(alias = "stores")]
+  Store(store::StoreCommand),
   /// List strands
   Ls(list::ListCommand),
   /// Retrieve and store twines locally
@@ -31,6 +37,12 @@ pub enum SubCommands {
   Sync(sync::SyncCommand),
   /// Unsync a strand
   Unsync(sync::UnSyncCommand),
+  /// Create a strand
+  Create(create::CreateCommand),
+  /// Show local strands
+  #[clap(alias = "strands")]
+  Strand(strand::StrandCommand),
+
 }
 
 impl Cli {
@@ -38,6 +50,9 @@ impl Cli {
     match &self.subcommand {
       SubCommands::Resolver(resolver) => {
         resolver.run(config, ctx)
+      },
+      SubCommands::Store(store) => {
+        store.run(config, ctx)
       },
       SubCommands::Ls(ls) => {
         ls.run(config, ctx).await
@@ -50,6 +65,12 @@ impl Cli {
       },
       SubCommands::Unsync(unsync) => {
         unsync.run(config, ctx).await
+      },
+      SubCommands::Create(create) => {
+        create.run(config, ctx).await
+      },
+      SubCommands::Strand(strand) => {
+        strand.run(config, ctx).await
       },
     }
   }

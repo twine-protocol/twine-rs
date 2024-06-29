@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, str::FromStr};
 use biscuit::jwk::JWK;
 use serde::{Deserialize, Serialize};
 use crate::{errors::VerificationError, Bytes};
@@ -18,7 +18,7 @@ pub enum SignatureAlgorithm {
   /// ECDSA P-384 sha384
   EcdsaP384,
   /// Ed25519 sha512
-  ED25519,
+  Ed25519,
 }
 
 impl Display for SignatureAlgorithm {
@@ -29,9 +29,40 @@ impl Display for SignatureAlgorithm {
       SignatureAlgorithm::Sha512Rsa(bitsize) => write!(f, "RSA {} SHA512", bitsize),
       SignatureAlgorithm::EcdsaP256 => write!(f, "ECDSA P-256 SHA256"),
       SignatureAlgorithm::EcdsaP384 => write!(f, "ECDSA P-384 SHA384"),
-      SignatureAlgorithm::ED25519 => write!(f, "Ed25519 SHA512"),
+      SignatureAlgorithm::Ed25519 => write!(f, "Ed25519 SHA512"),
     }
   }
+}
+
+impl FromStr for SignatureAlgorithm {
+  type Err = ();
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s.trim().to_uppercase().as_str() {
+      // standard
+      "RSA 2048 SHA256" => Ok(SignatureAlgorithm::Sha256Rsa(2048)),
+      "RSA 3072 SHA256" => Ok(SignatureAlgorithm::Sha256Rsa(3072)),
+      "RSA 4096 SHA256" => Ok(SignatureAlgorithm::Sha256Rsa(4096)),
+      "RSA 2048 SHA384" => Ok(SignatureAlgorithm::Sha384Rsa(2048)),
+      "RSA 3072 SHA384" => Ok(SignatureAlgorithm::Sha384Rsa(3072)),
+      "RSA 4096 SHA384" => Ok(SignatureAlgorithm::Sha384Rsa(4096)),
+      "RSA 2048 SHA512" => Ok(SignatureAlgorithm::Sha512Rsa(2048)),
+      "RSA 3072 SHA512" => Ok(SignatureAlgorithm::Sha512Rsa(3072)),
+      "RSA 4096 SHA512" => Ok(SignatureAlgorithm::Sha512Rsa(4096)),
+      "ECDSA P-256 SHA256" => Ok(SignatureAlgorithm::EcdsaP256),
+      "ECDSA P-384 SHA384" => Ok(SignatureAlgorithm::EcdsaP384),
+      "Ed25519 SHA512" => Ok(SignatureAlgorithm::Ed25519),
+      // shorthand
+      "RS256" => Ok(SignatureAlgorithm::Sha256Rsa(2048)),
+      "RS384" => Ok(SignatureAlgorithm::Sha384Rsa(2048)),
+      "RS512" => Ok(SignatureAlgorithm::Sha512Rsa(2048)),
+      "ES256" => Ok(SignatureAlgorithm::EcdsaP256),
+      "ES384" => Ok(SignatureAlgorithm::EcdsaP384),
+      "Ed25519" => Ok(SignatureAlgorithm::Ed25519),
+      _ => Err(()),
+    }
+  }
+
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -56,7 +87,7 @@ impl PublicKey {
       SignatureAlgorithm::EcdsaP256 | SignatureAlgorithm::EcdsaP384 => {
         self.verify_ecdsa(&signature, message.as_ref())
       },
-      SignatureAlgorithm::ED25519 => {
+      SignatureAlgorithm::Ed25519 => {
         self.verify_ed25519(&signature, message.as_ref())
       },
     }
@@ -180,7 +211,7 @@ mod test {
     let sig = key_pair.sign(MESSAGE);
     let sig_bytes = sig.as_ref().into();
 
-    let pk = PublicKey::new(SignatureAlgorithm::ED25519, Bytes::from(key_pair.public_key().as_ref()));
+    let pk = PublicKey::new(SignatureAlgorithm::Ed25519, Bytes::from(key_pair.public_key().as_ref()));
     pk.verify(sig_bytes, MESSAGE).unwrap();
   }
 }
