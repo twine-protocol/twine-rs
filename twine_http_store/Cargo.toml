@@ -2,6 +2,7 @@
 name = "twine_http_store"
 version = "0.0.1"
 edition = "2021"
+rust-version = "1.78"
 
 [dependencies]
 twine_core = { path = "../twine_core" }
