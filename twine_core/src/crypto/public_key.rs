@@ -6,6 +6,7 @@ use super::Signature;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[non_exhaustive]
+#[serde(rename_all = "UPPERCASE")]
 pub enum SignatureAlgorithm {
   /// RSA(bitsize) PKCS1.5 sha256
   Sha256Rsa(usize),
