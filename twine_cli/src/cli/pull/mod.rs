@@ -63,6 +63,10 @@ impl PullCommand {
         let f = r.try_to_absolute(&resolver);
         async {
           let range = f.await?;
+          if range.is_none() {
+            return Err(anyhow::anyhow!("Range is empty"));
+          }
+          let range = range.unwrap();
           // only allow increasing ranges
           if range.is_decreasing() {
             return Err(anyhow::anyhow!("Cannot pull decreasing range"));

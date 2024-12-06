@@ -185,6 +185,10 @@ pub trait Resolver: BaseResolver + Send + Sync {
     let range = range.into();
     let latest = self.resolve_latest(range.strand_cid()).await?;
     let range = range.to_absolute(latest.index());
+    if range.is_none() {
+      return Ok(futures::stream::empty().boxed());
+    }
+    let range = range.unwrap();
     if range.len() == 1 {
       return Ok::<_, ResolutionError>(futures::stream::once({
         let strand_cid = range.strand_cid().clone();
