@@ -5,6 +5,7 @@
 // pub(crate) mod serde_utils;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, ::serde::Serialize, ::serde::Deserialize)]
+#[serde(transparent)]
 pub struct Bytes(
   #[serde(with = "serde_bytes")]
   pub Vec<u8>
