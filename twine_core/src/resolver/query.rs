@@ -1,7 +1,6 @@
 use std::fmt::Display;
 use std::str::FromStr;
 use std::ops::RangeBounds;
-use futures::StreamExt;
 use futures::{stream::once, Stream, TryStreamExt};
 use crate::Cid;
 use crate::as_cid::AsCid;
@@ -300,23 +299,23 @@ fn range_dir(s: i64, e: i64) -> i64 {
 /// # Examples
 ///
 /// ```
-/// use twine_core::{Cid, resolver::RangeQuery};
+/// use twine_core::{Cid, resolver::{RangeQuery, AbsoluteRange}};
 /// let cid = Cid::default();
 /// let latest = 10;
 /// let range = RangeQuery::from((cid, 0..2)).to_absolute(latest).unwrap();
-/// assert_eq!(range, RangeQuery::Absolute((cid, 0, 1)));
+/// assert_eq!(range, AbsoluteRange::new(cid, 0, 1));
 /// let range = RangeQuery::from((cid, 2..)).to_absolute(latest).unwrap();
-/// assert_eq!(range, RangeQuery::Absolute((cid, 2, 10)));
+/// assert_eq!(range, AbsoluteRange::new(cid, 2, 10));
 /// let range = RangeQuery::from((cid, 4..=1)).to_absolute(latest).unwrap();
-/// assert_eq!(range, RangeQuery::Absolute((cid, 4, 1)));
+/// assert_eq!(range, AbsoluteRange::new(cid, 4, 1));
 /// let range = RangeQuery::from((cid, ..=-2)).to_absolute(latest).unwrap();
-/// assert_eq!(range, RangeQuery::Relative(cid, 0, 8));
+/// assert_eq!(range, AbsoluteRange::new(cid, 0, 9));
 /// let range = RangeQuery::from((cid, -1..-5)).to_absolute(latest).unwrap();
-/// assert_eq!(range, RangeQuery::Relative(cid, 10, 6));
+/// assert_eq!(range, AbsoluteRange::new(cid, 10, 7));
 /// let range = RangeQuery::from((cid, -1..)).to_absolute(latest).unwrap();
-/// assert_eq!(range, RangeQuery::Relative(cid, 10, 0));
+/// assert_eq!(range, AbsoluteRange::new(cid, 10, 0));
 /// let range = RangeQuery::from((cid, ..)).to_absolute(latest).unwrap();
-/// assert_eq!(range, RangeQuery::Relative(cid, 0, 10));
+/// assert_eq!(range, AbsoluteRange::new(cid, 0, 10));
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum RangeQuery {
@@ -394,7 +393,10 @@ impl RangeQuery {
           _ => unreachable!(),
         };
         let l = latest as i64;
-        if s > l && e > l {
+        // if the range is increasing, the start be less than the latest,
+        // if the range is decreasing, the end must be less than the latest
+        // both start and end must be greater than 0
+        if (dir > 0 && s > l) || (dir < 0 && e > l) || (s < 0 && e < 0) {
           return None;
         }
         let range = if dir < 0 {
@@ -770,7 +772,7 @@ mod test {
     let range: RangeQuery = (Cid::default(), ..3).into();
     let absolute = range.to_absolute(0).unwrap();
     assert_eq!(absolute.start, 0);
-    assert_eq!(absolute.end, 0);
+    assert_eq!(absolute.end, 2);
   }
 
   #[test]
