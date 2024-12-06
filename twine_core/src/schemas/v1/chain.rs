@@ -62,6 +62,22 @@ mod test {
     }).unwrap()
   }
 
+  fn private_key() -> JWK<()> {
+    serde_json::from_value(json!{
+      {
+        "crv": "P-256",
+        "d": "2LeOeNTRS9XiMGOOG7iCzV9tMRK46H9TswZuThIhy78",
+        "ext": true,
+        "key_ops": [
+          "sign"
+        ],
+        "kty": "EC",
+        "x": "9xMGxDMhQCSyVOQKttgkeUThPpS6HrtP6FVt5295UOA",
+        "y": "J9xTVYrw8eXwBHej41mbpZeZl3eyYD5lpjP_WSGyArE"
+      }
+    }).unwrap()
+  }
+
   #[test]
   fn test_chain_content_v1_verify() {
     let chain = ChainContentV1 {
@@ -117,7 +133,7 @@ mod test {
   fn test_chain_content_v1_treat_signing_key_as_invalid() {
     let chain = ChainContentV1 {
       specification: V1::from_string("twine/1.0.0").unwrap(),
-      key: pub_key(),
+      key: private_key(),
       meta: Ipld::Null,
       mixins: vec![],
       source: "test".into(),
