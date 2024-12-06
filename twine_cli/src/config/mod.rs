@@ -1,7 +1,7 @@
 use std::{collections::HashSet, hash::Hash, sync::Arc};
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
-use twine_core::{resolver::BaseResolver, Cid};
+use twine_core::{resolver::unsafe_base, Cid};
 use twine_sled_store::{SledStore, SledStoreOptions, sled};
 use crate::{cid_str::CidStr, PROJECT_DIRS};
 
@@ -59,7 +59,7 @@ impl Default for Config {
 
 impl Config {
 
-  pub(crate) fn get_resolver(&self, name_or_uri: &Option<String>) -> Result<Box<dyn BaseResolver>> {
+  pub(crate) fn get_resolver(&self, name_or_uri: &Option<String>) -> Result<Box<dyn unsafe_base::BaseResolver>> {
     let r = match name_or_uri.as_deref() {
       Some("local") => {
         let store = self.get_local_store()?;

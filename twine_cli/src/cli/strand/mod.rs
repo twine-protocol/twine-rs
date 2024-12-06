@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 use clap::Parser;
 use indent::indent_all_by;
-use twine_core::{ipld_core::serde::from_ipld, resolver::BaseResolver};
+use twine_core::ipld_core::serde::from_ipld;
+use twine_core::resolver::*;
 use anyhow::Result;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -35,7 +36,7 @@ impl StrandCommand {
 
     // print
     for record in owned {
-      let strand = store.fetch_strand(&record.cid).await?;
+      let strand = store.resolve_strand(&record.cid).await?;
       println!("{}", record.cid);
       println!("  Name: {}", record.name.as_deref().unwrap_or("Unnamed"));
       println!("  Key: {}", record.key.as_ref().unwrap());

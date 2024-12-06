@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use futures::Stream;
 use crate::Cid;
 use crate::errors::{ResolutionError, StoreError};
-use crate::resolver::{AbsoluteRange, BaseResolver, Resolver};
+use crate::resolver::{AbsoluteRange, unsafe_base::BaseResolver, Resolver};
 use crate::twine::{Strand, Tixel};
 use super::Store;
 use crate::as_cid::AsCid;
@@ -56,7 +56,7 @@ impl BaseResolver for MemoryStore {
     Ok(self.strands.read().unwrap().contains_key(cid))
   }
 
-  async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+  async fn fetch_strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
     let iter = self.strands.read().unwrap()
       .values()
       .map(|s| Ok(s.strand.clone()))

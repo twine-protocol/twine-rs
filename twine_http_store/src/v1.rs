@@ -5,7 +5,7 @@ use fvm_ipld_car::CarReader;
 use std::{pin::Pin, sync::Arc};
 use std::time::Duration;
 use twine_core::{as_cid::AsCid, errors::*, resolver::{AbsoluteRange, Resolver}, store::Store, twine::{TwineBlock, *}, Cid};
-use twine_core::resolver::BaseResolver;
+use twine_core::resolver::unsafe_base::BaseResolver;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HttpStoreOptions {
@@ -248,7 +248,7 @@ impl BaseResolver for HttpStore {
     }
   }
 
-  async fn strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
     let response = self.send(self.req("chains")).await?;
     use futures::stream::StreamExt;
     let stream = self.parse_collection_response(response).await?;

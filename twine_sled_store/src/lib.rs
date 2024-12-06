@@ -6,7 +6,7 @@ use zerocopy::FromZeroes;
 use std::collections::{HashMap, HashSet};
 use std::{pin::Pin, sync::Arc};
 use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, Cid};
-use twine_core::resolver::{AbsoluteRange, BaseResolver, Resolver};
+use twine_core::resolver::{AbsoluteRange, unsafe_base::BaseResolver, Resolver};
 use sled::Db;
 use zerocopy::{
   byteorder::{U64, BigEndian}, AsBytes, FromBytes, Unaligned,
@@ -162,7 +162,7 @@ impl SledStore {
 #[async_trait]
 impl BaseResolver for SledStore {
 
-  async fn strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
     let iter = self.db.scan_prefix(get_strand_prefix());
     use futures::stream::StreamExt;
     let stream = futures::stream::iter(iter)

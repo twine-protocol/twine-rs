@@ -2,11 +2,11 @@ use std::collections::HashSet;
 
 use clap::Parser;
 use anyhow::Result;
-use inquire::{validator::{ErrorMessage, Validation}, Confirm, Select, Text};
+use inquire::{validator::Validation, Confirm, Select, Text};
 use twine_builder::RingSigner;
-use twine_core::{errors::ResolutionError, ipld_core::ipld, resolver::{AbsoluteRange, BaseResolver, Query, RangeQuery, Resolver}, store::Store};
+use twine_core::{ipld_core::ipld, resolver::Resolver, store::Store};
 use futures::{stream::StreamExt, TryStreamExt};
-use crate::{config::StrandRecord, selector::{parse_selector, Selector}};
+use crate::config::StrandRecord;
 use twine_core::crypto::SignatureAlgorithm;
 
 fn not_empty(text: &str) -> std::result::Result<Validation, Box<dyn std::error::Error + Send + Sync>> {

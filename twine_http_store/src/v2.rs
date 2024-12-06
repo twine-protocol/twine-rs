@@ -7,7 +7,7 @@ use reqwest::{header::ACCEPT, Method, StatusCode, Url};
 use serde::{Deserialize, Serialize};
 use twine_core::resolver::Resolver;
 use twine_core::twine::{Twine, TwineBlock};
-use twine_core::{as_cid::AsCid, errors::{ResolutionError, StoreError}, resolver::{AbsoluteRange, BaseResolver, Query}, store::Store, twine::{AnyTwine, Strand, Tixel}, Cid};
+use twine_core::{as_cid::AsCid, errors::{ResolutionError, StoreError}, resolver::{AbsoluteRange, unsafe_base::BaseResolver, Query}, store::Store, twine::{AnyTwine, Strand, Tixel}, Cid};
 use twine_core::serde::dag_json;
 
 fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result<(), StoreError> {
@@ -244,7 +244,7 @@ impl BaseResolver for HttpStore {
     }
   }
 
-  async fn strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
     let response = self.send(self.get("")).await?;
     let stream = self.parse_response(response).await?;
     let stream = stream.map(|t| {
