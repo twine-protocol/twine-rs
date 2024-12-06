@@ -365,7 +365,6 @@ impl RangeQuery {
     }
   }
 
-  // TODO: THIS IS BROKEN
   pub fn to_absolute(self, latest: u64) -> Option<AbsoluteRange> {
     match self {
       Self::Absolute(range) => Some(range),
@@ -474,7 +473,6 @@ impl<C, R> From<(C, R)> for RangeQuery where R: RangeBounds<i64>, C: AsCid {
 impl FromStr for RangeQuery {
   type Err = ConversionError;
 
-  // TODO: test this
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     fn index_from_str(s: &str) -> Result<i64, ConversionError> {
       if s == "latest" {
