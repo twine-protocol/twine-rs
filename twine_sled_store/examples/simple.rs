@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let s = store.resolve_strand(&strand).await?;
   assert_eq!(*s, strand);
 
-  let latest = store.resolve(strand.clone()).await?;
+  let latest = store.resolve(strand.clone()).await?.unpack();
   assert_eq!(latest, next.clone());
 
   let count = 1000;

@@ -102,7 +102,7 @@ impl ListCommand {
 
   async fn list_strand<R: Resolver>(&self, cid: &Cid, resolver: &R) -> Result<()> {
     log::trace!("Resolving cid {}", cid);
-    let strand = resolver.resolve_strand(cid).await?;
+    let strand = resolver.resolve_strand(cid).await?.unpack();
     self.print_strand_stream(
       futures::stream::once(async { Ok(strand) }),
       resolver
@@ -112,7 +112,7 @@ impl ListCommand {
 
   async fn list_query<R: Resolver>(&self, query: Query, resolver: &R) -> Result<()> {
     log::trace!("Resolving query {}", query);
-    let twine = resolver.resolve(query).await?;
+    let twine = resolver.resolve(query).await?.unpack();
     self.print_twine_stream(
       futures::stream::once(async { Ok(twine) })
     ).await?;

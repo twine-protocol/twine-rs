@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   .for_each(|_| async {}).await;
 
   let cid = Cid::try_from("bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune").unwrap();
-  let twine = resolver.resolve_strand(cid).await?;
+  let twine = resolver.resolve_strand(cid).await?.unpack();
   println!("specific strand resolved: {}", twine.cid());
 
   let tenth = resolver.resolve_index(&twine, 10).await?;

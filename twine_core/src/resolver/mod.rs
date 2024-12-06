@@ -11,12 +11,15 @@ use crate::errors::ResolutionError;
 mod query;
 pub use query::*;
 
+mod resolution;
+pub use resolution::*;
+
 pub mod unsafe_base;
 use unsafe_base::*;
 
 #[async_trait]
 pub trait Resolver: BaseResolver + Send + Sync {
-  async fn resolve<Q: Into<Query> + Send>(&self, query: Q) -> Result<Twine, ResolutionError> {
+  async fn resolve<Q: Into<Query> + Send>(&self, query: Q) -> Result<TwineResolution, ResolutionError> {
     let query = query.into();
     match query {
       Query::Stitch(stitch) => {
@@ -64,31 +67,48 @@ pub trait Resolver: BaseResolver + Send + Sync {
     }
   }
 
-  async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<Twine, ResolutionError> {
+  async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<TwineResolution, ResolutionError> {
     use futures::join;
-    let (strand, tixel) = join!(self.fetch_strand(&strand.as_cid()), self.fetch_latest(&strand.as_cid()));
-    Ok(Twine::try_new_from_shared(strand?, tixel?)?)
+    let strand_cid = strand.as_cid();
+    let (strand, tixel) = join!(self.fetch_strand(strand_cid), self.fetch_latest(strand_cid));
+    TwineResolution::try_new(
+      Query::Latest(*strand_cid),
+      Twine::try_new_from_shared(strand?, tixel?)?
+    )
   }
 
-  async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError> {
+  async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<TwineResolution, ResolutionError> {
     use futures::join;
-    let (strand, tixel) = join!(self.fetch_strand(&strand.as_cid()), self.fetch_index(&strand.as_cid(), index));
-    Ok(Twine::try_new_from_shared(strand?, tixel?)?)
+    let strand_cid = strand.as_cid();
+    let (strand, tixel) = join!(self.fetch_strand(strand_cid), self.fetch_index(strand_cid, index));
+    TwineResolution::try_new(
+      Query::Index(*strand_cid, index as i64),
+      Twine::try_new_from_shared(strand?, tixel?)?
+    )
   }
 
-  async fn resolve_stitch<C: AsCid + Send>(&self, strand: C, tixel: C) -> Result<Twine, ResolutionError> {
+  async fn resolve_stitch<C: AsCid + Send>(&self, strand: C, tixel: C) -> Result<TwineResolution, ResolutionError> {
     use futures::join;
-    let (strand, tixel) = join!(self.fetch_strand(&strand.as_cid()), self.fetch_tixel(&strand.as_cid(), &tixel.as_cid()));
-    Ok(Twine::try_new_from_shared(strand?, tixel?)?)
+    let strand_cid = strand.as_cid();
+    let tixel_cid = tixel.as_cid();
+    let (strand, tixel) = join!(self.fetch_strand(strand_cid), self.fetch_tixel(strand_cid, tixel_cid));
+    TwineResolution::try_new(
+      Query::Stitch((*strand_cid, *tixel_cid).into()),
+      Twine::try_new_from_shared(strand?, tixel?)?
+    )
   }
 
-  async fn resolve_strand<C: AsCid + Send>(&self, strand: C) -> Result<Arc<Strand>, ResolutionError> {
-    self.fetch_strand(&strand.as_cid()).await
+  async fn resolve_strand<C: AsCid + Send>(&self, strand: C) -> Result<StrandResolution, ResolutionError> {
+    let strand_cid = strand.as_cid();
+    StrandResolution::try_new(
+      *strand_cid,
+      self.fetch_strand(strand_cid).await?
+    )
   }
 
   async fn resolve_range<'a, R: Into<RangeQuery> + Send>(&'a self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + Send + 'a>>, ResolutionError> {
     let range = range.into();
-    let latest = self.resolve_latest(range.strand_cid()).await?;
+    let latest = self.resolve_latest(range.strand_cid()).await?.unpack();
     let range = range.to_absolute(latest.index());
     if range.is_none() {
       return Ok(futures::stream::empty().boxed());

@@ -4,7 +4,7 @@ use std::ops::RangeBounds;
 use futures::{stream::once, Stream, TryStreamExt};
 use crate::Cid;
 use crate::as_cid::AsCid;
-use crate::twine::{Stitch, Strand, Tixel};
+use crate::twine::{Stitch, Strand, Tixel, Twine};
 use crate::errors::{ConversionError, ResolutionError};
 use super::Resolver;
 use std::ops::Bound;
@@ -29,6 +29,30 @@ impl Query {
     match self {
       Query::Index(_, index) => index,
       _ => panic!("Query is not an index query"),
+    }
+  }
+
+  /// Check if the query matches a twine
+  ///
+  /// A query matches a twine if:
+  /// - It's a stitch query and the twine has the same strand and tixel cids
+  /// - It's a positive index query and the twine has the same strand cid and the index matches
+  /// - For a relative index query, the twine has the same strand cid
+  /// - For a latest query, the twine has the same strand cid
+  pub fn matches(&self, twine: &Twine) -> bool {
+    match self {
+      Query::Stitch(stitch) => {
+        twine == stitch
+      },
+      Query::Index(cid, index) => {
+        if *index >= 0 && *index as u64 != twine.index() {
+          return false;
+        }
+        twine.strand_cid() == *cid
+      },
+      Query::Latest(cid) => {
+        twine.strand_cid() == *cid
+      },
     }
   }
 }
@@ -412,7 +436,7 @@ impl RangeQuery {
     match self {
       Self::Absolute(range) => Ok(range.into()),
       Self::Relative(strand, _, _) => {
-        let latest = resolver.resolve_latest(strand).await?.index();
+        let latest = resolver.resolve_latest(strand).await?.unpack().index();
         Ok(self.to_absolute(latest))
       }
     }

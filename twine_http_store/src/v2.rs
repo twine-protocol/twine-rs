@@ -5,7 +5,7 @@ use futures::Stream;
 use fvm_ipld_car::CarReader;
 use reqwest::{header::ACCEPT, Method, StatusCode, Url};
 use serde::{Deserialize, Serialize};
-use twine_core::resolver::Resolver;
+use twine_core::resolver::{Resolver, TwineResolution};
 use twine_core::twine::{Twine, TwineBlock};
 use twine_core::{as_cid::AsCid, errors::{ResolutionError, StoreError}, resolver::{AbsoluteRange, unsafe_base::BaseResolver, Query}, store::Store, twine::{AnyTwine, Strand, Tixel}, Cid};
 use twine_core::serde::dag_json;
@@ -19,6 +19,7 @@ fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result
         ResolutionError::NotFound => Err(StoreError::Saving("Not found".to_string())),
         ResolutionError::Invalid(e) => Err(StoreError::Invalid(e)),
         ResolutionError::BadData(e) => Err(StoreError::Saving(e)),
+        ResolutionError::QueryMismatch(q) => Err(StoreError::Saving(format!("Query mismatch: {}", q))),
       }
     },
   }
@@ -310,28 +311,28 @@ impl BaseResolver for HttpStore {
 // optimized implementations
 #[async_trait]
 impl Resolver for HttpStore {
-  async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<Twine, ResolutionError> {
+  async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<TwineResolution, ResolutionError> {
     let q = Query::from(*strand.as_cid());
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
     let twine = self.twine_from_response(response).await?;
-    Ok(twine)
+    TwineResolution::try_new(q, twine)
   }
 
-  async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<Twine, ResolutionError> {
+  async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<TwineResolution, ResolutionError> {
     let q = Query::from((strand.as_cid(), index));
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
     let twine = self.twine_from_response(response).await?;
-    Ok(twine)
+    TwineResolution::try_new(q, twine)
   }
 
-  async fn resolve_stitch<C: AsCid + Send>(&self, strand: C, tixel: C) -> Result<Twine, ResolutionError> {
+  async fn resolve_stitch<C: AsCid + Send>(&self, strand: C, tixel: C) -> Result<TwineResolution, ResolutionError> {
     let q = Query::from((strand.as_cid(), tixel.as_cid()));
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
     let twine = self.twine_from_response(response).await?;
-    Ok(twine)
+    TwineResolution::try_new(q, twine)
   }
 }
 

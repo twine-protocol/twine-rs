@@ -12,6 +12,30 @@ pub struct Stitch {
   pub tixel: Cid,
 }
 
+impl PartialEq<Twine> for Stitch {
+  fn eq(&self, other: &Twine) -> bool {
+    self.strand == other.strand_cid() && self.tixel == other.cid()
+  }
+}
+
+impl PartialEq<Stitch> for Twine {
+  fn eq(&self, other: &Stitch) -> bool {
+    self.strand_cid() == other.strand && self.cid() == other.tixel
+  }
+}
+
+impl PartialEq<Stitch> for Tixel {
+  fn eq(&self, other: &Stitch) -> bool {
+    self.strand_cid() == other.strand && self.cid() == other.tixel
+  }
+}
+
+impl PartialEq<Tixel> for Stitch {
+  fn eq(&self, other: &Tixel) -> bool {
+    self.strand == other.strand_cid() && self.tixel == other.cid()
+  }
+}
+
 impl From<Tixel> for Stitch {
   fn from(tixel: Tixel) -> Self {
     Stitch {
@@ -152,6 +176,7 @@ impl CrossStitches {
         (Ok(old), Ok(new)) => (old, new),
         (Err(e), _) | (_, Err(e)) => return Err(e),
       };
+      let (old, new) = (old.unpack(), new.unpack());
       if old.index() > new.index() {
         return Err(ResolutionError::BadData("Latest tixel in resolver is behind recorded stitch".into()));
       }

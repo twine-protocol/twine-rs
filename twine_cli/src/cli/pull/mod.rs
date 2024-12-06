@@ -156,7 +156,7 @@ impl PullCommand {
 
   async fn pull<R: Resolver>(&self, store: &SledStore, resolver: &R, range: AbsoluteRange, pb: ProgressBar) -> Result<()> {
     log::debug!("Pulling twines from strand: {}", range.strand_cid());
-    let strand = resolver.resolve_strand(range.strand_cid()).await?;
+    let strand = resolver.resolve_strand(range.strand_cid()).await?.unpack();
     log::debug!("Saving strand: {}", strand.cid());
     store.save(strand).await?;
 
@@ -202,7 +202,7 @@ impl PullCommand {
   }
 
   async fn pull_one<R: Resolver>(&self, store: &SledStore, resolver: &R, query: Query) -> Result<()> {
-    let twine = resolver.resolve(query).await?;
+    let twine = resolver.resolve(query).await?.unpack();
     log::debug!("Saving strand: {}", twine.strand_cid());
     store.save(twine.strand()).await?;
     log::debug!("Saving twine: ({}) {}", twine.index(), twine.cid());
