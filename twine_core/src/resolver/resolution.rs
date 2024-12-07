@@ -86,8 +86,8 @@ impl StrandResolution {
     if cid != strand.cid() {
       return Err(VerificationError::CidMismatch{
         expected: cid.to_string(),
-        actual: strand.cid().to_string() }.into()
-      );
+        actual: strand.cid().to_string()
+      }.into());
     }
     Ok(Self { cid, strand })
   }
