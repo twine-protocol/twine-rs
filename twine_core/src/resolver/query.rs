@@ -111,7 +111,6 @@ impl FromStr for Query {
     let cid = parts.get(0).ok_or(ConversionError::InvalidFormat("Invalid Selector".into()))?;
     let strand_cid = Cid::try_from(cid.to_string())?;
     match parts.len() {
-      1 => Ok(strand_cid.into()),
       2 => {
         let arg = parts.get(1).unwrap();
         match *arg {
@@ -846,7 +845,6 @@ mod test {
     let cid = Cid::default().to_string();
     let output = cid.clone() + ":-1";
     let inputs = [
-      cid.clone(),
       cid.clone() + ":",
       cid.clone() + ":latest",
       cid.clone() + ":-1",
