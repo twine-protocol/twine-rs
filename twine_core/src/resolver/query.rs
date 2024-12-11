@@ -194,15 +194,18 @@ impl AbsoluteRange {
     if self.is_decreasing() {
       // decreasing
       let mut upper = self.start;
-      while upper > self.end {
+      while upper >= self.end {
         let lower = upper.saturating_sub(size - 1).max(self.end);
         batches.push(Self::new(self.strand.clone(), upper, lower));
+        if lower == 0 {
+          break;
+        }
         upper = lower.saturating_sub(1);
       }
     } else {
       // increasing
       let mut lower = self.start;
-      while lower < self.end {
+      while lower <= self.end {
         let upper = (lower + size - 1).min(self.end);
         batches.push(Self::new(self.strand.clone(), lower, upper));
         lower = upper + 1;
@@ -728,6 +731,32 @@ mod test {
 
   #[test]
   fn test_batches(){
+    let range = AbsoluteRange::new(Cid::default(), 99, 0);
+    let batches = range.batches(100);
+    let cid = Cid::default();
+    assert_eq!(batches.len(), 1);
+    assert_eq!(batches[0], AbsoluteRange::new(cid.clone(), 99, 0));
+
+    let range = AbsoluteRange::new(Cid::default(), 0, 99);
+    let batches = range.batches(100);
+    let cid = Cid::default();
+    assert_eq!(batches.len(), 1);
+    assert_eq!(batches[0], AbsoluteRange::new(cid.clone(), 0, 99));
+
+    let range = AbsoluteRange::new(Cid::default(), 100, 0);
+    let batches = range.batches(100);
+    let cid = Cid::default();
+    assert_eq!(batches.len(), 2);
+    assert_eq!(batches[0], AbsoluteRange::new(cid.clone(), 100, 1));
+    assert_eq!(batches[1], AbsoluteRange::new(cid, 0, 0));
+
+    let range = AbsoluteRange::new(Cid::default(), 0, 100);
+    let batches = range.batches(100);
+    let cid = Cid::default();
+    assert_eq!(batches.len(), 2);
+    assert_eq!(batches[0], AbsoluteRange::new(cid.clone(), 0, 99));
+    assert_eq!(batches[1], AbsoluteRange::new(cid, 100, 100));
+
     let range = AbsoluteRange::new(Cid::default(), 101, 0);
     let batches = range.batches(100);
     let cid = Cid::default();
