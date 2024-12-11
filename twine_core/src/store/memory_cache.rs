@@ -1,6 +1,5 @@
-use crate::resolver::{BaseResolver, Resolver};
+use crate::resolver::{unsafe_base, AbsoluteRange, Resolver};
 use crate::errors::ResolutionError;
-use super::Store;
 use crate::twine::Tixel;
 use crate::Cid;
 use crate::twine::Strand;
@@ -11,74 +10,47 @@ use std::pin::Pin;
 use futures::stream::Stream;
 use async_trait::async_trait;
 use futures::stream::StreamExt;
-use quick_cache::Equivalent;
-use crate::resolver::RangeQuery;
 use quick_cache::sync::Cache;
 
-// Cid, index
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-struct CacheKey(Cid, u64);
-
-impl Equivalent<Cid> for CacheKey {
-  fn equivalent(&self, other: &Cid) -> bool {
-    self.0 == *other
-  }
-}
-
-impl Equivalent<u64> for CacheKey {
-  fn equivalent(&self, other: &u64) -> bool {
-    self.1 == *other
-  }
-}
-
-impl Equivalent<CacheKey> for Cid {
-  fn equivalent(&self, other: &CacheKey) -> bool {
-    *self == other.0
-  }
-}
-
-impl Equivalent<CacheKey> for u64 {
-  fn equivalent(&self, other: &CacheKey) -> bool {
-    *self == other.1
-  }
-}
-
-type StrandCache = HashMap<Cid, (Option<Arc<Strand>>, Cache<CacheKey, Arc<Tixel>>)>;
+type TixelCache = Cache<Cid, Arc<Tixel>>;
+type StrandCache = HashMap<Cid, (Option<Arc<Strand>>, Cache<u64, Cid>)>;
 
 #[derive(Debug)]
 pub struct MemoryCache<T: Resolver> {
   strands: Arc<RwLock<StrandCache>>,
+  tixels: TixelCache,
   resolver: T,
-  size_per_strand: usize,
+  cache_size: usize,
 }
 
 impl<T: Resolver> MemoryCache<T> {
   pub fn new(resolver: T) -> Self {
     Self {
       strands: Arc::new(RwLock::new(HashMap::new())),
+      tixels: Cache::new(1000),
       resolver,
-      size_per_strand: 1000,
+      cache_size: 1000,
     }
   }
 
-  pub fn with_size_per_strand(mut self, size_per_strand: usize) -> Self {
-    self.size_per_strand = size_per_strand;
+  pub fn with_cache_size(mut self, cache_size: usize) -> Self {
+    self.cache_size = cache_size;
     self
   }
 
   fn cache_tixel(&self, tixel: Arc<Tixel>) -> Arc<Tixel> {
     let strand_cid = tixel.strand_cid();
     let mut store = self.strands.write().unwrap();
-    let cache = store.entry(strand_cid).or_insert_with(|| (None, Cache::new(self.size_per_strand)));
-    let _ = cache.1.get_or_insert_with(&CacheKey(tixel.cid(), tixel.index()), || Ok::<_, ResolutionError>(tixel.clone()));
-    dbg!(cache.1.len(), cache.1.get(&tixel.index()));
+    let cache = store.entry(strand_cid).or_insert_with(|| (None, Cache::new(self.cache_size)));
+    let _ = cache.1.get_or_insert_with(&tixel.index(), || Ok::<_, ResolutionError>(tixel.cid()));
+    self.tixels.insert(tixel.cid(), tixel.clone());
     tixel
   }
 
   fn cache_strand(&self, strand: Arc<Strand>) -> Arc<Strand> {
     let strand_cid = strand.cid();
     let mut store = self.strands.write().unwrap();
-    let entry = store.entry(strand_cid).or_insert_with(|| (None, Cache::new(self.size_per_strand)));
+    let entry = store.entry(strand_cid).or_insert_with(|| (None, Cache::new(self.cache_size)));
     if entry.0.is_none() {
       entry.0 = Some(strand.clone());
     }
@@ -87,9 +59,14 @@ impl<T: Resolver> MemoryCache<T> {
 }
 
 #[async_trait]
-impl<T: Resolver> BaseResolver for MemoryCache<T> {
-  async fn strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + '_ + Send>>, ResolutionError> {
-    self.resolver.strands().await
+impl<T: Resolver> unsafe_base::BaseResolver for MemoryCache<T> {
+  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + '_ + Send>>, ResolutionError> {
+    self.resolver.strands().await.and_then(|stream| {
+      Ok(stream.map(|strand| {
+        let strand = strand?;
+        Ok(self.cache_strand(strand))
+      }).boxed())
+    })
   }
 
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError>{
@@ -111,8 +88,8 @@ impl<T: Resolver> BaseResolver for MemoryCache<T> {
 
   async fn has_twine(&self, strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError>{
     let has = match self.strands.read().unwrap().get(strand) {
-      Some((_, cache)) => {
-        match cache.get(cid) {
+      Some((_, _cache)) => {
+        match self.tixels.get(cid) {
           Some(_) => true,
           None => false,
         }
@@ -142,11 +119,11 @@ impl<T: Resolver> BaseResolver for MemoryCache<T> {
   }
 
   async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError>{
-    let maybe_tixel = self.strands.read().unwrap()
+    let maybe_cid = self.strands.read().unwrap()
       .get(strand)
       .map(|(_, cache)| cache.get(&index))
       .flatten();
-    if let Some(tixel) = maybe_tixel {
+    if let Some(tixel) = maybe_cid.map(|cid| self.tixels.get(&cid)).flatten() {
       Ok(tixel.clone())
     } else {
       let tixel = self.resolver.fetch_index(strand, index).await?;
@@ -155,10 +132,7 @@ impl<T: Resolver> BaseResolver for MemoryCache<T> {
   }
 
   async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError>{
-    let maybe_tixel = self.strands.read().unwrap()
-      .get(strand)
-      .map(|(_, cache)| cache.get(tixel))
-      .flatten();
+    let maybe_tixel = self.tixels.get(tixel);
     if let Some(tixel) = maybe_tixel {
       Ok(tixel.clone())
     } else {
@@ -180,7 +154,7 @@ impl<T: Resolver> BaseResolver for MemoryCache<T> {
     }
   }
 
-  async fn range_stream<'a>(&'a self, range: RangeQuery) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError>{
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
     let stream = self.resolver.range_stream(range).await?;
     Ok(
       stream
@@ -193,8 +167,10 @@ impl<T: Resolver> BaseResolver for MemoryCache<T> {
   }
 }
 
-impl<S: Store> Deref for MemoryCache<S> {
-  type Target = S;
+impl<R: Resolver> Resolver for MemoryCache<R> {}
+
+impl<R: Resolver> Deref for MemoryCache<R> {
+  type Target = R;
 
   fn deref(&self) -> &Self::Target {
     &self.resolver
@@ -204,36 +180,130 @@ impl<S: Store> Deref for MemoryCache<S> {
 #[cfg(test)]
 mod test {
   use super::*;
+  use crate::{test::*, twine::TwineBlock};
 
-  #[test]
-  fn test_cache_key() {
-    #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-    struct MyKey(u64, u8);
-    impl Equivalent<u64> for MyKey {
-      fn equivalent(&self, other: &u64) -> bool {
-        self.0 == *other
-      }
-    }
-    impl Equivalent<MyKey> for u64 {
-      fn equivalent(&self, other: &MyKey) -> bool {
-        *self == other.0
-      }
-    }
-    impl Equivalent<u8> for MyKey {
-      fn equivalent(&self, other: &u8) -> bool {
-        self.1 == *other
-      }
-    }
-    impl Equivalent<MyKey> for u8 {
-      fn equivalent(&self, other: &MyKey) -> bool {
-        *self == other.1
-      }
+  #[derive(Debug, Clone)]
+  struct DummyResolver {
+    pub strand_hits: Arc<RwLock<HashMap<Cid, u32>>>,
+    pub tixel_hits: Arc<RwLock<HashMap<Cid, u32>>>,
+  }
+
+  #[async_trait]
+  impl unsafe_base::BaseResolver for DummyResolver {
+    async fn fetch_strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+      let strand = Arc::new(Strand::from_dag_json(STRANDJSON)?);
+      let s = vec![strand];
+      let stream = futures::stream::iter(s.into_iter().map(Ok));
+      Ok(stream.boxed())
     }
 
-    let cache = Cache::new(10);
-    let key = MyKey(1, 2);
-    let value = "hello".to_string();
-    cache.insert(key.clone(), value.clone());
-    assert_eq!(cache.get(&1u64), Some(value));
+    async fn has_index(&self, _strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
+      let tixel = Tixel::from_dag_json(TIXELJSON)?;
+      if tixel.index() == index {
+        *self.tixel_hits.write().unwrap().entry(tixel.cid()).or_insert(0) += 1;
+        Ok(true)
+      } else {
+        Ok(false)
+      }
+    }
+
+    async fn has_twine(&self, _strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
+      let tixel = Tixel::from_dag_json(TIXELJSON)?;
+      if tixel.cid() == *cid {
+        *self.tixel_hits.write().unwrap().entry(tixel.cid()).or_insert(0) += 1;
+        Ok(true)
+      } else {
+        Ok(false)
+      }
+    }
+
+    async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError> {
+      let strand = Arc::new(Strand::from_dag_json(STRANDJSON)?);
+      if strand.cid() == *cid {
+        *self.strand_hits.write().unwrap().entry(strand.cid()).or_insert(0) += 1;
+        Ok(true)
+      } else {
+        Ok(false)
+      }
+    }
+
+    async fn fetch_latest(&self, _strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+      let tixel = Tixel::from_dag_json(TIXELJSON)?;
+      Ok(Arc::new(tixel))
+    }
+
+    async fn fetch_index(&self, _strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
+      let tixel = Tixel::from_dag_json(TIXELJSON)?;
+      if tixel.index() != index {
+        return Err(ResolutionError::NotFound);
+      }
+      *self.tixel_hits.write().unwrap().entry(tixel.cid()).or_insert(0) += 1;
+      Ok(Arc::new(tixel))
+    }
+
+    async fn fetch_tixel(&self, _strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+      let tix = Tixel::from_dag_json(TIXELJSON)?;
+      if tix.cid() != *tixel {
+        return Err(ResolutionError::NotFound);
+      }
+      *self.tixel_hits.write().unwrap().entry(tixel.clone()).or_insert(0) += 1;
+      Ok(Arc::new(tix))
+    }
+
+    async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
+      let s = Arc::new(Strand::from_dag_json(STRANDJSON)?);
+      if s.cid() != *strand {
+        return Err(ResolutionError::NotFound);
+      }
+      *self.strand_hits.write().unwrap().entry(*strand).or_insert(0) += 1;
+      Ok(s)
+    }
+
+    async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+      let tixel = Arc::new(Tixel::from_dag_json(TIXELJSON)?);
+      if *range.strand_cid() != tixel.strand_cid() {
+        return Err(ResolutionError::NotFound);
+      }
+      let stream = futures::stream::iter(vec![tixel].into_iter().map(Ok));
+      Ok(stream.boxed())
+    }
+  }
+
+  impl Resolver for DummyResolver {}
+
+  #[tokio::test]
+  async fn test_cache() {
+    let resolver = DummyResolver {
+      strand_hits: Arc::new(RwLock::new(HashMap::new())),
+      tixel_hits: Arc::new(RwLock::new(HashMap::new())),
+    };
+    let cache = MemoryCache::new(resolver);
+    let strand = Strand::from_dag_json(STRANDJSON).unwrap();
+    let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+    let strand_cid = strand.cid();
+    let tixel_cid = tixel.cid();
+
+    let _ = cache.resolve_strand(&strand_cid).await.unwrap().unpack();
+    let _ = cache.resolve_stitch(&strand_cid, &tixel_cid).await.unwrap().unpack();
+
+    assert_eq!(cache.strand_hits.read().unwrap().get(&strand_cid), Some(&1));
+    assert_eq!(cache.tixel_hits.read().unwrap().get(&tixel_cid), Some(&1));
+
+    let _ = cache.resolve_strand(&strand_cid).await.unwrap().unpack();
+    let _ = cache.resolve_stitch(&strand_cid, &tixel_cid).await.unwrap().unpack();
+
+    assert_eq!(cache.strand_hits.read().unwrap().get(&strand_cid), Some(&1));
+    assert_eq!(cache.tixel_hits.read().unwrap().get(&tixel_cid), Some(&1));
+
+    let _ = cache.resolve_strand(&strand_cid).await.unwrap().unpack();
+    let _ = cache.resolve_index(&strand_cid, tixel.index()).await.unwrap().unpack();
+
+    assert_eq!(cache.strand_hits.read().unwrap().get(&strand_cid), Some(&1));
+    assert_eq!(cache.tixel_hits.read().unwrap().get(&tixel_cid), Some(&1));
+
+    cache.resolve_range((strand_cid, 0..1)).await.unwrap().collect::<Vec<_>>().await;
+
+    assert_eq!(cache.strand_hits.read().unwrap().get(&strand_cid), Some(&1));
+    assert_eq!(cache.tixel_hits.read().unwrap().get(&tixel_cid), Some(&1));
   }
 }

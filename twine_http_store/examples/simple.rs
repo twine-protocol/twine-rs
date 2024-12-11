@@ -3,7 +3,7 @@ use tokio::pin;
 use twine_http_store::*;
 use twine_core::resolver::*;
 use twine_core::Cid;
-// use twine_core::store::MemoryCache;
+use twine_core::store::MemoryCache;
 use twine_core::store::Store;
 // use futures_time::prelude::*;
 // use futures_time::time::Duration;
@@ -14,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let cfg = v1::HttpStoreOptions::default()
     .url("https://random.colorado.edu/api");
   let resolver = v1::HttpStore::new(reqwest::Client::new(), cfg);
-  // let resolver = MemoryCache::new(resolver);
+  let resolver = MemoryCache::new(resolver);
   // let store = HttpStore::new(
   //   reqwest::Client::new(),
   //   HttpStoreOptions::default().url("http://192.168.68.58:8787")
