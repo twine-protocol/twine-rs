@@ -1,10 +1,11 @@
 use twine_builder::{TwineBuilder, RingSigner};
-use twine_core::ipld_core::ipld;
+use twine_core::{ipld_core::ipld, multihash_codetable::Code};
 
 fn main() {
   let signer = RingSigner::generate_ed25519().unwrap();
   let builder = TwineBuilder::new(signer);
   let strand = builder.build_strand()
+    .hasher(Code::Sha3_256)
     .details(ipld!({
       "foo": "bar",
     }))
