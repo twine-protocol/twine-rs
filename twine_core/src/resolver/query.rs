@@ -509,7 +509,7 @@ impl FromStr for RangeQuery {
     }
 
     let parts: Vec<&str> = s.split(':').collect();
-    if !parts.len() == 3 {
+    if parts.len() != 3 {
       return Err(ConversionError::InvalidFormat("Invalid range query string".to_string()));
     }
     let cid_str = parts.get(0).unwrap();
