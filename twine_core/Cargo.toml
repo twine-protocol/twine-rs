@@ -21,14 +21,14 @@ multihash = "0.19"
 multihash-codetable = { version = "0.1", features = ["sha3"] }
 multihash-derive = "0.9"
 serde_json = "1.0"
-thiserror = "1.0.40"
+thiserror = "2.0.6"
 base64 = "0.22.0"
 ipld-core = "0.4"
 semver = "1.0"
 anyhow = "1.0"
 futures = "0.3"
 async-trait = "0.1"
-quick_cache = "0.5"
+quick_cache = "0.6"
 chrono = { version = "0.4", features = ["serde"] }
 ring = { version = "0.17" }
 rsa = { version = "0.9" }
