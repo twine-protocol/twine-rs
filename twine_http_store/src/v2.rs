@@ -6,7 +6,7 @@ use fvm_ipld_car::CarReader;
 use reqwest::{header::ACCEPT, Method, StatusCode, Url};
 use serde::{Deserialize, Serialize};
 use twine_core::resolver::{Resolver, TwineResolution};
-use twine_core::twine::{Twine, TwineBlock};
+use twine_core::twine::{Tagged, Twine, TwineBlock};
 use twine_core::{as_cid::AsCid, errors::{ResolutionError, StoreError}, resolver::{AbsoluteRange, unsafe_base::BaseResolver, Query}, store::Store, twine::{AnyTwine, Strand, Tixel}, Cid};
 use twine_core::serde::dag_json;
 
@@ -27,7 +27,7 @@ fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Registration {
-  pub strand: Strand,
+  pub strand: Tagged<Strand>,
   #[serde(with = "dag_json")]
   pub email: String,
 }

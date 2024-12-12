@@ -4,6 +4,7 @@ mod strand;
 mod tixel;
 mod any_twine;
 mod twine;
+mod tagged;
 pub mod dag_json;
 // mod payload;
 
@@ -13,5 +14,6 @@ pub use tixel::*;
 pub use strand::*;
 pub use any_twine::AnyTwine;
 pub use twine::*;
+pub use tagged::*;
 // pub use payload::*;
 

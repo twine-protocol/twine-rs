@@ -52,8 +52,8 @@ impl From<v2::StrandContainerV2> for StrandContainerVersion {
   }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
-pub struct Strand(Verified<StrandContainerVersion>);
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct Strand(pub(crate) Verified<StrandContainerVersion>);
 
 impl Strand {
   pub fn try_new<C: Into<StrandContainerVersion>>(container: C) -> Result<Self, VerificationError> {
@@ -194,13 +194,13 @@ impl TwineBlock for Strand {
     format!(
       "{{\"cid\":{},\"data\":{}}}",
       String::from_utf8(DagJsonCodec::encode_to_vec(&self.cid()).unwrap()).unwrap(),
-      String::from_utf8(DagJsonCodec::encode_to_vec(self).unwrap()).unwrap()
+      String::from_utf8(DagJsonCodec::encode_to_vec(&self.0).unwrap()).unwrap()
     )
   }
 
   /// Encode to raw bytes
   fn bytes(&self) -> Arc<[u8]> {
-    DagCborCodec::encode_to_vec(self).unwrap().as_slice().into()
+    DagCborCodec::encode_to_vec(&self.0).unwrap().as_slice().into()
   }
 
   fn content_bytes(&self) -> Arc<[u8]> {

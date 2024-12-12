@@ -5,7 +5,6 @@ use std::fmt::Display;
 use std::sync::Arc;
 use multihash_codetable::Code;
 use crate::Cid;
-use serde::{Serialize, Deserialize};
 use crate::as_cid::AsCid;
 use crate::crypto::{assert_cid, get_hasher};
 use super::{Strand, Tixel, Twine};
@@ -13,8 +12,7 @@ use super::TwineBlock;
 use crate::errors::VerificationError;
 use std::convert::TryFrom;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
-#[serde(untagged)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum AnyTwine {
   Strand(Arc<Strand>),
   Tixel(Arc<Tixel>),

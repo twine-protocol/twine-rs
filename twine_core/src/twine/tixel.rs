@@ -62,8 +62,8 @@ impl From<v2::TixelContainerV2> for TixelContainerVersion {
   }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
-pub struct Tixel(Verified<TixelContainerVersion>);
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct Tixel(pub(crate) Verified<TixelContainerVersion>);
 
 impl PartialOrd for Tixel {
   fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -149,7 +149,7 @@ impl Tixel {
   }
 
   pub fn bytes(&self) -> Arc<[u8]> {
-    DagCborCodec::encode_to_vec(self).unwrap().into()
+    DagCborCodec::encode_to_vec(&self.0).unwrap().into()
   }
 
   pub fn verify_with(&self, strand: &Strand) -> Result<(), VerificationError> {
@@ -240,13 +240,13 @@ impl TwineBlock for Tixel {
     format!(
       "{{\"cid\":{},\"data\":{}}}",
       String::from_utf8(DagJsonCodec::encode_to_vec(&self.cid()).unwrap()).unwrap(),
-      String::from_utf8(DagJsonCodec::encode_to_vec(self).unwrap()).unwrap()
+      String::from_utf8(DagJsonCodec::encode_to_vec(&self.0).unwrap()).unwrap()
     )
   }
 
   /// Encode to raw bytes
   fn bytes(&self) -> Arc<[u8]> {
-    DagCborCodec::encode_to_vec(self).unwrap().as_slice().into()
+    DagCborCodec::encode_to_vec(&self.0).unwrap().as_slice().into()
   }
 
   fn content_bytes(&self) -> Arc<[u8]> {
