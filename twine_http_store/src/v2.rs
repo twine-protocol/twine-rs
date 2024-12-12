@@ -157,11 +157,18 @@ impl HttpStore {
         match e.status() {
           Some(StatusCode::NOT_FOUND) => Err(ResolutionError::NotFound),
           Some(status) if status.is_client_error() => {
-            match response.json::<serde_json::Value>().await {
+            let body = response.text().await.unwrap_or(e.to_string());
+            match serde_json::from_str::<serde_json::Value>(&body) {
               Ok(j) => {
                 Err(ResolutionError::Fetch(j.get("error").map(|e| e.to_string()).unwrap_or(e.to_string())))
               },
-              Err(_) => Err(ResolutionError::Fetch(e.to_string())),
+              Err(_) => {
+                if body.len() > 0 {
+                  Err(ResolutionError::Fetch(body))
+                } else {
+                  Err(ResolutionError::Fetch(e.to_string()))
+                }
+              },
             }
           },
           _ => Err(ResolutionError::Fetch(e.to_string()))
