@@ -136,7 +136,7 @@ impl HttpStore {
     let response = (|| async {
       self.client.execute(req.try_clone().expect("Could not clone request")).await
     })
-      .retry(&ExponentialBuilder::default())
+      .retry(ExponentialBuilder::default())
       .when(|e| {
         if e.is_status() {
           e.status().map(|s| s.is_server_error()).unwrap_or(false)
