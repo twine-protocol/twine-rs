@@ -25,7 +25,13 @@ members = [
 ]
 
 [features]
+default = ["sha3", "blake3"]
 build = ["dep:twine_builder"]
+sha3 = ["twine_core/sha3"]
+blake3 = ["twine_core/blake3"]
+ripemd = ["twine_core/ripemd"]
+blake2s = ["twine_core/blake2s"]
+blake2b = ["twine_core/blake2b"]
 
 [dependencies]
 twine_core = { path = "./twine_core" }
