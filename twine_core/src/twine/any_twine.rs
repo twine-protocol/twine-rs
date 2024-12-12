@@ -3,7 +3,10 @@ use core::str;
 
 use std::fmt::Display;
 use std::sync::Arc;
+use ipld_core::codec::Codec;
 use multihash_codetable::Code;
+use serde_ipld_dagjson::codec::DagJsonCodec;
+use crate::twine::Tagged;
 use crate::Cid;
 use crate::as_cid::AsCid;
 use crate::crypto::{assert_cid, get_hasher};
@@ -70,13 +73,9 @@ impl AnyTwine {
     assert_cid(expected, &self.cid())
   }
 
-  pub fn from_dag_json_array<S: AsRef<str>>(json: S) -> Result<Vec<Self>, VerificationError> {
-    let strings = super::dag_json::split_json_objects(json)
-      .map_err(|e| VerificationError::InvalidTwineFormat(e.to_string()))?;
-
-    strings.iter().map(|s| {
-      Self::from_dag_json(s)
-    }).collect()
+  pub fn from_tagged_dag_json_array<S: AsRef<str>>(json: S) -> Result<Vec<Self>, VerificationError> {
+    let arr: Vec<Tagged<Self>> = DagJsonCodec::decode_from_slice(json.as_ref().as_bytes())?;
+    Ok(arr.into_iter().map(|t| t.unpack()).collect())
   }
 }
 
@@ -211,15 +210,15 @@ impl TwineBlock for AnyTwine {
   /// Decode from DAG-JSON
   ///
   /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
-  fn from_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
+  fn from_tagged_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
     let str_json = json.to_string();
     // assume it's a Tixel first
-    let tixel = Tixel::from_dag_json(&str_json);
+    let tixel = Tixel::from_tagged_dag_json(&str_json);
     if tixel.is_ok() {
       return Ok(Self::Tixel(tixel.unwrap().into()));
     }
     // assume it's a Strand next
-    let strand = Strand::from_dag_json(&str_json);
+    let strand = Strand::from_tagged_dag_json(&str_json);
     if strand.is_ok() {
       return Ok(Self::Strand(strand.unwrap().into()));
     }
@@ -252,10 +251,10 @@ impl TwineBlock for AnyTwine {
   }
 
   /// Encode to DAG-JSON
-  fn dag_json(&self) -> String {
+  fn tagged_dag_json(&self) -> String {
     match self {
-      Self::Strand(s) => s.dag_json(),
-      Self::Tixel(t) => t.dag_json(),
+      Self::Strand(s) => s.tagged_dag_json(),
+      Self::Tixel(t) => t.tagged_dag_json(),
     }
   }
 

@@ -235,7 +235,7 @@ mod test {
       .done()
       .unwrap();
 
-    println!("{}", &strand.dag_json());
+    println!("{}", &strand.tagged_dag_json());
 
     let mut prev = builder.build_first(strand.clone())
       .payload(ipld!({

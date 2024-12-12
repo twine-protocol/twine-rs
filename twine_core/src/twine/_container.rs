@@ -126,7 +126,7 @@ impl<C> TwineBlock for TwineContainer<C> where C: TwineContent + Serialize + for
   /// Decode from DAG-JSON
   ///
   /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
-  fn from_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
+  fn from_tagged_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
     let j: TwineContainerJson<C> = DagJsonCodec::decode_from_slice(json.to_string().as_bytes())?;
     let twine = TwineContainer::try_from(j)?;
     Ok(twine)
@@ -172,8 +172,8 @@ mod test {
 
   #[test]
   fn test_invalid_signature(){
-    let strand = Strand::from_dag_json(STRANDJSON).unwrap();
-    let mut tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+    let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
+    let mut tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
     tixel.signature = tixel.signature.replace("jvap", "javp");
     let res = strand.verify_tixel(&tixel);
     assert!(res.is_err(), "Signature verification should have failed");

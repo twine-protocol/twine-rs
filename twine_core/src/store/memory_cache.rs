@@ -191,14 +191,14 @@ mod test {
   #[async_trait]
   impl unsafe_base::BaseResolver for DummyResolver {
     async fn fetch_strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
-      let strand = Arc::new(Strand::from_dag_json(STRANDJSON)?);
+      let strand = Arc::new(Strand::from_tagged_dag_json(STRANDJSON)?);
       let s = vec![strand];
       let stream = futures::stream::iter(s.into_iter().map(Ok));
       Ok(stream.boxed())
     }
 
     async fn has_index(&self, _strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
-      let tixel = Tixel::from_dag_json(TIXELJSON)?;
+      let tixel = Tixel::from_tagged_dag_json(TIXELJSON)?;
       if tixel.index() == index {
         *self.tixel_hits.write().unwrap().entry(tixel.cid()).or_insert(0) += 1;
         Ok(true)
@@ -208,7 +208,7 @@ mod test {
     }
 
     async fn has_twine(&self, _strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
-      let tixel = Tixel::from_dag_json(TIXELJSON)?;
+      let tixel = Tixel::from_tagged_dag_json(TIXELJSON)?;
       if tixel.cid() == *cid {
         *self.tixel_hits.write().unwrap().entry(tixel.cid()).or_insert(0) += 1;
         Ok(true)
@@ -218,7 +218,7 @@ mod test {
     }
 
     async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError> {
-      let strand = Arc::new(Strand::from_dag_json(STRANDJSON)?);
+      let strand = Arc::new(Strand::from_tagged_dag_json(STRANDJSON)?);
       if strand.cid() == *cid {
         *self.strand_hits.write().unwrap().entry(strand.cid()).or_insert(0) += 1;
         Ok(true)
@@ -228,12 +228,12 @@ mod test {
     }
 
     async fn fetch_latest(&self, _strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
-      let tixel = Tixel::from_dag_json(TIXELJSON)?;
+      let tixel = Tixel::from_tagged_dag_json(TIXELJSON)?;
       Ok(Arc::new(tixel))
     }
 
     async fn fetch_index(&self, _strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
-      let tixel = Tixel::from_dag_json(TIXELJSON)?;
+      let tixel = Tixel::from_tagged_dag_json(TIXELJSON)?;
       if tixel.index() != index {
         return Err(ResolutionError::NotFound);
       }
@@ -242,7 +242,7 @@ mod test {
     }
 
     async fn fetch_tixel(&self, _strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
-      let tix = Tixel::from_dag_json(TIXELJSON)?;
+      let tix = Tixel::from_tagged_dag_json(TIXELJSON)?;
       if tix.cid() != *tixel {
         return Err(ResolutionError::NotFound);
       }
@@ -251,7 +251,7 @@ mod test {
     }
 
     async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
-      let s = Arc::new(Strand::from_dag_json(STRANDJSON)?);
+      let s = Arc::new(Strand::from_tagged_dag_json(STRANDJSON)?);
       if s.cid() != *strand {
         return Err(ResolutionError::NotFound);
       }
@@ -260,7 +260,7 @@ mod test {
     }
 
     async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
-      let tixel = Arc::new(Tixel::from_dag_json(TIXELJSON)?);
+      let tixel = Arc::new(Tixel::from_tagged_dag_json(TIXELJSON)?);
       if *range.strand_cid() != tixel.strand_cid() {
         return Err(ResolutionError::NotFound);
       }
@@ -278,8 +278,8 @@ mod test {
       tixel_hits: Arc::new(RwLock::new(HashMap::new())),
     };
     let cache = MemoryCache::new(resolver);
-    let strand = Strand::from_dag_json(STRANDJSON).unwrap();
-    let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+    let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
     let strand_cid = strand.cid();
     let tixel_cid = tixel.cid();
 

@@ -170,7 +170,7 @@ impl HttpStore {
       },
       _ => {
         let json = response.text().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-        let twine = AnyTwine::from_dag_json(&json).map_err(|e| ResolutionError::Invalid(e))?;
+        let twine = AnyTwine::from_tagged_dag_json(&json).map_err(|e| ResolutionError::Invalid(e))?;
         Ok(twine)
       },
     }
@@ -212,7 +212,7 @@ impl HttpStore {
       },
       _ => {
         let json = response.text().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-        let twines = AnyTwine::from_dag_json_array(json).map_err(|e| ResolutionError::Invalid(e))?;
+        let twines = AnyTwine::from_tagged_dag_json_array(json).map_err(|e| ResolutionError::Invalid(e))?;
         let stream = futures::stream::iter(twines.into_iter()).map(|t| Ok(t.clone()));
         Ok(stream.boxed())
       },
@@ -329,7 +329,7 @@ impl Store for HttpStore {
     };
     let res = self.send(
         self.post_json(&path)
-          .body(twine.dag_json())
+          .body(twine.tagged_dag_json())
       )
       .await;
     handle_save_result(res)

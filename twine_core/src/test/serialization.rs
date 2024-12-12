@@ -7,7 +7,7 @@ use super::*;
 
 #[test]
 fn test_deserialize_tixel_json() {
-  let res = Tixel::from_dag_json(TIXELJSON);
+  let res = Tixel::from_tagged_dag_json(TIXELJSON);
   dbg!(&res);
   assert!(res.is_ok(), "Failed to deserialize Tixel: {:?}", res.err());
 }
@@ -15,8 +15,8 @@ fn test_deserialize_tixel_json() {
 
 #[test]
 fn test_invalid_signature_tixel_json() {
-  let strand = Strand::from_dag_json(STRANDJSON).unwrap();
-  let tixel = Tixel::from_dag_json(INVALID_SIGNATURE_TIXELJSON).unwrap();
+  let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
+  let tixel = Tixel::from_tagged_dag_json(INVALID_SIGNATURE_TIXELJSON).unwrap();
   let res = strand.verify_tixel(&tixel);
   dbg!(&res);
   assert!(res.is_err(), "Signature verification should have failed");
@@ -24,14 +24,14 @@ fn test_invalid_signature_tixel_json() {
 
 #[test]
 fn test_deserialize_strand_json(){
-  let res = Strand::from_dag_json(STRANDJSON);
+  let res = Strand::from_tagged_dag_json(STRANDJSON);
   dbg!(&res);
   assert!(res.is_ok(), "Failed to deserialize Strand: {:?}", res.err());
 }
 
 #[test]
 fn test_deserialize_tixel_bytes(){
-  let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+  let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
   let bytes = tixel.bytes();
   let res = Tixel::from_block(tixel.cid(), bytes);
   dbg!(&res);
@@ -40,7 +40,7 @@ fn test_deserialize_tixel_bytes(){
 
 #[test]
 fn test_deserialize_strand_bytes(){
-  let strand = Strand::from_dag_json(STRANDJSON).unwrap();
+  let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
   let res = Strand::from_block(strand.cid(), strand.bytes());
   // dbg!(&res);
   assert!(res.is_ok(), "Failed to deserialize Strand from bytes: {:?}", res.err());
@@ -48,38 +48,38 @@ fn test_deserialize_strand_bytes(){
 
 #[test]
 fn test_deserialize_generic() {
-  let twine = AnyTwine::from_dag_json(STRANDJSON);
+  let twine = AnyTwine::from_tagged_dag_json(STRANDJSON);
   assert!(twine.is_ok(), "Failed to deserialize Strand: {:?}", twine.err());
   assert!(twine.unwrap().is_strand(), "Twine is not a Strand");
 }
 
 #[test]
 fn test_deserialize_generic_invalid() {
-  let twine = AnyTwine::from_dag_json(BADSTRANDJSON);
+  let twine = AnyTwine::from_tagged_dag_json(BADSTRANDJSON);
   assert!(twine.is_err(), "Deserialization should have failed");
 }
 
 #[test]
 fn test_in_out_json(){
-  let twine = AnyTwine::from_dag_json(TIXELJSON).unwrap();
-  let json = twine.dag_json();
-  let twine2 = AnyTwine::from_dag_json(&json).unwrap();
+  let twine = AnyTwine::from_tagged_dag_json(TIXELJSON).unwrap();
+  let json = twine.tagged_dag_json();
+  let twine2 = AnyTwine::from_tagged_dag_json(&json).unwrap();
   assert_eq!(twine, twine2, "Twine JSON roundtrip failed. Json: {}", json);
   assert!(twine2.is_tixel(), "Twine is not a Tixel");
 }
 
 #[test]
 fn test_signature_verification(){
-  let strand = Strand::from_dag_json(STRANDJSON).unwrap();
+  let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
 
-  let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+  let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
   let res = strand.verify_tixel(&tixel);
   assert!(res.is_ok(), "Failed to verify signature: {:?}", res.err());
 }
 
 #[test]
 fn test_decoding_fail(){
-  let res = Tixel::from_dag_json(INVALID_TIXELJSON);
+  let res = Tixel::from_tagged_dag_json(INVALID_TIXELJSON);
   assert!(res.is_err(), "Decoding should have failed");
 }
 
@@ -91,16 +91,16 @@ fn test_simple_payload_unpack(){
     timestamp: String,
   }
 
-  // let strand = Strand::from_dag_json(STRANDJSON).unwrap();
-  let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+  // let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
+  let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
   let t: Timestamped = tixel.extract_payload().unwrap();
   assert_eq!(t.timestamp, "2023-10-26T21:25:56.936Z");
 }
 
 #[test]
 fn test_twine() {
-  let strand = Strand::from_dag_json(STRANDJSON).unwrap();
-  let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+  let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
+  let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
   let twine = Twine::try_new(strand, tixel).unwrap();
   assert_eq!(twine.previous(), twine.back_stitches().first().copied());
 }
@@ -108,8 +108,8 @@ fn test_twine() {
 #[test]
 fn test_shared_twine() {
   use std::sync::Arc;
-  let strand = Strand::from_dag_json(STRANDJSON).unwrap();
-  let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+  let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
+  let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
   let strand = Arc::new(strand);
   let tixel = Arc::new(tixel);
   let twine = Twine::try_new_from_shared(strand.clone(), tixel.clone()).unwrap();
@@ -158,7 +158,7 @@ fn test_bytes(){
 
 #[test]
 fn test_deserialize_strand_v2(){
-  let res = Strand::from_dag_json(STRAND_V2_JSON);
+  let res = Strand::from_tagged_dag_json(STRAND_V2_JSON);
   assert!(res.is_ok(), "Failed to deserialize Strand: {:?}", res.err());
-  println!("{}", res.unwrap().dag_json_pretty());
+  println!("{}", res.unwrap().tagged_dag_json_pretty());
 }

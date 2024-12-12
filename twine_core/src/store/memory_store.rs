@@ -193,8 +193,8 @@ mod test {
   #[tokio::test]
   async fn test_memory_store() {
     let store = MemoryStore::new();
-    let strand = Strand::from_dag_json(STRANDJSON).unwrap();
-    let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+    let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
     store.save(strand.clone()).await.unwrap();
     store.save(tixel.clone()).await.unwrap();
     let strand2 = store.fetch_strand(&strand.cid()).await.unwrap();
@@ -210,8 +210,8 @@ mod test {
   #[tokio::test]
   async fn test_memory_store_save_many() {
     let store = MemoryStore::new();
-    let strand = Strand::from_dag_json(STRANDJSON).unwrap();
-    let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+    let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
     let things: Vec<AnyTwine> = vec![strand.clone().into(), tixel.clone().into()];
     store.save_many(things).await.unwrap();
     let strand2 = store.fetch_strand(&strand.cid()).await.unwrap();
@@ -227,7 +227,7 @@ mod test {
   #[tokio::test]
   async fn test_memory_store_strand_list() {
     let store = MemoryStore::new();
-    let strand = Strand::from_dag_json(STRANDJSON).unwrap();
+    let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
     store.save(strand.clone()).await.unwrap();
     let mut stream = store.strands().await.unwrap();
     use futures::stream::TryStreamExt;
@@ -238,8 +238,8 @@ mod test {
   #[tokio::test]
   async fn test_resolver() {
     let store = MemoryStore::new();
-    let strand = Strand::from_dag_json(STRANDJSON).unwrap();
-    let tixel = Tixel::from_dag_json(TIXELJSON).unwrap();
+    let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
     store.save(strand.clone()).await.unwrap();
     store.save(tixel.clone()).await.unwrap();
     let latest = store.resolve(strand).await.unwrap();

@@ -1,5 +1,5 @@
 use std::{fmt::Display, sync::Arc};
-use crate::{as_cid::AsCid, crypto::{get_hasher, PublicKey}, dag_json::TwineContainerJson, specification::Subspec, verify::{Verifiable, Verified}};
+use crate::{as_cid::AsCid, crypto::{get_hasher, PublicKey}, specification::Subspec, verify::{Verifiable, Verified}};
 use crate::schemas::v1::{self, ChainContentV1};
 use crate::schemas::v2;
 use multihash_codetable::Code;
@@ -9,7 +9,7 @@ use serde_ipld_dagjson::codec::DagJsonCodec;
 use crate::Ipld;
 use serde::{Serialize, Deserialize};
 use ipld_core::{cid::Cid, codec::Codec};
-use super::{Tixel, TwineBlock};
+use super::{Tagged, Tixel, TwineBlock};
 use crate::errors::VerificationError;
 use crate::schemas::{StrandContainer, TwineContainer};
 
@@ -147,28 +147,12 @@ impl TwineBlock for Strand {
   fn cid(&self) -> &Cid {
     self.as_cid()
   }
-  /// Decode from DAG-JSON
-  ///
-  /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
-  fn from_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
-    let j: TwineContainerJson<StrandContainerVersion> = DagJsonCodec::decode_from_slice(json.to_string().as_bytes())?;
-    let cid = j.cid;
-    let container = match j.data {
-      // v1 requires recomputing the CID
-      mut container@StrandContainerVersion::V1(_) => {
-        let hasher = get_hasher(&cid)?;
-        container.compute_cid(hasher);
-        container
-      },
-      container@StrandContainerVersion::V2(_) => container,
-    };
 
-    let twine = Self(Verified::try_new(container)?);
-    twine.verify_cid(&cid)?;
-    Ok(twine)
+  fn from_tagged_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
+    let t: Tagged<Strand> = DagJsonCodec::decode_from_slice(json.to_string().as_bytes())?;
+    Ok(t.unpack())
   }
 
-  /// Decode from raw bytes without checking CID
   fn from_bytes_unchecked(hasher: Code, bytes: Vec<u8>) -> Result<Self, VerificationError> {
     let mut twine: StrandContainerVersion = DagCborCodec::decode_from_slice(bytes.as_slice())?;
     // if v1... recompute cid
@@ -179,9 +163,6 @@ impl TwineBlock for Strand {
     Ok(twine)
   }
 
-  /// Decode from a Block
-  ///
-  /// A block is a cid and DAG-CBOR bytes. CID is verified.
   fn from_block<T: AsRef<[u8]>>(cid: Cid, bytes: T) -> Result<Self, VerificationError> {
     let hasher = get_hasher(&cid)?;
     let twine = Self::from_bytes_unchecked(hasher, bytes.as_ref().to_vec())?;
@@ -189,8 +170,7 @@ impl TwineBlock for Strand {
     Ok(twine)
   }
 
-  /// Encode to DAG-JSON
-  fn dag_json(&self) -> String {
+  fn tagged_dag_json(&self) -> String {
     format!(
       "{{\"cid\":{},\"data\":{}}}",
       String::from_utf8(DagJsonCodec::encode_to_vec(&self.cid()).unwrap()).unwrap(),
@@ -198,7 +178,6 @@ impl TwineBlock for Strand {
     )
   }
 
-  /// Encode to raw bytes
   fn bytes(&self) -> Arc<[u8]> {
     DagCborCodec::encode_to_vec(&self.0).unwrap().as_slice().into()
   }
@@ -214,6 +193,6 @@ impl TwineBlock for Strand {
 
 impl Display for Strand {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}", self.dag_json_pretty())
+    write!(f, "{}", self.tagged_dag_json_pretty())
   }
 }

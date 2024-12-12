@@ -69,7 +69,7 @@ mod test {
 
   #[tokio::test]
   async fn test_to_car_stream() -> Result<(), Box<dyn Error>> {
-    let twine = Strand::from_dag_json(STRANDJSON).unwrap();
+    let twine = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
     let stream = futures::stream::iter(vec![twine.clone()]);
     let roots = vec![twine.cid()];
     let car_stream = to_car_stream(stream, roots.clone());

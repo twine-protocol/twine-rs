@@ -5,7 +5,6 @@ mod tixel;
 mod any_twine;
 mod twine;
 mod tagged;
-pub mod dag_json;
 // mod payload;
 
 pub use twine_block::*;

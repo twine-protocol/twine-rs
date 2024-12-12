@@ -7,8 +7,8 @@ pub trait TwineBlock where Self: Sized {
   fn cid(&self) -> &Cid;
   /// Decode from DAG-JSON
   ///
-  /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
-  fn from_dag_json<S: Display>(json: S) -> Result<Self, VerificationError>;
+  /// Tagged dag json is a JSON object with a CID and a data object. CID is verified against the data.
+  fn from_tagged_dag_json<S: Display>(json: S) -> Result<Self, VerificationError>;
 
   /// Decode from raw bytes without checking CID
   fn from_bytes_unchecked(hasher: Code, bytes: Vec<u8>) -> Result<Self, VerificationError>;
@@ -18,17 +18,17 @@ pub trait TwineBlock where Self: Sized {
   /// A block is a cid and DAG-CBOR bytes. CID is verified.
   fn from_block<T: AsRef<[u8]>>(cid: Cid, bytes: T) -> Result<Self, VerificationError>;
 
-  /// Encode to DAG-JSON
-  fn dag_json(&self) -> String;
+  /// Encode a `Tagged` version to DAG-JSON
+  fn tagged_dag_json(&self) -> String;
 
   /// Encode to raw bytes
   fn bytes(&self) -> Arc<[u8]>;
 
   fn content_bytes(&self) -> Arc<[u8]>;
 
-  /// Encode to pretty dag-json
-  fn dag_json_pretty(&self) -> String {
-    let json = self.dag_json();
+  /// Encode a `Tagged` version to pretty dag-json
+  fn tagged_dag_json_pretty(&self) -> String {
+    let json = self.tagged_dag_json();
     let j: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
     serde_json::to_string_pretty(&j).unwrap()
   }

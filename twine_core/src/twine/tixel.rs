@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use crate::as_cid::AsCid;
 use crate::crypto::{get_hasher, Signature};
-use crate::dag_json::TwineContainerJson;
 use crate::schemas::v1::PulseContentV1;
 use crate::schemas::v2;
 use crate::specification::Subspec;
@@ -19,7 +18,7 @@ use serde::{Serialize, Deserialize};
 use ipld_core::codec::Codec;
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use serde_ipld_dagjson::codec::DagJsonCodec;
-use super::{BackStitches, CrossStitches, Stitch, TwineBlock};
+use super::{BackStitches, CrossStitches, Stitch, Tagged, TwineBlock};
 use super::Strand;
 use crate::schemas::{TixelContainer, TwineContainer};
 
@@ -194,27 +193,12 @@ impl TwineBlock for Tixel {
   fn cid(&self) -> &Cid {
     self.as_cid()
   }
-  /// Decode from DAG-JSON
-  ///
-  /// DAG-JSON is a JSON object with a CID and a data object. CID is verified.
-  fn from_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
-    let j: TwineContainerJson<TixelContainerVersion> = DagJsonCodec::decode_from_slice(json.to_string().as_bytes())?;
-    let cid = j.cid;
-    let container = match j.data {
-      // v1 requires recomputing the CID
-      mut container@TixelContainerVersion::V1(_) => {
-        let hasher = get_hasher(&cid)?;
-        container.compute_cid(hasher);
-        container
-      },
-      container@TixelContainerVersion::V2(_) => container,
-    };
-    let twine = Self(Verified::try_new(container)?);
-    twine.verify_cid(&cid)?;
-    Ok(twine)
+
+  fn from_tagged_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
+    let t : Tagged<Tixel> = DagJsonCodec::decode_from_slice(json.to_string().as_bytes())?;
+    Ok(t.unpack())
   }
 
-  /// Decode from raw bytes without checking CID
   fn from_bytes_unchecked(hasher: Code, bytes: Vec<u8>) -> Result<Self, VerificationError> {
     let mut twine: TixelContainerVersion = DagCborCodec::decode_from_slice(bytes.as_slice())?;
     // if v1... recompute cid
@@ -225,9 +209,6 @@ impl TwineBlock for Tixel {
     Ok(twine)
   }
 
-  /// Decode from a Block
-  ///
-  /// A block is a cid and DAG-CBOR bytes. CID is verified.
   fn from_block<T: AsRef<[u8]>>(cid: Cid, bytes: T) -> Result<Self, VerificationError> {
     let hasher = get_hasher(&cid)?;
     let twine = Self::from_bytes_unchecked(hasher, bytes.as_ref().to_vec())?;
@@ -235,8 +216,7 @@ impl TwineBlock for Tixel {
     Ok(twine)
   }
 
-  /// Encode to DAG-JSON
-  fn dag_json(&self) -> String {
+  fn tagged_dag_json(&self) -> String {
     format!(
       "{{\"cid\":{},\"data\":{}}}",
       String::from_utf8(DagJsonCodec::encode_to_vec(&self.cid()).unwrap()).unwrap(),
@@ -244,7 +224,6 @@ impl TwineBlock for Tixel {
     )
   }
 
-  /// Encode to raw bytes
   fn bytes(&self) -> Arc<[u8]> {
     DagCborCodec::encode_to_vec(&self.0).unwrap().as_slice().into()
   }
@@ -260,6 +239,6 @@ impl TwineBlock for Tixel {
 
 impl Display for Tixel {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}", self.dag_json_pretty())
+    write!(f, "{}", self.tagged_dag_json_pretty())
   }
 }

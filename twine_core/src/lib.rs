@@ -65,7 +65,6 @@ pub mod serde;
 use std::ops::Deref;
 
 pub use semver;
-pub use twine::dag_json;
 
 pub use ipld_core::cid::{self, Cid};
 pub use ipld_core::{self, ipld::Ipld};
