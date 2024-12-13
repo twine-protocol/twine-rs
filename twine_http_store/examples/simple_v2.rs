@@ -1,5 +1,8 @@
+use std::sync::Arc;
+
 use futures::{StreamExt, TryStreamExt};
 use tokio::pin;
+use twine_core::twine::Strand;
 use twine_http_store::*;
 use twine_core::resolver::*;
 use twine_core::Cid;
@@ -16,8 +19,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let store = twine_core::store::MemoryStore::new();
 
   println!("strands:");
-  let strands = resolver.strands().await?;
-  strands.inspect_ok(|strand| {
+  let strands: Vec<Arc<Strand>> = resolver.strands().await?
+  .inspect_ok(|strand| {
     println!("> cid: {}\n> description: {:?}",
       strand.cid(),
       strand.details().get("description").unwrap()
@@ -26,9 +29,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   .inspect_err(|err| {
     eprintln!("error: {}", err);
   })
-  .for_each(|_| async {}).await;
+  .try_collect().await?;
 
-  let cid = Cid::try_from("bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune").unwrap();
+  let cid = strands[0].cid().clone();
   let twine = resolver.resolve_strand(cid).await?.unpack();
   println!("specific strand resolved: {}", twine.cid());
 
@@ -38,18 +41,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let latest = resolver.resolve_latest(&twine).await?;
   println!("latest: {}", latest.cid());
 
-  store.save(twine.clone()).await?;
-  println!("saved twine");
-  let twine_stream = resolver.resolve_range((&twine, ..)).await?
+  // resolve 1000
+  resolver.resolve_range((&twine, 0..=1000)).await?
     .inspect_ok(|twine| println!("index: {}, cid: {}", twine.index(), twine.cid()))
     .inspect_err(|err| eprintln!("error: {}", err))
     .filter_map(|twine| async {
       twine.ok()
-    });
+    })
+    .for_each(|_| async { })
+    .await;
 
-  pin!(twine_stream);
+  // store.save(twine.clone()).await?;
+  // println!("saved twine");
+  // let twine_stream = resolver.resolve_range((&twine, ..)).await?
+  //   .inspect_ok(|twine| println!("index: {}, cid: {}", twine.index(), twine.cid()))
+  //   .inspect_err(|err| eprintln!("error: {}", err))
+  //   .filter_map(|twine| async {
+  //     twine.ok()
+  //   });
 
-  store.save_stream(twine_stream).await?;
+  // pin!(twine_stream);
+
+  // store.save_stream(twine_stream).await?;
 
   // try sequentially
   // for i in 0..100 {
