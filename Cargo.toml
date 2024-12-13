@@ -26,6 +26,7 @@ members = [
 
 [features]
 default = ["sha3", "blake3"]
+http = ["dep:twine_http_store"]
 build = ["dep:twine_builder"]
 sha3 = ["twine_core/sha3"]
 blake3 = ["twine_core/blake3"]
@@ -36,5 +37,6 @@ blake2b = ["twine_core/blake2b"]
 [dependencies]
 twine_core = { path = "./twine_core" }
 twine_builder = { path = "./twine_builder", optional = true }
+twine_http_store = { path = "./twine_http_store", optional = true }
 
 [dev-dependencies]
