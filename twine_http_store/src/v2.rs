@@ -6,7 +6,7 @@ use fvm_ipld_car::CarReader;
 use reqwest::{header::{ACCEPT, CONTENT_TYPE}, Method, StatusCode, Url};
 use twine_core::resolver::{Resolver, TwineResolution};
 use twine_core::twine::{Twine, TwineBlock};
-use twine_core::{as_cid::AsCid, errors::{ResolutionError, StoreError}, resolver::{AbsoluteRange, unsafe_base::BaseResolver, Query}, store::Store, twine::{AnyTwine, Strand, Tixel}, Cid};
+use twine_core::{as_cid::AsCid, errors::{ResolutionError, StoreError}, resolver::{AbsoluteRange, unchecked_base::BaseResolver, Query}, store::Store, twine::{AnyTwine, Strand, Tixel}, Cid};
 
 fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result<(), StoreError> {
   match res {

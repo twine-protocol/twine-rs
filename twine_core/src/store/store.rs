@@ -1,5 +1,5 @@
 use crate::errors::StoreError;
-use crate::resolver::unsafe_base::BaseResolver;
+use crate::resolver::unchecked_base::BaseResolver;
 use crate::twine::AnyTwine;
 use crate::as_cid::AsCid;
 use async_trait::async_trait;

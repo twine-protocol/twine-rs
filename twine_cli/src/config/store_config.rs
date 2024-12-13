@@ -2,7 +2,7 @@ use std::{collections::HashSet, hash::Hash, ops::Deref, str::FromStr, sync::Arc}
 use futures::executor;
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
-use twine_core::{errors::StoreError, resolver::unsafe_base, store::Store};
+use twine_core::{errors::StoreError, resolver::unchecked_base, store::Store};
 use twine_http_store::reqwest;
 use twine_sled_store::SledStore;
 
@@ -14,7 +14,7 @@ pub(crate) enum AnyStore {
 }
 
 impl Deref for AnyStore {
-  type Target = dyn unsafe_base::BaseResolver;
+  type Target = dyn unchecked_base::BaseResolver;
 
   fn deref(&self) -> &Self::Target {
     match self {

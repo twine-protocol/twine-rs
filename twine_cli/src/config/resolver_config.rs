@@ -2,7 +2,7 @@ use std::{collections::HashSet, hash::Hash, str::FromStr};
 use futures::executor;
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
-use twine_core::resolver::unsafe_base;
+use twine_core::resolver::unchecked_base;
 use twine_http_store::reqwest;
 use twine_sled_store::{SledStore, SledStoreOptions, sled};
 
@@ -41,7 +41,7 @@ impl ResolverRecord {
     Ok(Self { uri, kind, name, priority, default })
   }
 
-  pub(crate) fn as_resolver(&self) -> Result<Box<dyn unsafe_base::BaseResolver>> {
+  pub(crate) fn as_resolver(&self) -> Result<Box<dyn unchecked_base::BaseResolver>> {
     match self.kind {
       ResolverKind::HttpV1 => {
         let cfg = twine_http_store::v1::HttpStoreOptions::default()

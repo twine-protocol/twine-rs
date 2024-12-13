@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use futures::Stream;
 use crate::Cid;
 use crate::errors::{ResolutionError, StoreError};
-use crate::resolver::{AbsoluteRange, unsafe_base::BaseResolver, Resolver};
+use crate::resolver::{AbsoluteRange, unchecked_base::BaseResolver, Resolver};
 use crate::twine::{Strand, Tixel};
 use super::Store;
 use crate::as_cid::AsCid;

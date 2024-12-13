@@ -5,7 +5,7 @@ use fvm_ipld_car::CarReader;
 use std::{pin::Pin, sync::Arc};
 use std::time::Duration;
 use twine_core::{as_cid::AsCid, errors::*, resolver::{AbsoluteRange, Resolver}, store::Store, twine::{TwineBlock, *}, Cid};
-use twine_core::resolver::unsafe_base::BaseResolver;
+use twine_core::resolver::unchecked_base::BaseResolver;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HttpStoreOptions {

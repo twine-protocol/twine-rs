@@ -6,7 +6,7 @@ use zerocopy::FromZeroes;
 use std::collections::{HashMap, HashSet};
 use std::{pin::Pin, sync::Arc};
 use twine_core::{twine::*, twine::TwineBlock, errors::*, as_cid::AsCid, store::Store, Cid};
-use twine_core::resolver::{AbsoluteRange, unsafe_base::BaseResolver, Resolver};
+use twine_core::resolver::{AbsoluteRange, unchecked_base::BaseResolver, Resolver};
 use sled::Db;
 use zerocopy::{
   byteorder::{U64, BigEndian}, AsBytes, FromBytes, Unaligned,

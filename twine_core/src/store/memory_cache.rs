@@ -1,4 +1,4 @@
-use crate::resolver::{unsafe_base, AbsoluteRange, Resolver};
+use crate::resolver::{unchecked_base, AbsoluteRange, Resolver};
 use crate::errors::ResolutionError;
 use crate::twine::Tixel;
 use crate::Cid;
@@ -59,7 +59,7 @@ impl<T: Resolver> MemoryCache<T> {
 }
 
 #[async_trait]
-impl<T: Resolver> unsafe_base::BaseResolver for MemoryCache<T> {
+impl<T: Resolver> unchecked_base::BaseResolver for MemoryCache<T> {
   async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + '_ + Send>>, ResolutionError> {
     self.resolver.strands().await.and_then(|stream| {
       Ok(stream.map(|strand| {
@@ -189,7 +189,7 @@ mod test {
   }
 
   #[async_trait]
-  impl unsafe_base::BaseResolver for DummyResolver {
+  impl unchecked_base::BaseResolver for DummyResolver {
     async fn fetch_strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
       let strand = Arc::new(Strand::from_tagged_dag_json(STRANDJSON)?);
       let s = vec![strand];

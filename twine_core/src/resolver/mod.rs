@@ -14,8 +14,8 @@ pub use query::*;
 mod resolution;
 pub use resolution::*;
 
-pub mod unsafe_base;
-use unsafe_base::*;
+pub mod unchecked_base;
+use unchecked_base::*;
 
 #[async_trait]
 pub trait Resolver: BaseResolver + Send + Sync {
