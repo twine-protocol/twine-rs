@@ -3,12 +3,10 @@ use async_trait::async_trait;
 use futures::stream::{StreamExt, TryStreamExt};
 use futures::Stream;
 use fvm_ipld_car::CarReader;
-use reqwest::{header::ACCEPT, Method, StatusCode, Url};
-use serde::{Deserialize, Serialize};
+use reqwest::{header::{ACCEPT, CONTENT_TYPE}, Method, StatusCode, Url};
 use twine_core::resolver::{Resolver, TwineResolution};
-use twine_core::twine::{Tagged, Twine, TwineBlock};
+use twine_core::twine::{Twine, TwineBlock};
 use twine_core::{as_cid::AsCid, errors::{ResolutionError, StoreError}, resolver::{AbsoluteRange, unsafe_base::BaseResolver, Query}, store::Store, twine::{AnyTwine, Strand, Tixel}, Cid};
-use twine_core::serde::dag_json;
 
 fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result<(), StoreError> {
   match res {
@@ -23,13 +21,6 @@ fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result
       }
     },
   }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Registration {
-  #[serde(with = "dag_json")]
-  pub strand: Tagged<Strand>,
-  pub email: String,
 }
 
 #[derive(Debug, Clone)]
@@ -100,11 +91,11 @@ impl HttpStore {
     self
   }
 
-  pub async fn register(&self, reg: Registration) -> Result<(), StoreError> {
-    let req = self.post("register").json(&reg);
-    let res = self.send(req).await;
-    handle_save_result(res)
-  }
+  // pub async fn register(&self, reg: Registration) -> Result<(), StoreError> {
+  //   let req = self.post("register").json(&reg);
+  //   let res = self.send(req).await;
+  //   handle_save_result(res)
+  // }
 
   fn req(&self, method: Method, path: &str) -> reqwest::RequestBuilder {
     let mut url = self.url.clone();
@@ -122,12 +113,19 @@ impl HttpStore {
     self.req(Method::GET, path)
   }
 
+  #[allow(dead_code)]
   fn post(&self, path: &str) -> reqwest::RequestBuilder {
     self.req(Method::POST, path)
   }
 
+  #[allow(dead_code)]
   fn put(&self, path: &str) -> reqwest::RequestBuilder {
     self.req(Method::PUT, path)
+  }
+
+  fn put_car(&self, path: &str) -> reqwest::RequestBuilder {
+    self.req(Method::PUT, path)
+      .header(CONTENT_TYPE, "application/vnd.ipld.car")
   }
 
   async fn send(&self, req: reqwest::RequestBuilder) -> Result<reqwest::Response, ResolutionError> {
@@ -356,8 +354,22 @@ impl Store for HttpStore {
     let twines: Vec<AnyTwine> = twines.into_iter().map(|t| t.into()).collect();
     let (strands, tixels): (Vec<_>, Vec<_>) = twines.into_iter().partition(|t| matches!(t, AnyTwine::Strand(_)));
     if strands.len() > 0 {
-      return Err(StoreError::Saving("Strands must be saved with register()".to_string()));
+      let jobs = strands.into_iter().map(|strand| async {
+        let strand_cid = strand.cid();
+        let path = "".to_string();
+        let data = to_car_stream(futures::stream::iter(vec![strand]), vec![strand_cid]);
+        let items = data.collect::<Vec<_>>().await.concat();
+        let res = self.send(
+          self.put_car(&path).body(items)
+        ).await;
+        handle_save_result(res)
+      }).collect::<Vec<_>>();
+
+      futures::stream::iter(jobs)
+        .buffered(self.concurency)
+        .try_collect().await?;
     }
+
     if tixels.len() > 0 {
       use itertools::Itertools;
       let groups_by_strand = tixels.iter()
@@ -368,23 +380,30 @@ impl Store for HttpStore {
           (
             cid,
             it.sorted_by(|a, b| a.index().cmp(&b.index()))
-              .collect()
+              .chunks(self.batch_size as usize)
+              .into_iter()
+              .map(|g| g.collect())
+              .collect::<Vec<Vec<_>>>()
           )
-        )
-        .collect::<Vec<(_, Vec<Tixel>)>>();
-      futures::stream::iter(groups_by_strand).then(|(strand_cid, group)| async move {
-        let roots = vec![group.first().unwrap().cid()];
-        let data = to_car_stream(futures::stream::iter(group), roots);
-        // let vec = data.collect::<Vec<_>>().await;
-        let path = format!("{}", strand_cid);
-        let res = self.send(
-            self.put(&path)
-              .body(reqwest::Body::wrap_stream(data.map(|b| Ok::<_, reqwest::Error>(b))))
-          )
-          .await;
-        handle_save_result(res)
-      })
-      .try_collect().await?;
+        ).collect::<Vec<_>>();
+
+      let jobs = groups_by_strand.into_iter().map(|(strand_cid, group)| {
+        let strand_cid = strand_cid.clone();
+        group.into_iter().map(move |group| async move {
+          let path = format!("{}", strand_cid);
+          let roots = vec![group.first().unwrap().cid()];
+          let data = to_car_stream(futures::stream::iter(group), roots);
+          let items = data.collect::<Vec<_>>().await.concat();
+          let res = self.send(
+            self.put_car(&path).body(items)
+          ).await;
+          handle_save_result(res)
+        })
+      }).flatten();
+
+      futures::stream::iter(jobs)
+        .buffered(self.concurency)
+        .try_collect().await?;
     }
     Ok(())
   }
