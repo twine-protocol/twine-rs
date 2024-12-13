@@ -101,19 +101,22 @@ impl<'de> Deserialize<'de> for Tagged<Tixel> {
 
 impl<'de> Deserialize<'de> for Tagged<AnyTwine> {
   fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
-    if let Ok(c) = Tagged::<Either<StrandContainerVersion, TixelContainerVersion>>::deserialize(deserializer) {
-      match c.data {
-        Either::Left(sc) => {
-          let strand = Strand::try_new(sc).map_err(serde::de::Error::custom)?;
-          Ok(Tagged { cid: c.cid, data: strand.into() })
-        },
-        Either::Right(tc) => {
-          let tixel = Tixel::try_new(tc).map_err(serde::de::Error::custom)?;
-          Ok(Tagged { cid: c.cid, data: tixel.into() })
-        },
-      }
-    } else {
-      Err(serde::de::Error::custom("failed to deserialize Tagged<AnyTwine>"))
+    #[derive(Deserialize)]
+    #[serde(transparent)]
+    struct EitherContainer(
+      #[serde(with = "either::serde_untagged")]
+      Either<Tagged<StrandContainerVersion>, Tagged<TixelContainerVersion>>
+    );
+    let item = EitherContainer::deserialize(deserializer)?;
+    match item.0 {
+      Either::Left(c) => {
+        let c : Tagged<Strand> = Tagged::try_from(c).map_err(serde::de::Error::custom)?;
+        Ok(Tagged::new(AnyTwine::from(c.data)))
+      },
+      Either::Right(c) => {
+        let c : Tagged<Tixel> = Tagged::try_from(c).map_err(serde::de::Error::custom)?;
+        Ok(Tagged::new(AnyTwine::from(c.data)))
+      },
     }
   }
 }
@@ -134,18 +137,16 @@ impl Serialize for Tagged<Tixel> {
 
 impl Serialize for Tagged<AnyTwine> {
   fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-    let data = match &self.data {
+    match &self.data {
       AnyTwine::Strand(s) => {
         let c = Tagged { cid: self.cid.clone(), data: s.0.as_inner() };
-        Either::Left(c)
+        c.serialize(serializer)
       },
       AnyTwine::Tixel(t) => {
         let c = Tagged { cid: self.cid.clone(), data: t.0.as_inner() };
-        Either::Right(c)
+        c.serialize(serializer)
       },
-    };
-    let c = Tagged { cid: self.cid.clone(), data };
-    c.serialize(serializer)
+    }
   }
 }
 
@@ -196,4 +197,35 @@ mod test {
     assert_eq!(thing, decoded);
   }
 
+  #[test]
+  fn test_any_twine_tagged(){
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    struct Thing {
+      twine: Tagged<AnyTwine>,
+    }
+
+    let _: Tagged<AnyTwine> = serde_ipld_dagjson::from_slice(STRANDJSON.as_bytes()).unwrap();
+    let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
+
+    let thing = Thing {
+      twine: Tagged::new(AnyTwine::from(strand)),
+    };
+
+    let s = serde_ipld_dagjson::to_vec(&thing).unwrap();
+    println!("{}", String::from_utf8(s).unwrap());
+    let encoded = serde_ipld_dagjson::to_vec(&thing).unwrap();
+    let decoded: Thing = serde_ipld_dagjson::from_slice(&encoded).unwrap();
+    assert_eq!(thing, decoded);
+
+    let thing = Thing {
+      twine: Tagged::new(AnyTwine::from(tixel)),
+    };
+
+    let s = serde_ipld_dagjson::to_vec(&thing).unwrap();
+    println!("{}", String::from_utf8(s).unwrap());
+    let encoded = serde_ipld_dagjson::to_vec(&thing).unwrap();
+    let decoded: Thing = serde_ipld_dagjson::from_slice(&encoded).unwrap();
+    assert_eq!(thing, decoded);
+  }
 }

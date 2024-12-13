@@ -27,8 +27,8 @@ fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Registration {
-  pub strand: Tagged<Strand>,
   #[serde(with = "dag_json")]
+  pub strand: Tagged<Strand>,
   pub email: String,
 }
 
