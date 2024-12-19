@@ -9,7 +9,6 @@ use twine_core::resolver::unchecked_base::BaseResolver;
 #[derive(Debug, Clone, PartialEq)]
 pub struct HttpStoreOptions {
   pub url: Url,
-  pub timeout: Duration,
   pub concurency: usize,
 }
 
@@ -17,7 +16,6 @@ impl Default for HttpStoreOptions {
   fn default() -> Self {
     Self {
       url: "http://localhost:8080".parse().unwrap(),
-      timeout: Duration::from_secs(30),
       concurency: 4,
     }
   }
@@ -26,11 +24,6 @@ impl Default for HttpStoreOptions {
 impl HttpStoreOptions {
   pub fn url(mut self, url: &str) -> Self {
     self.url = format!("{}/", url).parse().expect("Invalid URL");
-    self
-  }
-
-  pub fn timeout(mut self, timeout: Duration) -> Self {
-    self.timeout = timeout;
     self
   }
 
@@ -90,8 +83,6 @@ impl HttpStore {
           e.status().map(|s| s.is_server_error()).unwrap_or(false)
         } else if e.is_timeout() {
           true
-        } else if e.is_connect() {
-          false
         } else {
           false
         }
@@ -121,26 +112,22 @@ impl HttpStore {
   fn req(&self, path: &str) -> reqwest::RequestBuilder {
     self.client.get(self.options.url.join(&path).expect("Invalid path"))
       .header(ACCEPT, "application/vnd.ipld.car, application/json;q=0.5")
-      .timeout(self.options.timeout)
   }
 
   // TODO: Use HEAD for has when able
   #[allow(dead_code)]
   fn head(&self, path: &str) -> reqwest::RequestBuilder {
     self.client.head(self.options.url.join(&path).expect("Invalid path"))
-      .timeout(self.options.timeout)
   }
 
   fn post(&self, path: &str) -> reqwest::RequestBuilder {
     self.client.post(self.options.url.join(&path).expect("Invalid path"))
       .header(CONTENT_TYPE, "application/vnd.ipld.car")
-      .timeout(self.options.timeout)
   }
 
   fn post_json(&self, path: &str) -> reqwest::RequestBuilder {
     self.client.post(self.options.url.join(&path).expect("Invalid path"))
       .header(CONTENT_TYPE, "application/json")
-      .timeout(self.options.timeout)
   }
 
   async fn get_tixel(&self, path: &str) -> Result<Arc<Tixel>, ResolutionError> {

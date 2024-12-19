@@ -27,7 +27,6 @@ fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result
 pub struct HttpStore {
   client: reqwest::Client,
   url: Url,
-  timeout: Duration,
   concurency: usize,
   batch_size: u64,
 }
@@ -45,7 +44,6 @@ impl HttpStore {
     Self {
       client,
       url: Url::parse("http://localhost:8080").unwrap(),
-      timeout: Duration::from_secs(30),
       concurency: 10,
       batch_size: 1000,
     }
@@ -58,16 +56,6 @@ impl HttpStore {
 
   pub fn with_url(mut self, url: &str) -> Self {
     self.url = format!("{}/", url).parse().expect("Invalid URL");
-    self
-  }
-
-  pub fn timeout(&mut self, timeout: Duration) -> &mut Self {
-    self.timeout = timeout;
-    self
-  }
-
-  pub fn with_timeout(mut self, timeout: Duration) -> Self {
-    self.timeout = timeout;
     self
   }
 
@@ -102,7 +90,6 @@ impl HttpStore {
     url.set_path(path);
     self.client.request(method, url)
       .header(ACCEPT, "application/vnd.ipld.car")
-      .timeout(self.timeout)
   }
 
   fn head(&self, path: &str) -> reqwest::RequestBuilder {
@@ -140,8 +127,6 @@ impl HttpStore {
           e.status().map(|s| s.is_server_error()).unwrap_or(false)
         } else if e.is_timeout() {
           true
-        } else if e.is_connect() {
-          false
         } else {
           false
         }
