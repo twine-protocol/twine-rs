@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use futures::{Stream, TryStreamExt};
 use reqwest::{header::{ACCEPT, CONTENT_TYPE}, StatusCode, Url};
 use std::{pin::Pin, sync::Arc};
-use std::time::Duration;
 use twine_core::{as_cid::AsCid, car::from_car_bytes, errors::*, resolver::{AbsoluteRange, Resolver}, store::Store, twine::{TwineBlock, *}, Cid};
 use twine_core::resolver::unchecked_base::BaseResolver;
 
@@ -188,8 +187,8 @@ impl HttpStore {
       _ => {
         let json = response.text().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
         let twines = AnyTwine::from_tagged_dag_json_array(json).map_err(|e| ResolutionError::Invalid(e))?;
-        let stream = futures::stream::iter(twines.into_iter()).map(|t| Ok(t.clone()));
-        Ok(stream.boxed())
+        let stream = futures::stream::iter(twines.into_iter().map(Ok));
+        Ok(stream)
       },
     }
   }
