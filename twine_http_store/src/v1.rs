@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use futures::{Stream, TryStreamExt};
 use reqwest::{header::{ACCEPT, CONTENT_TYPE}, StatusCode, Url};
-use fvm_ipld_car::CarReader;
 use std::{pin::Pin, sync::Arc};
 use std::time::Duration;
-use twine_core::{as_cid::AsCid, errors::*, resolver::{AbsoluteRange, Resolver}, store::Store, twine::{TwineBlock, *}, Cid};
+use twine_core::{as_cid::AsCid, car::from_car_bytes, errors::*, resolver::{AbsoluteRange, Resolver}, store::Store, twine::{TwineBlock, *}, Cid};
 use twine_core::resolver::unchecked_base::BaseResolver;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -159,14 +158,15 @@ impl HttpStore {
     let tp = response.headers().get(CONTENT_TYPE).map(|h| h.to_str().unwrap_or("")).unwrap_or("");
     match tp {
       "application/vnd.ipld.car"|"application/octet-stream" => {
-        let bytes = response.bytes().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-        let mut reader = CarReader::new_unchecked(bytes.as_ref()).await.map_err(|e| ResolutionError::BadData(e.to_string()))?;
-        let block = reader.next_block().await
-          .map_err(|e| ResolutionError::BadData(e.to_string()))?
-          .ok_or(ResolutionError::BadData("No blocks found in response".to_string()))?;
-        let cid = Cid::try_from(block.cid.to_bytes()).unwrap();
-        let twine = AnyTwine::from_block(cid, block.data).map_err(|e| ResolutionError::Invalid(e))?;
-        Ok(AnyTwine::from(twine))
+        let reader = response.bytes().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+        use twine_core::car::CarDecodeError;
+        let twines = from_car_bytes(&mut reader.as_ref()).map_err(|e| match e {
+          CarDecodeError::DecodeError(e) => ResolutionError::BadData(e.to_string()),
+          CarDecodeError::VerificationError(e) => ResolutionError::Invalid(e),
+        })?;
+        // just use the first twine
+        let twine = twines.into_iter().next().ok_or(ResolutionError::BadData("No twines found in response data".to_string()))?;
+        Ok(twine)
       },
       _ => {
         let json = response.text().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
@@ -187,27 +187,15 @@ impl HttpStore {
 
   async fn parse_collection_response(&self, response: reqwest::Response) -> Result<impl Stream<Item = Result<AnyTwine, ResolutionError>>, ResolutionError> {
     let tp = response.headers().get(CONTENT_TYPE).map(|h| h.to_str().unwrap_or("")).unwrap_or("");
-    use futures::stream::StreamExt;
     match tp {
       "application/vnd.ipld.car"|"application/octet-stream" => {
-        let async_read = response.bytes_stream()
-          .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-          .into_async_read();
-        let reader = CarReader::new_unchecked(async_read).await
-          .map_err(|e| ResolutionError::BadData(e.to_string()))?;
-        let stream = futures::stream::unfold(reader, |mut reader| async {
-          match reader.next_block().await {
-            Ok(Some(block)) => {
-              let cid = Cid::try_from(block.cid.to_bytes()).unwrap();
-              match AnyTwine::from_block(cid, block.data) {
-                Ok(twine) => Some((Ok(twine), reader)),
-                Err(e) => Some((Err(ResolutionError::Invalid(e)), reader)),
-              }
-            },
-            Ok(None) => None,
-            Err(e) => Some((Err(ResolutionError::BadData(e.to_string())), reader)),
-          }
-        }).boxed();
+        let reader = response.bytes().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+        use twine_core::car::CarDecodeError;
+        let twines = from_car_bytes(&mut reader.as_ref()).map_err(|e| match e {
+          CarDecodeError::DecodeError(e) => ResolutionError::BadData(e.to_string()),
+          CarDecodeError::VerificationError(e) => ResolutionError::Invalid(e),
+        })?;
+        let stream = futures::stream::iter(twines.into_iter().map(Ok));
         Ok(stream)
       },
       _ => {
@@ -366,11 +354,10 @@ impl Store for HttpStore {
         let data = to_car_stream(futures::stream::iter(group), roots);
         // let vec = data.collect::<Vec<_>>().await;
         let path = format!("chains/{}/pulses", strand_cid);
+        let items = data.collect::<Vec<_>>().await.concat();
         let res = self.send(
-            self.post(&path)
-              .body(reqwest::Body::wrap_stream(data.map(|b| Ok::<_, reqwest::Error>(b))))
-          )
-          .await;
+          self.post(&path).body(items)
+        ).await;
         handle_save_result(res)
       })
       .try_collect().await?;

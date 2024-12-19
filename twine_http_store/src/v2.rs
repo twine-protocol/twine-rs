@@ -176,24 +176,13 @@ impl HttpStore {
   }
 
   async fn parse_response(&self, response: reqwest::Response) -> Result<impl Stream<Item = Result<AnyTwine, ResolutionError>>, ResolutionError> {
-    let async_read = response.bytes_stream()
-      .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-      .into_async_read();
-    let reader = CarReader::new_unchecked(async_read).await
-      .map_err(|e| ResolutionError::BadData(e.to_string()))?;
-    let stream = futures::stream::unfold(reader, |mut reader| async {
-      match reader.next_block().await {
-        Ok(Some(block)) => {
-          let cid = Cid::try_from(block.cid.to_bytes()).unwrap();
-          match AnyTwine::from_block(cid, block.data) {
-            Ok(twine) => Some((Ok(twine), reader)),
-            Err(e) => Some((Err(ResolutionError::Invalid(e)), reader)),
-          }
-        },
-        Ok(None) => None,
-        Err(e) => Some((Err(ResolutionError::BadData(e.to_string())), reader)),
-      }
-    }).boxed();
+    let reader = response.bytes().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+    use twine_core::car::CarDecodeError;
+    let twines = from_car_bytes(&mut reader.as_ref()).map_err(|e| match e {
+      CarDecodeError::DecodeError(e) => ResolutionError::BadData(e.to_string()),
+      CarDecodeError::VerificationError(e) => ResolutionError::Invalid(e),
+    })?;
+    let stream = futures::stream::iter(twines.into_iter().map(Ok));
     Ok(stream)
   }
 
