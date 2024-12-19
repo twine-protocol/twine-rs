@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use futures::{StreamExt, TryStreamExt};
 use tokio::pin;
 use twine_http_store::*;
@@ -13,7 +15,12 @@ use twine_core::store::Store;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let cfg = v1::HttpStoreOptions::default()
     .url("https://random.colorado.edu/api");
-  let resolver = v1::HttpStore::new(reqwest::Client::new(), cfg);
+  let resolver = v1::HttpStore::new(
+    reqwest::Client::builder()
+      .timeout(Duration::from_secs(10))
+      .build()?,
+    cfg
+  );
   let resolver = MemoryCache::new(resolver);
   // let store = HttpStore::new(
   //   reqwest::Client::new(),
