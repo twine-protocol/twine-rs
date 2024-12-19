@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
-use std::pin::Pin;
 use std::{collections::HashMap, sync::Arc};
 use futures::Stream;
+use crate::resolver::{unchecked_base, MaybeSend};
 use crate::Cid;
 use crate::errors::{ResolutionError, StoreError};
 use crate::resolver::{AbsoluteRange, unchecked_base::BaseResolver, Resolver};
@@ -42,7 +42,8 @@ impl MemoryStore {
   }
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl BaseResolver for MemoryStore {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
     Ok(self.strands.read().unwrap().get(strand).map_or(false, |s| s.by_index.contains_key(&index)))
@@ -56,7 +57,7 @@ impl BaseResolver for MemoryStore {
     Ok(self.strands.read().unwrap().contains_key(cid))
   }
 
-  async fn fetch_strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+  async fn fetch_strands<'a>(&'a self) -> Result<unchecked_base::TwineStream<'a, Arc<Strand>>, ResolutionError> {
     let iter = self.strands.read().unwrap()
       .values()
       .map(|s| Ok(s.strand.clone()))
@@ -111,7 +112,7 @@ impl BaseResolver for MemoryStore {
     }
   }
 
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<unchecked_base::TwineStream<'a, Arc<Tixel>>, ResolutionError> {
     use futures::stream::StreamExt;
     if let Some(entry) = self.strands.read().unwrap().get(range.strand_cid()) {
       let list = range.into_iter()
@@ -128,9 +129,10 @@ impl BaseResolver for MemoryStore {
 
 impl Resolver for MemoryStore {}
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl Store for MemoryStore {
-  async fn save<T: Into<AnyTwine> + Send>(&self, twine: T) -> Result<(), StoreError> {
+  async fn save<T: Into<AnyTwine> + MaybeSend>(&self, twine: T) -> Result<(), StoreError> {
     match twine.into() {
       AnyTwine::Strand(strand) => {
         self.strands.write().unwrap().entry(strand.cid()).or_insert(StrandMap::new(strand));
@@ -151,11 +153,11 @@ impl Store for MemoryStore {
     Ok(())
   }
 
-  async fn save_many<I: Into<AnyTwine> + Send, S: Iterator<Item = I> + Send, T: IntoIterator<Item = I, IntoIter = S> + Send>(&self, twines: T) -> Result<(), StoreError> {
+  async fn save_many<I: Into<AnyTwine> + MaybeSend, S: Iterator<Item = I> + MaybeSend, T: IntoIterator<Item = I, IntoIter = S> + MaybeSend>(&self, twines: T) -> Result<(), StoreError> {
     self.save_stream(futures::stream::iter(twines.into_iter())).await
   }
 
-  async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send>(&self, twines: T) -> Result<(), StoreError> {
+  async fn save_stream<I: Into<AnyTwine> + MaybeSend, T: Stream<Item = I> + MaybeSend>(&self, twines: T) -> Result<(), StoreError> {
     use futures::stream::{StreamExt, TryStreamExt};
     twines
       .then(|twine| async {
@@ -167,7 +169,7 @@ impl Store for MemoryStore {
     Ok(())
   }
 
-  async fn delete<C: AsCid + Send>(&self, cid: C) -> Result<(), StoreError> {
+  async fn delete<C: AsCid + MaybeSend>(&self, cid: C) -> Result<(), StoreError> {
     let cid = cid.as_cid();
     if let Some(s) = self.strands.write().unwrap().remove(&cid) {
       for tixel in s.by_index.values() {

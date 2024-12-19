@@ -17,9 +17,21 @@ pub use resolution::*;
 pub mod unchecked_base;
 use unchecked_base::*;
 
-#[async_trait]
-pub trait Resolver: BaseResolver + Send + Sync {
-  async fn resolve<Q: Into<Query> + Send>(&self, query: Q) -> Result<TwineResolution, ResolutionError> {
+#[cfg(target_arch = "wasm32")]
+pub trait MaybeSend: {}
+#[cfg(not(target_arch = "wasm32"))]
+pub trait MaybeSend: Send {}
+
+#[cfg(target_arch = "wasm32")]
+impl<T> MaybeSend for T where T: {}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl<T> MaybeSend for T where T: Send {}
+
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+pub trait Resolver: BaseResolver {
+  async fn resolve<Q: Into<Query> + MaybeSend>(&self, query: Q) -> Result<TwineResolution, ResolutionError> {
     let query = query.into();
     match query {
       Query::Stitch(stitch) => {
@@ -39,7 +51,7 @@ pub trait Resolver: BaseResolver + Send + Sync {
     }
   }
 
-  async fn has<Q: Into<Query> + Send>(&self, query: Q) -> Result<bool, ResolutionError> {
+  async fn has<Q: Into<Query> + MaybeSend>(&self, query: Q) -> Result<bool, ResolutionError> {
     let query = query.into();
     match query {
       Query::Stitch(stitch) => {
@@ -67,7 +79,7 @@ pub trait Resolver: BaseResolver + Send + Sync {
     }
   }
 
-  async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<TwineResolution, ResolutionError> {
+  async fn resolve_latest<C: AsCid + MaybeSend>(&self, strand: C) -> Result<TwineResolution, ResolutionError> {
     use futures::join;
     let strand_cid = strand.as_cid();
     let (strand, tixel) = join!(self.fetch_strand(strand_cid), self.fetch_latest(strand_cid));
@@ -77,7 +89,7 @@ pub trait Resolver: BaseResolver + Send + Sync {
     )
   }
 
-  async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<TwineResolution, ResolutionError> {
+  async fn resolve_index<C: AsCid + MaybeSend>(&self, strand: C, index: u64) -> Result<TwineResolution, ResolutionError> {
     use futures::join;
     let strand_cid = strand.as_cid();
     let (strand, tixel) = join!(self.fetch_strand(strand_cid), self.fetch_index(strand_cid, index));
@@ -87,7 +99,7 @@ pub trait Resolver: BaseResolver + Send + Sync {
     )
   }
 
-  async fn resolve_stitch<C: AsCid + Send>(&self, strand: C, tixel: C) -> Result<TwineResolution, ResolutionError> {
+  async fn resolve_stitch<C: AsCid + MaybeSend>(&self, strand: C, tixel: C) -> Result<TwineResolution, ResolutionError> {
     use futures::join;
     let strand_cid = strand.as_cid();
     let tixel_cid = tixel.as_cid();
@@ -98,7 +110,7 @@ pub trait Resolver: BaseResolver + Send + Sync {
     )
   }
 
-  async fn resolve_strand<C: AsCid + Send>(&self, strand: C) -> Result<StrandResolution, ResolutionError> {
+  async fn resolve_strand<C: AsCid + MaybeSend>(&self, strand: C) -> Result<StrandResolution, ResolutionError> {
     let strand_cid = strand.as_cid();
     StrandResolution::try_new(
       *strand_cid,
@@ -106,16 +118,28 @@ pub trait Resolver: BaseResolver + Send + Sync {
     )
   }
 
-  async fn resolve_range<'a, R: Into<RangeQuery> + Send>(&'a self, range: R) -> Result<Pin<Box<dyn Stream<Item = Result<Twine, ResolutionError>> + Send + 'a>>, ResolutionError> {
+  async fn resolve_range<'a, R: Into<RangeQuery> + MaybeSend>(&'a self, range: R) -> Result<TwineStream<'a, Twine>, ResolutionError> {
     let range = range.into();
     let latest = self.resolve_latest(range.strand_cid()).await?.unpack();
     let range = range.to_absolute(latest.index());
     if range.is_none() {
-      return Ok(futures::stream::empty().boxed());
+      let s = futures::stream::empty().boxed();
+      #[cfg(target_arch = "wasm32")]
+      {
+        return Ok(
+          s.boxed_local()
+        )
+      }
+      #[cfg(not(target_arch = "wasm32"))]
+      {
+        return Ok(
+          s.boxed()
+        )
+      }
     }
     let range = range.unwrap();
     if range.len() == 1 {
-      return Ok::<_, ResolutionError>(futures::stream::once({
+      let s = futures::stream::once({
         let strand_cid = range.strand_cid().clone();
         async move {
           let tixel = self.fetch_index(&strand_cid, range.start).await?;
@@ -124,10 +148,22 @@ pub trait Resolver: BaseResolver + Send + Sync {
           }
           Twine::try_new_from_shared(latest.strand(), tixel).map_err(|e| e.into())
         }
-      }).boxed());
+      });
+      #[cfg(target_arch = "wasm32")]
+      {
+        return Ok(
+          s.boxed_local()
+        )
+      }
+      #[cfg(not(target_arch = "wasm32"))]
+      {
+        return Ok(
+          s.boxed()
+        )
+      }
     }
     let expected = range.clone().iter();
-    let stream = self.range_stream(range).await?
+    let s = self.range_stream(range).await?
       .zip(futures::stream::iter(expected))
       .map(move |(tixel, q)| {
         let tixel = tixel?;
@@ -137,10 +173,21 @@ pub trait Resolver: BaseResolver + Send + Sync {
         Twine::try_new_from_shared(latest.strand(), tixel)
           .map_err(|e| e.into())
       });
-    Ok(stream.boxed())
+    #[cfg(target_arch = "wasm32")]
+    {
+      Ok(
+        s.boxed_local()
+      )
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+      Ok(
+        s.boxed()
+      )
+    }
   }
 
-  async fn strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+  async fn strands<'a>(&'a self) -> Result<TwineStream<'a, Arc<Strand>>, ResolutionError> {
     self.fetch_strands().await
   }
 
@@ -153,7 +200,8 @@ impl<'r> Resolver for Box<dyn BaseResolver + 'r> {}
 
 impl<T> Resolver for Arc<T> where T: BaseResolver {}
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl<'r> BaseResolver for Box<dyn BaseResolver + 'r> {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
     self.as_ref().has_index(strand, index).await
@@ -183,16 +231,17 @@ impl<'r> BaseResolver for Box<dyn BaseResolver + 'r> {
     self.as_ref().fetch_strand(strand).await
   }
 
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<TwineStream<'a, Arc<Tixel>>, ResolutionError> {
     self.as_ref().range_stream(range).await
   }
 
-  async fn fetch_strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+  async fn fetch_strands<'a>(&'a self) -> Result<TwineStream<'a, Arc<Strand>>, ResolutionError> {
     self.as_ref().fetch_strands().await
   }
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl<T> BaseResolver for Arc<T> where T: BaseResolver {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
     self.as_ref().has_index(strand, index).await
@@ -222,11 +271,11 @@ impl<T> BaseResolver for Arc<T> where T: BaseResolver {
     self.as_ref().fetch_strand(strand).await
   }
 
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<TwineStream<'a, Arc<Tixel>>, ResolutionError> {
     self.as_ref().range_stream(range).await
   }
 
-  async fn fetch_strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+  async fn fetch_strands<'a>(&'a self) -> Result<TwineStream<'a, Arc<Strand>>, ResolutionError> {
     self.as_ref().fetch_strands().await
   }
 }
@@ -248,12 +297,12 @@ impl<T> std::ops::Deref for ResolverSetSeries<T> where T: BaseResolver {
   }
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
     let res = futures::stream::iter(self.iter())
       .then(|r| r.has_index(strand, index))
-      .boxed()
       .any(|res| {
         match res {
           Ok(true) => futures::future::ready(true),
@@ -271,7 +320,6 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
   async fn has_twine(&self, strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
     let res = futures::stream::iter(self.iter())
       .then(|r| r.has_twine(strand, cid))
-      .boxed()
       .any(|res| {
         match res {
           Ok(true) => futures::future::ready(true),
@@ -289,7 +337,6 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
   async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError> {
     let res = futures::stream::iter(self.iter())
       .then(|r| r.has_strand(cid))
-      .boxed()
       .any(|res| {
         match res {
           Ok(true) => futures::future::ready(true),
@@ -346,7 +393,7 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
     Err(ResolutionError::NotFound)
   }
 
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<TwineStream<'a, Arc<Tixel>>, ResolutionError> {
     for resolver in self.iter() {
       // TODO: should find a way to merge streams
       if resolver.has_index(range.strand_cid(), range.start).await? {
@@ -358,8 +405,8 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
     Err(ResolutionError::NotFound)
   }
 
-  async fn fetch_strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
-    let stream = futures::stream::iter(self.iter())
+  async fn fetch_strands<'a>(&'a self) -> Result<TwineStream<'a, Arc<Strand>>, ResolutionError> {
+    let s = futures::stream::iter(self.iter())
       .map(|r| r.fetch_strands())
       .buffered(10)
       .try_flatten()
@@ -384,10 +431,20 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
             None
           },
         }
-      })
-      .boxed();
+      });
 
-    Ok(stream)
+    #[cfg(target_arch = "wasm32")]
+    {
+      Ok(
+        s.boxed_local()
+      )
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+      Ok(
+        s.boxed()
+      )
+    }
   }
 }
 

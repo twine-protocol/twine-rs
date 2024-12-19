@@ -1,10 +1,11 @@
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::sync::Arc;
 use async_trait::async_trait;
 use futures::stream::{StreamExt, TryStreamExt};
 use futures::Stream;
 use reqwest::{header::{ACCEPT, CONTENT_TYPE}, Method, StatusCode, Url};
 use twine_core::car::from_car_bytes;
-use twine_core::resolver::{Resolver, TwineResolution};
+use twine_core::resolver::unchecked_base::TwineStream;
+use twine_core::resolver::{MaybeSend, Resolver, TwineResolution};
 use twine_core::twine::Twine;
 use twine_core::{as_cid::AsCid, errors::{ResolutionError, StoreError}, resolver::{AbsoluteRange, unchecked_base::BaseResolver, Query}, store::Store, twine::{AnyTwine, Strand, Tixel}, Cid};
 
@@ -193,7 +194,8 @@ impl HttpStore {
   }
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl BaseResolver for HttpStore {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
     let q : Query = (strand, index).into();
@@ -224,14 +226,17 @@ impl BaseResolver for HttpStore {
     }
   }
 
-  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn fetch_strands(&self) -> Result<TwineStream<'_, Arc<Strand>>, ResolutionError> {
     let response = self.send(self.get("")).await?;
     let stream = self.parse_response(response).await?;
     let stream = stream.map(|t| {
       let strand = Arc::<Strand>::try_from(t?)?;
       Ok(strand)
     });
-    Ok(stream.boxed())
+    #[cfg(target_arch = "wasm32")]
+    { Ok(stream.boxed_local()) }
+    #[cfg(not(target_arch = "wasm32"))]
+    { Ok(stream.boxed()) }
   }
 
   async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
@@ -266,7 +271,7 @@ impl BaseResolver for HttpStore {
     Ok(tixel)
   }
 
-  async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn range_stream(&self, range: AbsoluteRange) -> Result<TwineStream<'_, Arc<Tixel>>, ResolutionError> {
     use futures::stream::StreamExt;
     let stream = futures::stream::iter(range.batches(self.batch_size))
       .map(move |range| {
@@ -283,14 +288,18 @@ impl BaseResolver for HttpStore {
         let t = Arc::<Tixel>::try_from(t)?;
         Ok(t)
       });
-    Ok(stream.boxed())
+    #[cfg(target_arch = "wasm32")]
+    { Ok(stream.boxed_local()) }
+    #[cfg(not(target_arch = "wasm32"))]
+    { Ok(stream.boxed()) }
   }
 }
 
 // optimized implementations
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl Resolver for HttpStore {
-  async fn resolve_latest<C: AsCid + Send>(&self, strand: C) -> Result<TwineResolution, ResolutionError> {
+  async fn resolve_latest<C: AsCid + MaybeSend>(&self, strand: C) -> Result<TwineResolution, ResolutionError> {
     let q = Query::from(*strand.as_cid());
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
@@ -298,7 +307,7 @@ impl Resolver for HttpStore {
     TwineResolution::try_new(q, twine)
   }
 
-  async fn resolve_index<C: AsCid + Send>(&self, strand: C, index: u64) -> Result<TwineResolution, ResolutionError> {
+  async fn resolve_index<C: AsCid + MaybeSend>(&self, strand: C, index: u64) -> Result<TwineResolution, ResolutionError> {
     let q = Query::from((strand.as_cid(), index));
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
@@ -306,7 +315,7 @@ impl Resolver for HttpStore {
     TwineResolution::try_new(q, twine)
   }
 
-  async fn resolve_stitch<C: AsCid + Send>(&self, strand: C, tixel: C) -> Result<TwineResolution, ResolutionError> {
+  async fn resolve_stitch<C: AsCid + MaybeSend>(&self, strand: C, tixel: C) -> Result<TwineResolution, ResolutionError> {
     let q = Query::from((strand.as_cid(), tixel.as_cid()));
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
@@ -315,14 +324,15 @@ impl Resolver for HttpStore {
   }
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl Store for HttpStore {
-  async fn save<T: Into<AnyTwine> + Send>(&self, twine: T) -> Result<(), StoreError> {
+  async fn save<T: Into<AnyTwine> + MaybeSend>(&self, twine: T) -> Result<(), StoreError> {
     let twine = twine.into();
     self.save_many(vec![twine]).await
   }
 
-  async fn save_many<I: Into<AnyTwine> + Send, S: Iterator<Item = I> + Send, T: IntoIterator<Item = I, IntoIter = S> + Send>(&self, twines: T) -> Result<(), StoreError> {
+  async fn save_many<I: Into<AnyTwine> + MaybeSend, S: Iterator<Item = I> + MaybeSend, T: IntoIterator<Item = I, IntoIter = S> + MaybeSend>(&self, twines: T) -> Result<(), StoreError> {
     use twine_core::car::to_car_stream;
     use futures::stream::StreamExt;
     let twines: Vec<AnyTwine> = twines.into_iter().map(|t| t.into()).collect();
@@ -382,13 +392,13 @@ impl Store for HttpStore {
     Ok(())
   }
 
-  async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send + Unpin>(&self, twines: T) -> Result<(), StoreError> {
+  async fn save_stream<I: Into<AnyTwine> + MaybeSend, T: Stream<Item = I> + MaybeSend + Unpin>(&self, twines: T) -> Result<(), StoreError> {
     use futures::stream::StreamExt;
     self.save_many(twines.collect::<Vec<_>>().await).await?;
     Ok(())
   }
 
-  async fn delete<C: AsCid + Send>(&self, _cid: C) -> Result<(), StoreError> {
+  async fn delete<C: AsCid + MaybeSend>(&self, _cid: C) -> Result<(), StoreError> {
     unimplemented!("delete")
   }
 }

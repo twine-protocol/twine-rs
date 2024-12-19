@@ -6,8 +6,6 @@ use crate::twine::Strand;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
-use std::pin::Pin;
-use futures::stream::Stream;
 use async_trait::async_trait;
 use futures::stream::StreamExt;
 use quick_cache::sync::Cache;
@@ -58,14 +56,28 @@ impl<T: Resolver> MemoryCache<T> {
   }
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl<T: Resolver> unchecked_base::BaseResolver for MemoryCache<T> {
-  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + '_ + Send>>, ResolutionError> {
+  async fn fetch_strands(&self) -> Result<unchecked_base::TwineStream<'_, Arc<Strand>>, ResolutionError> {
     self.resolver.strands().await.and_then(|stream| {
-      Ok(stream.map(|strand| {
+      let s = stream.map(|strand| {
         let strand = strand?;
         Ok(self.cache_strand(strand))
-      }).boxed())
+      });
+
+      #[cfg(target_arch = "wasm32")]
+      {
+        Ok(
+          s.boxed_local()
+        )
+      }
+      #[cfg(not(target_arch = "wasm32"))]
+      {
+        Ok(
+          s.boxed()
+        )
+      }
     })
   }
 
@@ -154,16 +166,26 @@ impl<T: Resolver> unchecked_base::BaseResolver for MemoryCache<T> {
     }
   }
 
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<unchecked_base::TwineStream<'a, Arc<Tixel>>, ResolutionError> {
     let stream = self.resolver.range_stream(range).await?;
-    Ok(
-      stream
-        .map(|tixel| {
-          let tixel = tixel?;
-          Ok(self.cache_tixel(tixel))
-        })
-        .boxed()
-    )
+    let s = stream
+      .map(|tixel| {
+        let tixel = tixel?;
+        Ok(self.cache_tixel(tixel))
+      });
+
+    #[cfg(target_arch = "wasm32")]
+    {
+      Ok(
+        s.boxed_local()
+      )
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+      Ok(
+        s.boxed()
+      )
+    }
   }
 }
 
@@ -190,7 +212,7 @@ mod test {
 
   #[async_trait]
   impl unchecked_base::BaseResolver for DummyResolver {
-    async fn fetch_strands<'a>(&'a self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+    async fn fetch_strands<'a>(&'a self) -> Result<unchecked_base::TwineStream<'a, Arc<Strand>>, ResolutionError> {
       let strand = Arc::new(Strand::from_tagged_dag_json(STRANDJSON)?);
       let s = vec![strand];
       let stream = futures::stream::iter(s.into_iter().map(Ok));
@@ -259,7 +281,7 @@ mod test {
       Ok(s)
     }
 
-    async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + 'a>>, ResolutionError> {
+    async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<unchecked_base::TwineStream<'a, Arc<Tixel>>, ResolutionError> {
       let tixel = Arc::new(Tixel::from_tagged_dag_json(TIXELJSON)?);
       if *range.strand_cid() != tixel.strand_cid() {
         return Err(ResolutionError::NotFound);
