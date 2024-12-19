@@ -2,10 +2,10 @@ use std::{pin::Pin, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use futures::stream::{StreamExt, TryStreamExt};
 use futures::Stream;
-use fvm_ipld_car::CarReader;
 use reqwest::{header::{ACCEPT, CONTENT_TYPE}, Method, StatusCode, Url};
+use twine_core::car::from_car_bytes;
 use twine_core::resolver::{Resolver, TwineResolution};
-use twine_core::twine::{Twine, TwineBlock};
+use twine_core::twine::Twine;
 use twine_core::{as_cid::AsCid, errors::{ResolutionError, StoreError}, resolver::{AbsoluteRange, unchecked_base::BaseResolver, Query}, store::Store, twine::{AnyTwine, Strand, Tixel}, Cid};
 
 fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result<(), StoreError> {
