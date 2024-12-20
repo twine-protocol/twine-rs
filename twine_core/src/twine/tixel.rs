@@ -10,7 +10,7 @@ use crate::verify::{Verifiable, Verified};
 use crate::{errors::VerificationError, schemas::v1};
 use crate::Cid;
 use crate::Ipld;
-use ipld_core::serde::{from_ipld, SerdeError};
+use ipld_core::serde::from_ipld;
 use multihash_codetable::Code;
 use semver::Version;
 use serde::de::DeserializeOwned;
@@ -128,9 +128,9 @@ impl Tixel {
     }
   }
 
-  pub fn extract_payload<T: DeserializeOwned>(&self) -> Result<T, SerdeError> {
+  pub fn extract_payload<T: DeserializeOwned>(&self) -> Result<T, VerificationError> {
     let payload = self.payload();
-    from_ipld(payload.clone())
+    from_ipld(payload.clone()).map_err(|e| VerificationError::Payload(e.to_string()))
   }
 
   pub fn back_stitches(&self) -> BackStitches {

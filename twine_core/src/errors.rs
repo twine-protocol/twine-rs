@@ -36,6 +36,8 @@ pub enum VerificationError {
   BadSpecification(#[from] SpecificationError),
   #[error("General error: {0}")]
   General(String),
+  #[error("Payload invalid: {0}")]
+  Payload(String),
 }
 
 
