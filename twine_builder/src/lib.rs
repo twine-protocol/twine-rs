@@ -12,3 +12,4 @@ mod ring_signer;
 pub use ring_signer::RingSigner;
 
 pub use ring;
+pub use pkcs8;
