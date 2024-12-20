@@ -1,7 +1,7 @@
 use super::*;
 use std::sync::Arc;
 use twine_core::{
-  crypto::PublicKey, errors::{SpecificationError, VerificationError}, ipld_core::{codec::Codec, serde::to_ipld}, multihash_codetable::Code, schemas::v2::V2, semver::Version, skiplist::get_layer_pos, specification::Subspec, twine::{
+  crypto::PublicKey, errors::{SpecificationError, VerificationError}, ipld_core::{codec::Codec, serde::to_ipld}, multihash_codetable::Code, semver::Version, skiplist::get_layer_pos, specification::Subspec, twine::{
     CrossStitches,
     Stitch,
     Strand,
@@ -16,7 +16,6 @@ pub struct TixelBuilder<'a, 'b, S: Signer<Key = PublicKey>> {
   prev: Option<&'b Twine>,
   stitches: CrossStitches,
   payload: Ipld,
-  spec: V2,
 }
 
 impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
@@ -27,7 +26,6 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
       prev: None,
       stitches: CrossStitches::default(),
       payload: Ipld::Null,
-      spec: V2::default(),
     }
   }
 
@@ -38,7 +36,6 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
       prev: Some(prev),
       stitches: CrossStitches::default(),
       payload: Ipld::Map(Default::default()),
-      spec: V2::default(),
     }
   }
 
@@ -99,7 +96,7 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
     let content: v2::TixelContentV2 = match self.strand.version().major {
       2 => v2::TixelContentV2 {
         code: self.strand.hasher().into(),
-        specification: self.spec.clone(),
+        specification: self.strand.spec_str().parse()?,
         fields: Verified::try_new(v2::TixelFields {
           index: self.prev.as_ref().map(|p|
             (p.index()).checked_add(1)
