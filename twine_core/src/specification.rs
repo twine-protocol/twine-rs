@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::str::FromStr;
 use serde::{Serialize, Deserialize, Deserializer};
 use serde::de::Error;
 use semver::{Version, VersionReq};
@@ -8,6 +9,14 @@ const PREFIX: &str = "twine";
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct Specification<const V: u8>(pub(crate) String);
+
+impl<const V: u8> FromStr for Specification<V> {
+  type Err = SpecificationError;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    Specification::from_string(s)
+  }
+}
 
 impl<const V: u8> Specification<V> {
   pub fn from_string<S: Display>(s: S) -> Result<Self, SpecificationError> {
