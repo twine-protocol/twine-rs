@@ -40,3 +40,7 @@ twine_builder = { path = "./twine_builder", optional = true }
 twine_http_store = { path = "./twine_http_store", optional = true }
 
 [dev-dependencies]
+twine_builder = { path = "./twine_builder" }
+twine_http_store = { path = "./twine_http_store" }
+serde = "1.0.216"
+rand = "0.8.5"
