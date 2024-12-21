@@ -128,6 +128,7 @@ pub struct StrandBuilder<'a, S: Signer<Key = PublicKey>> {
   hasher: Code,
   version: Version,
   details: Ipld,
+  genesis: Option<chrono::DateTime<chrono::Utc>>,
   subspec: Option<Subspec>,
   radix: u8,
   stitches: CrossStitches,
@@ -140,6 +141,7 @@ impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
       hasher: Code::Sha3_512,
       version: Version::new(2, 0, 0),
       details: Ipld::Map(Default::default()),
+      genesis: None,
       subspec: None,
       radix: 32,
       stitches: CrossStitches::default(),
@@ -153,6 +155,11 @@ impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
 
   pub fn details<P>(mut self, details: P) -> Self where P: serde::ser::Serialize {
     self.details = to_ipld(details).unwrap();
+    self
+  }
+
+  pub fn genesis(mut self, genesis: chrono::DateTime<chrono::Utc>) -> Self {
+    self.genesis = Some(genesis);
     self
   }
 
@@ -185,7 +192,7 @@ impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
           radix: self.radix,
           details: self.details,
           key: key,
-          genesis: chrono::Utc::now(),
+          genesis: self.genesis.unwrap_or_else(|| chrono::Utc::now()),
           expiry: None,
         })?,
       },
