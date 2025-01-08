@@ -65,7 +65,8 @@ impl SledStore {
 
 fn get_index_key(strand: &Cid, index: u64) -> Vec<u8> {
   let mut key = IndexKey::new_zeroed();
-  key.strand.copy_from_slice(&strand.to_bytes());
+  let cid = strand.to_bytes();
+  key.strand[..cid.len()].copy_from_slice(&cid);
   key.index.set(index);
   key.as_bytes().to_vec()
 }
