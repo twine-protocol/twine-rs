@@ -1,8 +1,28 @@
 use std::vec;
-use pkcs8::{DecodePrivateKey, SecretDocument};
+use pkcs8::{der::Encode, DecodePrivateKey, SecretDocument};
+use rsa::RsaPrivateKey;
+use thiserror::Error;
 use twine_core::crypto::{PublicKey, Signature, SignatureAlgorithm};
 
 use crate::{Signer, SigningError};
+
+#[derive(Debug, Error)]
+pub enum RingSignerError {
+  #[error("Unsupported algorithm")]
+  UnsupportedAlgorithm,
+  #[error("Key rejected: {0}")]
+  KeyRejected(String),
+  #[error("pkcs8 error: {0}")]
+  PemError(#[from] pkcs8::Error),
+  #[error("der decode error: {0}")]
+  DerDecodeError(#[from] pkcs8::der::Error),
+}
+
+impl From<ring::error::KeyRejected> for RingSignerError {
+  fn from(e: ring::error::KeyRejected) -> Self {
+    RingSignerError::KeyRejected(e.to_string())
+  }
+}
 
 enum Keys {
   Ed25519(ring::signature::Ed25519KeyPair),
@@ -18,7 +38,7 @@ pub struct RingSigner {
 }
 
 impl RingSigner {
-  pub fn new(alg: SignatureAlgorithm, pkcs8: SecretDocument) -> Result<Self, ring::error::KeyRejected> {
+  pub fn new(alg: SignatureAlgorithm, pkcs8: SecretDocument) -> Result<Self, RingSignerError> {
     let signer = match alg {
       SignatureAlgorithm::Ed25519 => {
         let keypair = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_bytes())?;
@@ -96,14 +116,89 @@ impl RingSigner {
           pkcs8,
         }
       },
-      _ => panic!("Unsupported algorithm")
+      _ => return Err(RingSignerError::UnsupportedAlgorithm),
     };
 
     Ok(signer)
   }
 
+  pub fn from_pem<S: AsRef<str>>(pem: S) -> Result<Self, RingSignerError> {
+    let pem = pem.as_ref();
+    let (_, pkcs8) = SecretDocument::from_pem(pem)?;
+    use pkcs8::der::Decode;
+    let info = pkcs8::PrivateKeyInfo::from_der(pkcs8.as_bytes())?;
+    let alg = match info.algorithm.oid {
+      const_oid::db::rfc8410::ID_ED_25519 => SignatureAlgorithm::Ed25519,
+      const_oid::db::rfc5912::ECDSA_WITH_SHA_256 => SignatureAlgorithm::EcdsaP256,
+      const_oid::db::rfc5912::ECDSA_WITH_SHA_384 => SignatureAlgorithm::EcdsaP384,
+      const_oid::db::rfc5912::ID_EC_PUBLIC_KEY => {
+        // this is insane...
+        let other_oid = info.algorithm.parameters_oid().unwrap();
+        match other_oid {
+          const_oid::db::rfc5912::SECP_256_R_1 => SignatureAlgorithm::EcdsaP256,
+          const_oid::db::rfc5912::SECP_384_R_1 => SignatureAlgorithm::EcdsaP384,
+          _ => return Err(RingSignerError::UnsupportedAlgorithm),
+        }
+      }
+      const_oid::db::rfc5912::SHA_256_WITH_RSA_ENCRYPTION => {
+        use rsa::traits::PublicKeyParts;
+        let pk = RsaPrivateKey::from_pkcs8_der(pkcs8.as_bytes())?;
+        SignatureAlgorithm::Sha256Rsa(pk.n().bits())
+      },
+      const_oid::db::rfc5912::SHA_384_WITH_RSA_ENCRYPTION => {
+        use rsa::traits::PublicKeyParts;
+        let pk = RsaPrivateKey::from_pkcs8_der(pkcs8.as_bytes())?;
+        SignatureAlgorithm::Sha384Rsa(pk.n().bits())
+      },
+      const_oid::db::rfc5912::SHA_512_WITH_RSA_ENCRYPTION => {
+        use rsa::traits::PublicKeyParts;
+        let pk = RsaPrivateKey::from_pkcs8_der(pkcs8.as_bytes())?;
+        SignatureAlgorithm::Sha512Rsa(pk.n().bits())
+      },
+      const_oid::db::rfc5912::RSA_ENCRYPTION => {
+        use rsa::traits::PublicKeyParts;
+        let pk = RsaPrivateKey::from_pkcs8_der(pkcs8.as_bytes())?;
+        match pk.n().bits() {
+          2048 => SignatureAlgorithm::Sha256Rsa(2048),
+          3072 => SignatureAlgorithm::Sha384Rsa(3072),
+          4096 => SignatureAlgorithm::Sha512Rsa(4096),
+          _ => return Err(RingSignerError::UnsupportedAlgorithm),
+        }
+      },
+      _ => {
+        return Err(RingSignerError::UnsupportedAlgorithm);
+      }
+    };
+    Self::new(alg, pkcs8)
+  }
+
   pub fn pkcs8(&self) -> &SecretDocument {
     &self.pkcs8
+  }
+
+  pub fn private_key_pem(&self) -> pkcs8::der::Result<String> {
+    self.pkcs8.to_pem(
+      "PRIVATE KEY",
+      pkcs8::LineEnding::LF,
+    ).map(|s| s.to_string())
+  }
+
+  /// ring includes the public key in the pkcs8 document, so this method removes it
+  /// for compatibility with openssl. However ring requires the V2 format, which
+  /// includes the public key.
+  pub fn private_key_only_pem(&self) -> pkcs8::Result<String> {
+    use pkcs8::der::Decode;
+    let key_info = pkcs8::PrivateKeyInfo::from_der(self.pkcs8.as_bytes())?;
+    let stripped_info = pkcs8::PrivateKeyInfo {
+      public_key: None,
+      ..key_info
+    };
+    let pkcs8 = pkcs8::Document::from_der(&stripped_info.to_der()?)?;
+    let pkcs8 = pkcs8.to_pem(
+      "PRIVATE KEY",
+      pkcs8::LineEnding::LF
+    )?;
+    Ok(pkcs8)
   }
 
   #[cfg(feature = "rsa")]
@@ -221,3 +316,40 @@ impl Signer for RingSigner {
   }
 }
 
+#[cfg(test)]
+mod test {
+  use super::*;
+
+  #[test]
+  fn test_all_pem_roundtrip() {
+    let signer = RingSigner::generate_ed25519().unwrap();
+    let pem = signer.pkcs8().to_pem("PRIVATE_KEY", pkcs8::LineEnding::LF).unwrap();
+    let signer2 = RingSigner::from_pem(&pem).unwrap();
+    assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
+
+    let signer = RingSigner::generate_p256().unwrap();
+    let pem = signer.pkcs8().to_pem("PRIVATE_KEY", pkcs8::LineEnding::LF).unwrap();
+    let signer2 = RingSigner::from_pem(&pem).unwrap();
+    assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
+
+    let signer = RingSigner::generate_p384().unwrap();
+    let pem = signer.pkcs8().to_pem("PRIVATE_KEY", pkcs8::LineEnding::LF).unwrap();
+    let signer2 = RingSigner::from_pem(&pem).unwrap();
+    assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
+
+    let signer = RingSigner::generate_rs256(2048).unwrap();
+    let pem = signer.pkcs8().to_pem("PRIVATE_KEY", pkcs8::LineEnding::LF).unwrap();
+    let signer2 = RingSigner::from_pem(&pem).unwrap();
+    assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
+
+    let signer = RingSigner::generate_rs384(2048).unwrap();
+    let pem = signer.pkcs8().to_pem("PRIVATE_KEY", pkcs8::LineEnding::LF).unwrap();
+    let signer2 = RingSigner::from_pem(&pem).unwrap();
+    assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
+
+    let signer = RingSigner::generate_rs512(2048).unwrap();
+    let pem = signer.pkcs8().to_pem("PRIVATE_KEY", pkcs8::LineEnding::LF).unwrap();
+    let signer2 = RingSigner::from_pem(&pem).unwrap();
+    assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
+  }
+}
