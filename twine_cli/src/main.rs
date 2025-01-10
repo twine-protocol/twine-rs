@@ -8,6 +8,7 @@ mod config;
 mod cli;
 mod selector;
 mod key_store;
+mod prompt;
 pub(crate) mod cid_str;
 
 lazy_static::lazy_static! {

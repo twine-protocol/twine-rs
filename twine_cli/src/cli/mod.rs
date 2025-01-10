@@ -7,6 +7,7 @@ mod pull;
 mod sync;
 mod create;
 mod strand;
+mod keygen;
 
 #[derive(Debug, Parser)]
 #[command(version, about)]
@@ -42,7 +43,8 @@ pub enum SubCommands {
   /// Show local strands
   #[clap(alias = "strands")]
   Strand(strand::StrandCommand),
-
+  /// Generate a keypair
+  Keygen(keygen::KeygenCommand),
 }
 
 impl Cli {
@@ -71,6 +73,9 @@ impl Cli {
       },
       SubCommands::Strand(strand) => {
         strand.run(config, ctx).await
+      },
+      SubCommands::Keygen(keygen) => {
+        keygen.run(config, ctx).await
       },
     }
   }

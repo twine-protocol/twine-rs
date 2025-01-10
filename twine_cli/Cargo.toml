@@ -13,6 +13,7 @@ twine_core = { path = "../twine_core" }
 twine_builder = { path = "../twine_builder" }
 twine_http_store = { path = "../twine_http_store" }
 twine_sled_store = { path = "../twine_sled_store" }
+twine_car_store = { path = "../twine_car_store" }
 futures = "0.3"
 itertools = "0.13"
 serde = { version = "1.0" }
@@ -35,3 +36,4 @@ indent = "0.1"
 lazy_static = "1.4"
 inquire = "0.7"
 pkcs8 = { version = "0.10", features = ["pem"] }
+shellexpand = "3.1.0"
