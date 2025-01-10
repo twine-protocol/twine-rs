@@ -1,6 +1,5 @@
 use std::vec;
 use pkcs8::{der::Encode, DecodePrivateKey, SecretDocument};
-use rsa::RsaPrivateKey;
 use thiserror::Error;
 use twine_core::crypto::{PublicKey, Signature, SignatureAlgorithm};
 
@@ -140,24 +139,28 @@ impl RingSigner {
           _ => return Err(RingSignerError::UnsupportedAlgorithm),
         }
       }
+      #[cfg(feature = "rsa")]
       const_oid::db::rfc5912::SHA_256_WITH_RSA_ENCRYPTION => {
         use rsa::traits::PublicKeyParts;
-        let pk = RsaPrivateKey::from_pkcs8_der(pkcs8.as_bytes())?;
+        let pk = rsa::RsaPrivateKey::from_pkcs8_der(pkcs8.as_bytes())?;
         SignatureAlgorithm::Sha256Rsa(pk.n().bits())
       },
+      #[cfg(feature = "rsa")]
       const_oid::db::rfc5912::SHA_384_WITH_RSA_ENCRYPTION => {
         use rsa::traits::PublicKeyParts;
-        let pk = RsaPrivateKey::from_pkcs8_der(pkcs8.as_bytes())?;
+        let pk = rsa::RsaPrivateKey::from_pkcs8_der(pkcs8.as_bytes())?;
         SignatureAlgorithm::Sha384Rsa(pk.n().bits())
       },
+      #[cfg(feature = "rsa")]
       const_oid::db::rfc5912::SHA_512_WITH_RSA_ENCRYPTION => {
         use rsa::traits::PublicKeyParts;
-        let pk = RsaPrivateKey::from_pkcs8_der(pkcs8.as_bytes())?;
+        let pk = rsa::RsaPrivateKey::from_pkcs8_der(pkcs8.as_bytes())?;
         SignatureAlgorithm::Sha512Rsa(pk.n().bits())
       },
+      #[cfg(feature = "rsa")]
       const_oid::db::rfc5912::RSA_ENCRYPTION => {
         use rsa::traits::PublicKeyParts;
-        let pk = RsaPrivateKey::from_pkcs8_der(pkcs8.as_bytes())?;
+        let pk = rsa::RsaPrivateKey::from_pkcs8_der(pkcs8.as_bytes())?;
         match pk.n().bits() {
           2048 => SignatureAlgorithm::Sha256Rsa(2048),
           3072 => SignatureAlgorithm::Sha384Rsa(3072),
