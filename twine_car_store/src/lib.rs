@@ -4,6 +4,8 @@ use futures::StreamExt;
 use futures::TryStreamExt;
 use twine_core::resolver::RangeQuery;
 use twine_core::store::MemoryStore;
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::pin::Pin;
 use twine_core::{twine::*, errors::*, as_cid::AsCid, store::Store, Cid};
@@ -12,7 +14,7 @@ use twine_core::resolver::{AbsoluteRange, unchecked_base::BaseResolver, Resolver
 #[derive(Debug, Clone)]
 pub struct CarStore {
   memstore: MemoryStore,
-  filename: String,
+  filename: PathBuf,
 }
 
 impl Drop for CarStore {
@@ -24,10 +26,10 @@ impl Drop for CarStore {
 }
 
 impl CarStore {
-  pub async fn new<S: AsRef<str>>(filename: S) -> Result<Self, StoreError> {
+  pub async fn new<S: AsRef<Path>>(filename: S) -> Result<Self, StoreError> {
     let s = Self {
       memstore: MemoryStore::new(),
-      filename: filename.as_ref().to_string(),
+      filename: filename.as_ref().to_path_buf(),
     };
 
     s.load().await?;
@@ -41,6 +43,8 @@ impl CarStore {
       if metadata.len() == 0 {
         return Ok(());
       }
+    } else {
+      return Ok(());
     }
 
     let file = std::fs::File::open(&self.filename).map_err(|e| StoreError::Fetching(ResolutionError::Fetch(e.to_string())))?;
