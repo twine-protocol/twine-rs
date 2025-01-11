@@ -1,3 +1,4 @@
+use futures::TryStreamExt;
 use twine_builder::{TwineBuilder, RingSigner};
 use twine_car_store::CarStore;
 use twine_core::{ipld_core::ipld, multihash_codetable::Code, store::Store, resolver::Resolver};
@@ -52,6 +53,8 @@ async fn main() {
   }
 
   let store2 = CarStore::new(filename).await.unwrap();
+  let strands: Vec<_> = store2.strands().await.unwrap().try_collect().await.unwrap();
+  println!("strands: {:?}", strands);
   let strand2 = store2.resolve_strand(&strand.cid()).await.unwrap();
   let latest = store2.resolve_latest(&strand.cid()).await.unwrap();
   println!("strand: {}", strand2.unpack());
