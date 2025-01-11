@@ -1,10 +1,15 @@
 use std::sync::Arc;
 use clap::Parser;
 use anyhow::Result;
-use twine_core::{errors::ResolutionError, resolver::{Query, RangeQuery, Resolver, ResolverSetSeries}, twine::{Strand, Twine}, Cid, Ipld};
+use twine_car_store::CarStore;
+use twine_core::{errors::ResolutionError, resolver::{unchecked_base::BaseResolver, Query, RangeQuery, Resolver, ResolverSetSeries}, twine::{Strand, Twine}, Cid, Ipld};
 use futures::stream::{Stream, StreamExt, TryStreamExt};
 use num_format::{ToFormattedString, SystemLocale};
 use crate::selector::{Selector, parse_selector};
+
+fn is_a_path(path: impl AsRef<str>) -> bool {
+  std::path::Path::new(path.as_ref()).exists()
+}
 
 #[derive(Debug, Parser)]
 pub struct ListCommand {
@@ -85,7 +90,29 @@ impl ListCommand {
     log::trace!("List: {:?}", self);
 
     let store = config.get_local_store()?;
-    let resolver = ResolverSetSeries::new(vec![Box::new(store), config.get_resolver(&self.resolver)?]);
+    let resolver = if self.resolver.as_ref().map(is_a_path).unwrap_or(false) {
+      // *.store.car files in current directory
+      let car_files = std::fs::read_dir(self.resolver.as_ref().unwrap())?
+        .filter_map(|entry| {
+          let entry = entry.ok()?;
+          let path = entry.path();
+          if path.to_str()?.ends_with(".store.car") {
+            Some(path)
+          } else {
+            None
+          }
+        })
+        .collect::<Vec<_>>();
+
+      let stores = futures::stream::iter(car_files)
+        .then(|path| CarStore::new(path))
+        .map_ok(|store| Box::new(store) as Box<dyn BaseResolver>)
+        .try_collect::<Vec<_>>().await?;
+
+      ResolverSetSeries::new(stores)
+    } else {
+      ResolverSetSeries::new(vec![Box::new(store), config.get_resolver(&self.resolver)?])
+    };
 
     match &self.selector {
       Some(selector) => match selector {
