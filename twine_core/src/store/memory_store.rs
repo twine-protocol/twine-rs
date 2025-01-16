@@ -40,6 +40,27 @@ impl MemoryStore {
       strands: Arc::new(RwLock::new(HashMap::new())),
     }
   }
+
+  pub fn save_sync(&self, twine: AnyTwine) -> Result<(), StoreError> {
+    match twine {
+      AnyTwine::Strand(strand) => {
+        self.strands.write().unwrap().entry(strand.cid()).or_insert(StrandMap::new(strand));
+      },
+      AnyTwine::Tixel(tixel) => {
+        let mut tixels = self.tixels.write().unwrap();
+        if let None = { tixels.get(&tixel.cid()) } {
+          let strand_cid = tixel.strand_cid();
+          if let Some(strand) = self.strands.write().unwrap().get_mut(&strand_cid) {
+            strand.by_index.insert(tixel.index(), tixel.clone());
+            tixels.insert(tixel.cid(), tixel);
+          } else {
+            return Err(StoreError::Saving("Strand not found".into()));
+          }
+        }
+      },
+    }
+    Ok(())
+  }
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
@@ -133,24 +154,7 @@ impl Resolver for MemoryStore {}
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl Store for MemoryStore {
   async fn save<T: Into<AnyTwine> + MaybeSend>(&self, twine: T) -> Result<(), StoreError> {
-    match twine.into() {
-      AnyTwine::Strand(strand) => {
-        self.strands.write().unwrap().entry(strand.cid()).or_insert(StrandMap::new(strand));
-      },
-      AnyTwine::Tixel(tixel) => {
-        let mut tixels = self.tixels.write().unwrap();
-        if let None = { tixels.get(&tixel.cid()) } {
-          let strand_cid = tixel.strand_cid();
-          if let Some(strand) = self.strands.write().unwrap().get_mut(&strand_cid) {
-            strand.by_index.insert(tixel.index(), tixel.clone());
-            tixels.insert(tixel.cid(), tixel);
-          } else {
-            return Err(StoreError::Saving("Strand not found".into()));
-          }
-        }
-      },
-    }
-    Ok(())
+    self.save_sync(twine.into())
   }
 
   async fn save_many<I: Into<AnyTwine> + MaybeSend, S: Iterator<Item = I> + MaybeSend, T: IntoIterator<Item = I, IntoIter = S> + MaybeSend>(&self, twines: T) -> Result<(), StoreError> {
