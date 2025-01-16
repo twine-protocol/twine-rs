@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use futures::stream::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
+use pickledb::PickleDbListIterator;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -28,6 +29,13 @@ fn push_list<'a, V: Serialize>(db: &'a mut PickleDb, key: &str, value: &V) -> Re
     db.lcreate(key).map_err(|e| StoreError::Saving(e.to_string()))?;
   }
   db.ladd(key, value).ok_or(StoreError::Saving(format!("Could not add list for key {}", key)))
+}
+
+fn get_list_iter<'a>(db: &'a PickleDb, key: &str) -> Option<PickleDbListIterator<'a>> {
+  if !db.lexists(key) {
+    return None;
+  }
+  Some(db.liter(key))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -114,13 +122,13 @@ impl PickleDbStore {
 
   fn all_strands(&self) -> Result<Vec<Arc<Strand>>, ResolutionError> {
     let lock = self.pickle.lock().expect("Lock on pickle db");
-    if !lock.lexists("strands") {
-      return Ok(vec![]);
+    match get_list_iter(&lock, "strands") {
+      Some(iter) => iter
+        .map(|v| v.get_item::<BlockRecord>().ok_or(ResolutionError::BadData("Could not deserialize from DB correctly".to_string())))
+        .map(|v| v.and_then(|v| v.try_into().map_err(|e: VerificationError| e.into())))
+        .collect(),
+      None => Ok(vec![]),
     }
-    lock.liter("strands")
-      .map(|v| v.get_item::<BlockRecord>().ok_or(ResolutionError::BadData("Could not deserialize from DB correctly".to_string())))
-      .map(|v| v.and_then(|v| v.try_into().map_err(|e: VerificationError| e.into())))
-      .collect()
   }
 
   fn get_strand(&self, cid: &Cid) -> Result<Arc<Strand>, ResolutionError> {
@@ -145,7 +153,8 @@ impl PickleDbStore {
 
   // Inclusive range
   fn cid_range<S: AsCid>(&self, strand: S, start: u64, end: u64) -> Result<Vec<Cid>, ResolutionError> {
-    self.pickle.lock().expect("Lock on pickle db").liter(&format!("tixels:{}", strand.as_cid()))
+    get_list_iter(&self.pickle.lock().expect("Lock on pickle db"), &format!("tixels:{}", strand.as_cid()))
+      .ok_or(ResolutionError::NotFound)?
       .skip(start as usize)
       .take((end - start + 1) as usize)
       .map(|v| v.get_item::<Cid>().ok_or(ResolutionError::BadData("Could not deserialize from DB correctly".to_string())))
@@ -155,15 +164,20 @@ impl PickleDbStore {
   fn latest_entry<S: AsCid>(&self, strand: S) -> Result<Arc<Tixel>, ResolutionError> {
     let cid = {
       let lock = self.pickle.lock().expect("Lock on pickle db");
-      let item = lock.liter(&format!("tixels:{}", strand.as_cid()))
-        .last()
-        .ok_or(ResolutionError::NotFound)?;
-      item.get_item::<Cid>().ok_or(ResolutionError::BadData("Could not deserialize from DB correctly".to_string()))?
+      match get_list_iter(&lock, &format!("tixels:{}", strand.as_cid())) {
+        Some(iter) => {
+          let last = iter.last().ok_or(ResolutionError::NotFound)?;
+          last.get_item::<Cid>().ok_or(ResolutionError::BadData("Could not deserialize from DB correctly".to_string()))?
+        },
+        None => {
+          return Err(ResolutionError::NotFound)
+        },
+      }
     };
     self.get_tixel(&cid)
   }
 
-  fn latest_index<S: AsCid>(&self, strand: S) -> Option<u64> {
+  pub fn latest_index<S: AsCid>(&self, strand: S) -> Option<u64> {
     let len = self.pickle.lock().expect("Lock on pickle db").llen(&format!("tixels:{}", strand.as_cid()));
     if len == 0 {
       return None;
@@ -179,13 +193,11 @@ impl PickleDbStore {
     if tixel.index() != 0 && !self.has_tixel(&tixel.previous().unwrap().tixel) {
       return Err(StoreError::Saving("Previous tixel must be saved before this one".to_string()));
     }
-    if self.has_tixel(tixel.as_cid()) {
-      return Ok(());
-    }
-    let cid = tixel.as_cid();
+    let tixel_cid = tixel.cid();
+    let strand_cid = tixel.strand_cid();
     let mut lock = self.pickle.lock().expect("Lock on pickle db");
-    push_list(&mut lock, &format!("tixels:{}", tixel.strand_cid()), &cid)?;
-    lock.set(&format!("{}", cid), &BlockRecord::from(tixel)).map_err(|e| StoreError::Saving(e.to_string()))?;
+    lock.set(&format!("{}", tixel_cid), &BlockRecord::from(tixel)).map_err(|e| StoreError::Saving(e.to_string()))?;
+    push_list(&mut lock, &format!("tixels:{}", strand_cid), &tixel_cid)?;
     Ok(())
   }
 
@@ -212,6 +224,10 @@ impl PickleDbStore {
     Ok(())
   }
 
+  pub fn flush(&self) -> Result<(), StoreError> {
+    self.pickle.lock().expect("Lock on pickle db").dump().map_err(|e| StoreError::Saving(e.to_string()))?;
+    Ok(())
+  }
 }
 
 #[async_trait]
@@ -277,8 +293,9 @@ impl Store for PickleDbStore {
 
   async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send + Unpin>(&self, twines: T) -> Result<(), StoreError> {
     twines
-      .then(|t| self.save(t))
-      .try_collect::<Vec<_>>()
+      .chunks(100)
+      .then(|chunk| self.save_many(chunk))
+      .try_for_each(|_| async { Ok(()) })
       .await?;
     Ok(())
   }
