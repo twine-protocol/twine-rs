@@ -21,7 +21,7 @@ async fn main() {
     .unwrap();
 
   {
-    let store = CarStore::new(filename).await.unwrap();
+    let store = CarStore::new(filename).unwrap();
     store.save(strand.clone()).await.unwrap();
 
     let mut prev = builder.build_first(strand.clone())
@@ -52,7 +52,7 @@ async fn main() {
     // store.flush().await.unwrap();
   }
 
-  let store2 = CarStore::new(filename).await.unwrap();
+  let store2 = CarStore::new(filename).unwrap();
   let strands: Vec<_> = store2.strands().await.unwrap().try_collect().await.unwrap();
   println!("strands: {:?}", strands);
   let strand2 = store2.resolve_strand(&strand.cid()).await.unwrap();

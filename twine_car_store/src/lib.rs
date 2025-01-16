@@ -28,19 +28,19 @@ impl Drop for CarStore {
 }
 
 impl CarStore {
-  pub async fn new<S: AsRef<Path>>(filename: S) -> Result<Self, StoreError> {
+  pub fn new<S: AsRef<Path>>(filename: S) -> Result<Self, StoreError> {
     let s = Self {
       memstore: MemoryStore::new(),
       filename: filename.as_ref().to_path_buf(),
       needs_flush: Arc::new(Mutex::new(false)),
     };
 
-    s.load().await?;
+    s.load()?;
 
     Ok(s)
   }
 
-  async fn load(&self) -> Result<(), StoreError> {
+  fn load(&self) -> Result<(), StoreError> {
     // check the file isn't empty first
     if let Ok(metadata) = std::fs::metadata(&self.filename) {
       if metadata.len() == 0 {
@@ -55,7 +55,7 @@ impl CarStore {
     let twines = twine_core::car::from_car_bytes(&mut reader).map_err(|e| StoreError::Fetching(ResolutionError::BadData(e.to_string())))?;
 
     for twine in twines {
-      self.memstore.save(twine).await?;
+      self.memstore.save_sync(twine.into())?;
     }
 
     Ok(())

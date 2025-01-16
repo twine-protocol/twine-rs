@@ -105,7 +105,7 @@ impl ListCommand {
         .collect::<Vec<_>>();
 
       let stores = futures::stream::iter(car_files)
-        .then(|path| CarStore::new(path))
+        .map(|path| CarStore::new(path))
         .map_ok(|store| Box::new(store) as Box<dyn BaseResolver>)
         .try_collect::<Vec<_>>().await?;
 

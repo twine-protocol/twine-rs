@@ -70,7 +70,7 @@ impl CreateCommand {
 
     // save the strand to the store
     let storefile = Path::new(&directory).join(format!("{}.store.car", strand.cid()));
-    let store = CarStore::new(storefile).await?;
+    let store = CarStore::new(storefile)?;
     store.save(strand.clone()).await?;
     store.flush().await?;
 
