@@ -196,6 +196,10 @@ impl PickleDbStore {
   }
 
   fn remove_strand(&self, cid: &Cid) -> Result<(), StoreError> {
+    let strand = match self.get_strand(cid) {
+      Ok(s) => s,
+      Err(_) => return Ok(()),
+    };
     let mut lock = self.pickle.lock().expect("Lock on pickle db");
     self.pickle.lock().expect("Lock on pickle db").liter(&format!("tixels:{}", cid))
       .map(|v| {
@@ -204,10 +208,6 @@ impl PickleDbStore {
         Ok::<_, StoreError>(())
       })
       .collect::<Result<_, _>>()?;
-    let strand = match self.get_strand(cid) {
-      Ok(s) => s,
-      Err(_) => return Ok(()),
-    };
     lock.lrem_value("strands", &BlockRecord::from(strand)).map_err(|e| StoreError::Saving(e.to_string()))?;
     Ok(())
   }
