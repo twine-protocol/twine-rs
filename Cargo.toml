@@ -21,7 +21,7 @@ members = [
   "./twine_builder",
   "./twine_http_store",
   "./twine_sled_store",
-  "./twine_cli", "twine_car_store",
+  "./twine_cli", "twine_car_store", "twine_pickledb_store",
 ]
 
 [features]

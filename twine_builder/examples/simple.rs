@@ -3,6 +3,8 @@ use twine_core::{ipld_core::ipld, multihash_codetable::Code};
 
 fn main() {
   let signer = RingSigner::generate_ed25519().unwrap();
+  println!("Private key (PEM):\n{}", signer.private_key_pem().unwrap());
+
   let builder = TwineBuilder::new(signer);
   let strand = builder.build_strand()
     .hasher(Code::Sha3_256)
@@ -11,6 +13,8 @@ fn main() {
     }))
     .done()
     .unwrap();
+
+  println!("strand: {}", strand);
 
   let mut prev = builder.build_first(strand.clone())
     .payload(ipld!({
