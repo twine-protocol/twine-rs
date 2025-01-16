@@ -3,6 +3,7 @@ use futures::stream::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use pickledb::PickleDbListIterator;
+use std::fmt::Debug;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -87,8 +88,18 @@ impl TryFrom<BlockRecord> for AnyTwine {
   }
 }
 
+#[derive(Clone)]
 pub struct PickleDbStore {
   pickle: Arc<Mutex<PickleDb>>,
+}
+
+impl Debug for PickleDbStore {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let nkeys = self.pickle.lock().expect("Lock on pickle db").total_keys();
+    f.debug_struct("PickleDbStore")
+      .field("nkeys", &nkeys)
+      .finish()
+  }
 }
 
 impl PickleDbStore {
