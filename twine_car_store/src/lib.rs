@@ -8,7 +8,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::pin::Pin;
-use std::sync::Mutex;
 use twine_core::{twine::*, errors::*, as_cid::AsCid, store::Store, Cid};
 use twine_core::resolver::{AbsoluteRange, unchecked_base::BaseResolver, Resolver};
 
@@ -16,7 +15,6 @@ use twine_core::resolver::{AbsoluteRange, unchecked_base::BaseResolver, Resolver
 pub struct CarStore {
   memstore: MemoryStore,
   filename: PathBuf,
-  needs_flush: Arc<Mutex<bool>>,
 }
 
 impl Drop for CarStore {
@@ -32,7 +30,6 @@ impl CarStore {
     let s = Self {
       memstore: MemoryStore::new(),
       filename: filename.as_ref().to_path_buf(),
-      needs_flush: Arc::new(Mutex::new(false)),
     };
 
     s.load()?;
@@ -62,9 +59,6 @@ impl CarStore {
   }
 
   pub async fn flush(&self) -> Result<(), StoreError> {
-    if !self.needs_flush.lock().unwrap().clone() {
-      return Ok(());
-    }
     let strands: Vec<Arc<Strand>> = self.memstore.fetch_strands().await?.try_collect().await?;
     let latests: Vec<Arc<Tixel>> = futures::stream::iter(strands.iter())
       .then(|s| async move {
@@ -110,8 +104,6 @@ impl CarStore {
       file.write_all(&chunk).map_err(map_err)?; // Write each chunk
     }
     file.flush().map_err(map_err)?; // Ensure all data is written
-
-    *self.needs_flush.lock().unwrap() = false;
     Ok(())
   }
 }
@@ -162,25 +154,29 @@ impl Resolver for CarStore {}
 impl Store for CarStore {
   async fn save<T: Into<AnyTwine> + Send>(&self, twine: T) -> Result<(), StoreError> {
     self.memstore.save(twine).await?;
-    *self.needs_flush.lock().unwrap() = true;
+    self.flush().await?;
     Ok(())
   }
 
   async fn save_many<I: Into<AnyTwine> + Send, S: Iterator<Item = I> + Send, T: IntoIterator<Item = I, IntoIter = S> + Send>(&self, twines: T) -> Result<(), StoreError> {
     self.memstore.save_many(twines).await?;
-    *self.needs_flush.lock().unwrap() = true;
+    self.flush().await?;
     Ok(())
   }
 
   async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send + Unpin>(&self, twines: T) -> Result<(), StoreError> {
-    self.memstore.save_stream(twines).await?;
-    *self.needs_flush.lock().unwrap() = true;
+    twines.chunks(100)
+      .then(|chunk| async {
+        self.memstore.save_many(chunk).await?;
+        Ok::<_, StoreError>(())
+      })
+      .try_collect::<Vec<_>>().await?;
     Ok(())
   }
 
   async fn delete<C: AsCid + Send>(&self, cid: C) -> Result<(), StoreError> {
     self.memstore.delete(cid).await?;
-    *self.needs_flush.lock().unwrap() = true;
+    self.flush().await?;
     Ok(())
   }
 }
