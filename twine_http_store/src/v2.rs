@@ -394,7 +394,9 @@ impl Store for HttpStore {
 
   async fn save_stream<I: Into<AnyTwine> + MaybeSend, T: Stream<Item = I> + MaybeSend + Unpin>(&self, twines: T) -> Result<(), StoreError> {
     use futures::stream::StreamExt;
-    self.save_many(twines.collect::<Vec<_>>().await).await?;
+    twines.chunks(self.batch_size as usize)
+      .then(|chunk| self.save_many(chunk))
+      .try_collect().await?;
     Ok(())
   }
 
