@@ -196,13 +196,9 @@ pub trait Resolver: BaseResolver {
   }
 }
 
-impl<'r> Resolver for Box<dyn BaseResolver + 'r> {}
-
-impl<T> Resolver for Arc<T> where T: BaseResolver {}
-
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-impl<'r> BaseResolver for Box<dyn BaseResolver + 'r> {
+impl<T> BaseResolver for T where T: AsRef<dyn BaseResolver> + BaseResolverBounds {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
     self.as_ref().has_index(strand, index).await
   }
@@ -240,45 +236,7 @@ impl<'r> BaseResolver for Box<dyn BaseResolver + 'r> {
   }
 }
 
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-impl<T> BaseResolver for Arc<T> where T: BaseResolver {
-  async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
-    self.as_ref().has_index(strand, index).await
-  }
-
-  async fn has_twine(&self, strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
-    self.as_ref().has_twine(strand, cid).await
-  }
-
-  async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError> {
-    self.as_ref().has_strand(cid).await
-  }
-
-  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
-    self.as_ref().fetch_latest(strand).await
-  }
-
-  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
-    self.as_ref().fetch_index(strand, index).await
-  }
-
-  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
-    self.as_ref().fetch_tixel(strand, tixel).await
-  }
-
-  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
-    self.as_ref().fetch_strand(strand).await
-  }
-
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<TwineStream<'a, Arc<Tixel>>, ResolutionError> {
-    self.as_ref().range_stream(range).await
-  }
-
-  async fn fetch_strands<'a>(&'a self) -> Result<TwineStream<'a, Arc<Strand>>, ResolutionError> {
-    self.as_ref().fetch_strands().await
-  }
-}
+impl<T> Resolver for T where T: AsRef<dyn BaseResolver> + BaseResolverBounds {}
 
 #[derive(Clone)]
 pub struct ResolverSetSeries<T>(Vec<T>) where T: BaseResolver;
