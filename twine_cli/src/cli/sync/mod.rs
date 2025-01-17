@@ -43,7 +43,7 @@ impl SyncCommand {
     let ranges = match &self.selector {
       Selector::Query(query) => {
         self.pull_one(&store, &resolver, *query).await?;
-        log::info!("Finished pulling strand: {}", query.strand_cid());
+        log::info!("Finished syncing strand: {}", query.strand_cid());
         return Ok(());
       },
       Selector::Strand(cid) => vec![(cid, ..).into()],
@@ -150,11 +150,11 @@ impl SyncCommand {
 
     let errors = results.into_iter().filter_map(Result::err).collect::<Vec<_>>();
     if !errors.is_empty() {
-      log::warn!("Errors occurred while pulling strands");
+      log::warn!("Errors occurred while syncing strands");
       for e in errors {
         log::error!("{}", e);
       }
-      return Err(anyhow::anyhow!("Errors occurred while pulling strands"));
+      return Err(anyhow::anyhow!("Errors occurred while syncing strands"));
     } else {
       log::debug!("Pull complete");
       bar.finish_with_message("Pull complete");
@@ -172,7 +172,7 @@ impl SyncCommand {
     pb.reset_elapsed();
     pb.reset_eta();
     pb.enable_steady_tick(Duration::from_millis(300));
-    pb.set_message(format!("pulling (...{})", last_chars(&range.strand_cid().to_string(), 5)));
+    pb.set_message(format!("syncing (...{})", last_chars(&range.strand_cid().to_string(), 5)));
 
     use futures::future::ready;
     let mut error = None;
@@ -199,7 +199,7 @@ impl SyncCommand {
       Ok(_) => {
         if let Some(err) = error {
           pb.abandon_with_message("Error!");
-          Err(anyhow::anyhow!("While pulling {}: {}", range.strand_cid(), err))
+          Err(anyhow::anyhow!("While syncing {}: {}", range.strand_cid(), err))
         } else {
           if CTRLC.lock().unwrap().clone() {
             pb.abandon_with_message("Aborted!");
@@ -211,7 +211,7 @@ impl SyncCommand {
         }
       },
       Err(e) => {
-        pb.abandon_with_message(format!("While pulling {}: {}", range.strand_cid(), e));
+        pb.abandon_with_message(format!("While syncing {}: {}", range.strand_cid(), e));
         Err(e.into())
       }
     }
