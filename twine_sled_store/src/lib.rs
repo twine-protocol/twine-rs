@@ -50,14 +50,14 @@ impl SledStoreOptions {
 
 #[derive(Debug, Clone)]
 pub struct SledStore {
-  db: Db,
+  db: Arc<Db>,
   options: SledStoreOptions,
 }
 
 impl SledStore {
   pub fn new(db: Db, options: SledStoreOptions) -> Self {
     Self {
-      db,
+      db: Arc::new(db),
       options,
     }
   }
