@@ -1,4 +1,5 @@
 use clap::Parser;
+use config::Config;
 use directories::ProjectDirs;
 use indicatif::MultiProgress;
 use simplelog::{ConfigBuilder, TermLogger};
@@ -7,7 +8,7 @@ use anyhow::Result;
 mod config;
 mod cli;
 mod selector;
-mod key_store;
+mod stores;
 mod prompt;
 pub(crate) mod cid_str;
 
@@ -19,7 +20,7 @@ lazy_static::lazy_static! {
 #[derive(Debug)]
 pub(crate) struct Context {
   multi_progress: MultiProgress,
-  key_store: key_store::KeyStore,
+  cfg: Option<Config>,
 }
 
 #[tokio::main]
@@ -61,17 +62,13 @@ async fn main() -> Result<()> {
     logger
   ).try_init()?;
 
-  let mut config = config::load_config()?;
+  let config = Config::load_local()?;
   let result = cli.run(
-    &mut config,
     Context {
       multi_progress: multi_progress.clone(),
-      key_store: key_store::KeyStore::new(PROJECT_DIRS.data_local_dir()),
+      cfg: config,
     }
   ).await;
-
-  config.save()?;
-  config.get_local_store()?.flush()?;
 
   if let Err(e) = result {
     log::error!("Error: {}", e);

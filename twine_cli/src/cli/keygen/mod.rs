@@ -14,7 +14,7 @@ pub struct KeygenCommand {
 }
 
 impl KeygenCommand {
-  pub async fn run(&self, _config: &mut crate::config::Config, _ctx: crate::Context) -> Result<()> {
+  pub async fn run(&self, _ctx: crate::Context) -> Result<()> {
     let filename = if self.output.is_none() {
       prompt_for_filename("Filename to save the private key to:", "./key.pem")?
     } else {

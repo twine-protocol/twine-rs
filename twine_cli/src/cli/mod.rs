@@ -1,13 +1,11 @@
 use anyhow::Result;
 use clap::{Subcommand, Parser};
-mod resolver;
-mod store;
 mod list;
-mod pull;
 mod sync;
 mod create;
-mod strand;
 mod keygen;
+mod init;
+mod check;
 
 #[derive(Debug, Parser)]
 #[command(version, about)]
@@ -24,58 +22,40 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum SubCommands {
-  /// Manage resolvers
-  #[clap(alias = "resolvers")]
-  Resolver(resolver::ResolverCommand),
-  /// Manage stores
-  #[clap(alias = "stores")]
-  Store(store::StoreCommand),
   /// List strands
   Ls(list::ListCommand),
-  /// Retrieve and store twines locally
-  Pull(pull::PullCommand),
   /// Manage sync strands
   Sync(sync::SyncCommand),
-  /// Unsync a strand
-  Unsync(sync::UnSyncCommand),
   /// Create a strand
   Create(create::CreateCommand),
-  /// Show local strands
-  #[clap(alias = "strands")]
-  Strand(strand::StrandCommand),
   /// Generate a keypair
   Keygen(keygen::KeygenCommand),
+  /// Initialize a new configuration and store
+  Init(init::InitCommand),
+  /// Check strand connectivity
+  Check(check::CheckCommand),
 }
 
 impl Cli {
-  pub async fn run(&self, config: &mut crate::config::Config, ctx: crate::Context) -> Result<()> {
+  pub async fn run(&self, ctx: crate::Context) -> Result<()> {
     match &self.subcommand {
-      SubCommands::Resolver(resolver) => {
-        resolver.run(config, ctx)
-      },
-      SubCommands::Store(store) => {
-        store.run(config, ctx)
-      },
       SubCommands::Ls(ls) => {
-        ls.run(config, ctx).await
-      },
-      SubCommands::Pull(pull) => {
-        pull.run(config, ctx).await
+        ls.run(ctx).await
       },
       SubCommands::Sync(sync) => {
-        sync.run(config, ctx).await
-      },
-      SubCommands::Unsync(unsync) => {
-        unsync.run(config, ctx).await
+        sync.run(ctx).await
       },
       SubCommands::Create(create) => {
-        create.run(config, ctx).await
-      },
-      SubCommands::Strand(strand) => {
-        strand.run(config, ctx).await
+        create.run(ctx).await
       },
       SubCommands::Keygen(keygen) => {
-        keygen.run(config, ctx).await
+        keygen.run(ctx).await
+      },
+      SubCommands::Init(init) => {
+        init.run(ctx).await
+      },
+      SubCommands::Check(check) => {
+        check.run(ctx).await
       },
     }
   }

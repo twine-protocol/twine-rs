@@ -9,6 +9,7 @@ pub fn not_empty(text: &str) -> std::result::Result<Validation, Box<dyn std::err
   }
 }
 
+#[allow(dead_code)]
 pub fn only_simple_chars(text: &str) -> std::result::Result<Validation, Box<dyn std::error::Error + Send + Sync>> {
   if text.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
     Ok(Validation::Valid)

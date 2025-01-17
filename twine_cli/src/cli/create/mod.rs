@@ -1,11 +1,10 @@
 use std::{collections::HashMap, path::{Path, PathBuf}};
-use twine_car_store::CarStore;
 use twine_core::{multihash_codetable::Code, twine::TwineBlock};
 use clap::Parser;
 use anyhow::Result;
 use inquire::{validator::Validation, Select, Text};
 use twine_builder::RingSigner;
-use twine_core::{ipld_core::ipld, store::Store};
+use twine_core::ipld_core::ipld;
 use crate::prompt::prompt_for_directory;
 use crate::prompt::not_empty;
 
@@ -17,7 +16,17 @@ pub struct CreateCommand {
 }
 
 impl CreateCommand {
-  pub async fn run(&self, _config: &mut crate::config::Config, _ctx: crate::Context) -> Result<()> {
+  pub async fn run(&self, ctx: crate::Context) -> Result<()> {
+    // if we don't have a config with a store, we can't save the strand
+    if ctx.cfg.is_none() {
+      return Err(anyhow::anyhow!("No store configured. Run `twine init` to set a store"));
+    }
+
+    let cfg = ctx.cfg.unwrap();
+
+    if cfg.store.is_none() {
+      return Err(anyhow::anyhow!("No store configured. Run `twine init` to set a store"));
+    }
 
     let directory = prompt_for_directory("Directory to store strand:", "./my-strand")?;
 
@@ -64,15 +73,13 @@ impl CreateCommand {
       .done()?;
 
     // write it to a json file in dir
-    let strand_file = Path::new(&directory).join("strand.json");
+    let strand_file = Path::new(&directory).join(format!("{}.strand.json", strand.cid()));
     let strand_json = strand.tagged_dag_json_pretty();
     tokio::fs::write(&strand_file, strand_json).await?;
 
     // save the strand to the store
-    let storefile = Path::new(&directory).join(format!("{}.store.car", strand.cid()));
-    let store = CarStore::new(storefile)?;
+    let store = cfg.get_store()?.ok_or_else(|| anyhow::anyhow!("No store configured"))?;
     store.save(strand.clone()).await?;
-    store.flush().await?;
 
     log::info!("Saved strand {} to {}", strand.cid(), directory);
 
