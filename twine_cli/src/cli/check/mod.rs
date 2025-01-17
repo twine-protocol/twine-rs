@@ -1,9 +1,7 @@
-use std::sync::Arc;
 use clap::Parser;
 use anyhow::Result;
-use twine_core::{errors::ResolutionError, resolver::{Query, RangeQuery, Resolver}, twine::{Strand, Twine}, Cid, Ipld};
-use futures::stream::{Stream, StreamExt, TryStreamExt};
-use num_format::{ToFormattedString, SystemLocale};
+use twine_core::{resolver::{RangeQuery, Resolver}, twine::Twine, Cid};
+use futures::stream::TryStreamExt;
 use crate::{selector::{parse_selector, Selector}, stores::resolver_from_args};
 
 #[derive(Debug, Parser)]
@@ -43,7 +41,7 @@ impl CheckCommand {
   }
 
   async fn verify_range<R: Resolver>(&self, range: RangeQuery, resolver: &R) -> Result<()> {
-    log::trace!("Checking range {}", range);
+    log::info!("Checking range {}", range);
     let range = range.try_to_absolute(resolver).await?.ok_or_else(|| anyhow::anyhow!("Range empty"))?;
     if !range.is_decreasing() {
       return Err(anyhow::anyhow!("Range must be decreasing"));
@@ -67,11 +65,12 @@ impl CheckCommand {
       }
       Ok(Some(twine))
     }).await?;
+    log::info!("Range {} is fully connected", range);
     Ok(())
   }
 
   async fn verify_strands<R: Resolver>(&self, resolver: &R) -> Result<()> {
-    log::trace!("Checking all strands");
+    log::info!("Checking all strands");
     let strands = resolver.strands().await?;
     strands.map_err(|e| anyhow::anyhow!(e)).try_for_each(|strand| async move {
       let cid = strand.cid();
