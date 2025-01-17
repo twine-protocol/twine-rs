@@ -8,7 +8,6 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::pin::Pin;
-use std::time::Duration;
 use twine_core::{twine::*, errors::*, as_cid::AsCid, store::Store, Cid};
 use twine_core::resolver::{AbsoluteRange, unchecked_base::BaseResolver, Resolver};
 use pickledb::{PickleDb, PickleDbDumpPolicy, SerializationMethod};
@@ -104,7 +103,7 @@ impl Debug for PickleDbStore {
 
 impl PickleDbStore {
   pub fn new(p: impl AsRef<Path>) -> pickledb::error::Result<Self> {
-    Self::new_with_policy(p, PickleDbDumpPolicy::PeriodicDump(Duration::from_millis(500)))
+    Self::new_with_policy(p, PickleDbDumpPolicy::DumpUponRequest)
   }
 
   pub fn new_with_policy(p: impl AsRef<Path>, dump_policy: PickleDbDumpPolicy) -> pickledb::error::Result<Self> {
@@ -209,6 +208,7 @@ impl PickleDbStore {
     let mut lock = self.pickle.lock().expect("Lock on pickle db");
     lock.set(&format!("{}", tixel_cid), &BlockRecord::from(tixel)).map_err(|e| StoreError::Saving(e.to_string()))?;
     push_list(&mut lock, &format!("tixels:{}", strand_cid), &tixel_cid)?;
+    self.flush()?;
     Ok(())
   }
 
