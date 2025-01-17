@@ -5,10 +5,15 @@ use anyhow::Result;
 use twine_core::{errors::ResolutionError, resolver::{AbsoluteRange, Query, RangeQuery, Resolver}};
 use futures::{stream::StreamExt, TryStreamExt};
 use crate::{selector::{parse_selector, Selector}, stores::{parse_store, resolver_from_args, AnyStore}};
+use std::sync::{Arc, Mutex};
 
 fn last_chars(s: &str, n: usize) -> &str {
   let start = s.len().saturating_sub(n);
   &s[start..]
+}
+
+lazy_static::lazy_static! {
+  static ref CTRLC : Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
 }
 
 #[derive(Debug, Parser)]
@@ -50,6 +55,12 @@ impl SyncCommand {
           .await?
       }
     };
+
+    ctrlc::set_handler(|| {
+      let mut ctrlc = CTRLC.lock().unwrap();
+      log::warn!("Ctrl-C detected, stopping...");
+      *ctrlc = true;
+    }).expect("Error setting Ctrl-C handler");
 
     let bar = ProgressBar::new(ranges.len() as u64);
 
@@ -167,6 +178,9 @@ impl SyncCommand {
     let mut error = None;
     let stream = resolver.resolve_range(range).await?
       .take_while(|res| {
+        if CTRLC.lock().unwrap().clone() {
+          return ready(false);
+        }
         if res.is_ok() {
           ready(true)
         } else {
@@ -187,8 +201,13 @@ impl SyncCommand {
           pb.abandon_with_message("Error!");
           Err(anyhow::anyhow!("While pulling {}: {}", range.strand_cid(), err))
         } else {
-          pb.finish_with_message("Done!");
-          Ok(())
+          if CTRLC.lock().unwrap().clone() {
+            pb.abandon_with_message("Aborted!");
+            Ok(())
+          } else {
+            pb.finish_with_message("Done!");
+            Ok(())
+          }
         }
       },
       Err(e) => {
