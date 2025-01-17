@@ -33,7 +33,7 @@ async fn main() {
 
     store.save(prev.clone()).await.unwrap();
 
-    let n = 10000;
+    let n = 1000;
     for i in 1..n {
       prev = builder.build_next(&prev)
         .payload(ipld!({
