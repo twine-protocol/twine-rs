@@ -157,8 +157,16 @@ pub fn parse_store(uri: &str) -> Result<AnyStore> {
       _ => Err(anyhow!("Invalid store specifier: {}", uri)),
     },
     [path] => {
-      // default to pickle
-      Ok(AnyStore::Pickle(PickleDbStore::new(path)?))
+      // try to detect file from extension
+      if path.ends_with(".car") {
+        Ok(AnyStore::Car(CarStore::new(path)?))
+      } else if path.ends_with(".sled") {
+        Ok(AnyStore::Sled(SledStore::new(twine_sled_store::sled::Config::new().path(path).open()?, SledStoreOptions::default())))
+      } else if path.ends_with(".pickle") {
+        Ok(AnyStore::Pickle(PickleDbStore::new(path)?))
+      } else {
+        Err(anyhow!("Could not determine type of store: {}", uri))
+      }
     },
     _ => Err(anyhow!("Invalid store specifier: {}", uri)),
   }
