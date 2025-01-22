@@ -570,11 +570,24 @@ impl Display for RangeQuery {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AnyQuery {
+  Strand(Cid),
   One(SingleQuery),
   Many(RangeQuery),
 }
 
 impl AnyQuery {
+  pub fn strand_cid(&self) -> &Cid {
+    match self {
+      Self::Strand(cid) => cid,
+      Self::One(query) => query.strand_cid(),
+      Self::Many(range) => range.strand_cid(),
+    }
+  }
+
+  pub fn is_strand(&self) -> bool {
+    matches!(self, Self::Strand(_))
+  }
+
   pub fn is_one(&self) -> bool {
     matches!(self, Self::One(_))
   }
@@ -615,10 +628,20 @@ impl FromStr for AnyQuery {
   type Err = ConversionError;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
-    if s.split(':').count() == 3 {
-      Ok(RangeQuery::from_str(s)?.into())
-    } else {
-      Ok(SingleQuery::from_str(s)?.into())
+    match s.split(':').count() {
+      1 => {
+        let cid = Cid::try_from(s.to_string())?;
+        Ok(Self::Strand(cid))
+      },
+      2 => {
+        let query = SingleQuery::from_str(s)?;
+        Ok(Self::One(query))
+      },
+      3 => {
+        let query = RangeQuery::from_str(s)?;
+        Ok(Self::Many(query).reduce())
+      },
+      _ => Err(ConversionError::InvalidFormat("Invalid query string".to_string())),
     }
   }
 }
@@ -626,6 +649,7 @@ impl FromStr for AnyQuery {
 impl Display for AnyQuery {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
+      AnyQuery::Strand(cid) => write!(f, "{}", cid),
       AnyQuery::One(query) => write!(f, "{}", query),
       AnyQuery::Many(range) => write!(f, "{}", range),
     }
@@ -646,7 +670,7 @@ impl From<(Cid, Cid)> for AnyQuery {
 
 impl From<Cid> for AnyQuery {
   fn from(cid: Cid) -> Self {
-    SingleQuery::from(cid).into()
+    Self::Strand(cid)
   }
 }
 
@@ -900,5 +924,33 @@ mod test {
     let s = "bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune:-1:4";
     let range: RangeQuery = s.parse().unwrap();
     assert_eq!(&range.to_string(), s);
+  }
+
+  #[test]
+  fn test_any_query(){
+    let s = "bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune:0:=99";
+    let query: AnyQuery = s.parse().unwrap();
+    assert_eq!(query.to_string(), s);
+    assert!(matches!(&query, AnyQuery::Many(_)));
+    if let AnyQuery::Many(range) = query {
+      assert_eq!(range.to_absolute(0).unwrap().len(), 100);
+    }
+
+    let s = "bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune:-1";
+    let query: AnyQuery = s.parse().unwrap();
+    assert_eq!(query.to_string(), s);
+    assert!(matches!(&query, AnyQuery::One(_)));
+    if let AnyQuery::One(query) = query {
+      assert_eq!(query.to_string(), s);
+      assert!(matches!(&query, SingleQuery::Latest(_)));
+    }
+
+    let s = "bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune";
+    let query: AnyQuery = s.parse().unwrap();
+    assert_eq!(query.to_string(), s);
+    assert!(matches!(&query, AnyQuery::Strand(_)));
+    if let AnyQuery::Strand(cid) = query {
+      assert_eq!(cid.to_string(), s);
+    }
   }
 }
