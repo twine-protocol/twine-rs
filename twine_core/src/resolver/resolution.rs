@@ -5,19 +5,19 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TwineResolution {
-  query: Query,
+  query: SingleQuery,
   twine: Twine,
 }
 
 impl TwineResolution {
-  pub fn try_new(query: Query, twine: Twine) -> Result<Self, ResolutionError> {
+  pub fn try_new(query: SingleQuery, twine: Twine) -> Result<Self, ResolutionError> {
     if !query.matches(&twine) {
       return Err(ResolutionError::QueryMismatch(query));
     }
     Ok(Self { query, twine })
   }
 
-  pub fn query(&self) -> &Query {
+  pub fn query(&self) -> &SingleQuery {
     &self.query
   }
 

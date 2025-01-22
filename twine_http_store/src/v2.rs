@@ -7,7 +7,7 @@ use twine_core::car::from_car_bytes;
 use twine_core::resolver::unchecked_base::TwineStream;
 use twine_core::resolver::{MaybeSend, Resolver, TwineResolution};
 use twine_core::twine::Twine;
-use twine_core::{as_cid::AsCid, errors::{ResolutionError, StoreError}, resolver::{AbsoluteRange, unchecked_base::BaseResolver, Query}, store::Store, twine::{AnyTwine, Strand, Tixel}, Cid};
+use twine_core::{as_cid::AsCid, errors::{ResolutionError, StoreError}, resolver::{AbsoluteRange, unchecked_base::BaseResolver, SingleQuery}, store::Store, twine::{AnyTwine, Strand, Tixel}, Cid};
 
 fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result<(), StoreError> {
   match res {
@@ -18,7 +18,7 @@ fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result
         ResolutionError::NotFound => Err(StoreError::Saving("Not found".to_string())),
         ResolutionError::Invalid(e) => Err(StoreError::Invalid(e)),
         ResolutionError::BadData(e) => Err(StoreError::Saving(e)),
-        ResolutionError::QueryMismatch(q) => Err(StoreError::Saving(format!("Query mismatch: {}", q))),
+        ResolutionError::QueryMismatch(q) => Err(StoreError::Saving(format!("SingleQuery mismatch: {}", q))),
       }
     },
   }
@@ -198,7 +198,7 @@ impl HttpStore {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl BaseResolver for HttpStore {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
-    let q : Query = (strand, index).into();
+    let q : SingleQuery = (strand, index).into();
     let path = format!("{}", q);
     match self.send(self.head(&path)).await {
       Ok(response) => Ok(response.status() == StatusCode::OK),
@@ -208,7 +208,7 @@ impl BaseResolver for HttpStore {
   }
 
   async fn has_twine(&self, strand: &Cid, tixel: &Cid) -> Result<bool, ResolutionError> {
-    let q : Query = (strand, tixel).into();
+    let q : SingleQuery = (strand, tixel).into();
     let path = format!("{}", q);
     match self.send(self.head(&path)).await {
       Ok(response) => Ok(response.status() == StatusCode::OK),
@@ -248,7 +248,7 @@ impl BaseResolver for HttpStore {
   }
 
   async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
-    let q : Query = (strand, tixel).into();
+    let q : SingleQuery = (strand, tixel).into();
     let path = format!("{}", q);
     let response = self.send(self.get(&path)).await?;
     let tixel = self.type_from_response(response).await?;
@@ -256,7 +256,7 @@ impl BaseResolver for HttpStore {
   }
 
   async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
-    let q : Query = (strand, index).into();
+    let q : SingleQuery = (strand, index).into();
     let path = format!("{}", q);
     let response = self.send(self.get(&path)).await?;
     let tixel = self.type_from_response(response).await?;
@@ -264,7 +264,7 @@ impl BaseResolver for HttpStore {
   }
 
   async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
-    let q = Query::Latest(*strand);
+    let q = SingleQuery::Latest(*strand);
     let path = format!("{}", q);
     let response = self.send(self.get(&path)).await?;
     let tixel = self.type_from_response(response).await?;
@@ -300,7 +300,7 @@ impl BaseResolver for HttpStore {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl Resolver for HttpStore {
   async fn resolve_latest<C: AsCid + MaybeSend>(&self, strand: C) -> Result<TwineResolution, ResolutionError> {
-    let q = Query::from(*strand.as_cid());
+    let q = SingleQuery::from(*strand.as_cid());
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
     let twine = self.twine_from_response(response).await?;
@@ -308,7 +308,7 @@ impl Resolver for HttpStore {
   }
 
   async fn resolve_index<C: AsCid + MaybeSend>(&self, strand: C, index: u64) -> Result<TwineResolution, ResolutionError> {
-    let q = Query::from((strand.as_cid(), index));
+    let q = SingleQuery::from((strand.as_cid(), index));
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
     let twine = self.twine_from_response(response).await?;
@@ -316,7 +316,7 @@ impl Resolver for HttpStore {
   }
 
   async fn resolve_stitch<C: AsCid + MaybeSend>(&self, strand: C, tixel: C) -> Result<TwineResolution, ResolutionError> {
-    let q = Query::from((strand.as_cid(), tixel.as_cid()));
+    let q = SingleQuery::from((strand.as_cid(), tixel.as_cid()));
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
     let twine = self.twine_from_response(response).await?;

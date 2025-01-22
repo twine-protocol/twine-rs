@@ -31,47 +31,47 @@ impl<T> MaybeSend for T where T: Send {}
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait Resolver: BaseResolver {
-  async fn resolve<Q: Into<Query> + MaybeSend>(&self, query: Q) -> Result<TwineResolution, ResolutionError> {
+  async fn resolve<Q: Into<SingleQuery> + MaybeSend>(&self, query: Q) -> Result<TwineResolution, ResolutionError> {
     let query = query.into();
     match query {
-      Query::Stitch(stitch) => {
+      SingleQuery::Stitch(stitch) => {
         self.resolve_stitch(stitch.strand, stitch.tixel).await
       },
-      Query::Index(strand, index) if index == -1 => {
+      SingleQuery::Index(strand, index) if index == -1 => {
         self.resolve_latest(strand).await
       },
-      Query::Index(strand, index) => {
+      SingleQuery::Index(strand, index) => {
         let index = match index {
           i if i < 0 => self.fetch_latest(strand.as_cid()).await?.index() as i64 + i + 1,
           i => i
         } as u64;
         self.resolve_index(strand, index).await
       },
-      Query::Latest(strand) => self.resolve_latest(strand).await,
+      SingleQuery::Latest(strand) => self.resolve_latest(strand).await,
     }
   }
 
-  async fn has<Q: Into<Query> + MaybeSend>(&self, query: Q) -> Result<bool, ResolutionError> {
+  async fn has<Q: Into<SingleQuery> + MaybeSend>(&self, query: Q) -> Result<bool, ResolutionError> {
     let query = query.into();
     match query {
-      Query::Stitch(stitch) => {
+      SingleQuery::Stitch(stitch) => {
         self.has_twine(stitch.strand.as_cid(), stitch.tixel.as_cid()).await
       },
-      Query::Index(strand, index) if index == -1 => {
+      SingleQuery::Index(strand, index) if index == -1 => {
         match self.fetch_latest(strand.as_cid()).await {
           Ok(_) => Ok(true),
           Err(ResolutionError::NotFound) => Ok(false),
           Err(e) => Err(e),
         }
       },
-      Query::Index(strand, index) => {
+      SingleQuery::Index(strand, index) => {
         let index = match index {
           i if i < 0 => self.fetch_latest(strand.as_cid()).await?.index() as i64 + i + 1,
           i => i
         } as u64;
         self.has_index(strand.as_cid(), index).await
       },
-      Query::Latest(strand) => match self.fetch_latest(strand.as_cid()).await {
+      SingleQuery::Latest(strand) => match self.fetch_latest(strand.as_cid()).await {
         Ok(_) => Ok(true),
         Err(ResolutionError::NotFound) => Ok(false),
         Err(e) => Err(e),
@@ -84,7 +84,7 @@ pub trait Resolver: BaseResolver {
     let strand_cid = strand.as_cid();
     let (strand, tixel) = join!(self.fetch_strand(strand_cid), self.fetch_latest(strand_cid));
     TwineResolution::try_new(
-      Query::Latest(*strand_cid),
+      SingleQuery::Latest(*strand_cid),
       Twine::try_new_from_shared(strand?, tixel?)?
     )
   }
@@ -94,7 +94,7 @@ pub trait Resolver: BaseResolver {
     let strand_cid = strand.as_cid();
     let (strand, tixel) = join!(self.fetch_strand(strand_cid), self.fetch_index(strand_cid, index));
     TwineResolution::try_new(
-      Query::Index(*strand_cid, index as i64),
+      SingleQuery::Index(*strand_cid, index as i64),
       Twine::try_new_from_shared(strand?, tixel?)?
     )
   }
@@ -105,7 +105,7 @@ pub trait Resolver: BaseResolver {
     let tixel_cid = tixel.as_cid();
     let (strand, tixel) = join!(self.fetch_strand(strand_cid), self.fetch_tixel(strand_cid, tixel_cid));
     TwineResolution::try_new(
-      Query::Stitch((*strand_cid, *tixel_cid).into()),
+      SingleQuery::Stitch((*strand_cid, *tixel_cid).into()),
       Twine::try_new_from_shared(strand?, tixel?)?
     )
   }

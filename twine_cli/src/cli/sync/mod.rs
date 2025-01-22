@@ -2,7 +2,7 @@ use std::time::Duration;
 use indicatif::{ProgressBar, ProgressStyle};
 use clap::Parser;
 use anyhow::Result;
-use twine_core::{errors::ResolutionError, resolver::{AbsoluteRange, Query, RangeQuery, Resolver}};
+use twine_core::{errors::ResolutionError, resolver::{AbsoluteRange, SingleQuery, RangeQuery, Resolver}};
 use futures::{stream::StreamExt, TryStreamExt};
 use crate::{selector::{parse_selector, Selector}, stores::{parse_store, resolver_from_args, AnyStore}};
 use std::sync::{Arc, Mutex};
@@ -41,7 +41,7 @@ impl SyncCommand {
     let store = &self.store;
 
     let ranges = match &self.selector {
-      Selector::Query(query) => {
+      Selector::SingleQuery(query) => {
         self.pull_one(&store, &resolver, *query).await?;
         log::info!("Finished syncing strand: {}", query.strand_cid());
         return Ok(());
@@ -217,7 +217,7 @@ impl SyncCommand {
     }
   }
 
-  async fn pull_one<R: Resolver>(&self, store: &AnyStore, resolver: &R, query: Query) -> Result<()> {
+  async fn pull_one<R: Resolver>(&self, store: &AnyStore, resolver: &R, query: SingleQuery) -> Result<()> {
     let twine = resolver.resolve(query).await?.unpack();
     log::debug!("Saving strand: {}", twine.strand_cid());
     store.save(twine.strand()).await?;

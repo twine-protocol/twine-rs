@@ -25,7 +25,7 @@ impl CheckCommand {
       Some(selector) => match selector {
         Selector::All => self.verify_strands(&resolver).await?,
         Selector::Strand(cid) => self.verify_strand(&cid, &resolver).await?,
-        Selector::Query(_query) => return Err(anyhow::anyhow!("Specify a range or strand")),
+        Selector::SingleQuery(_query) => return Err(anyhow::anyhow!("Specify a range or strand")),
         Selector::RangeQuery(range) => self.verify_range(*range, &resolver).await?,
       },
       None => self.verify_strands(&resolver).await?,

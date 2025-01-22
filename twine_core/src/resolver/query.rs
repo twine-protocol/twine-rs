@@ -10,25 +10,25 @@ use super::Resolver;
 use std::ops::Bound;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
-pub enum Query {
+pub enum SingleQuery {
   Stitch(Stitch),
   Index(Cid, i64),
   Latest(Cid),
 }
 
-impl Query {
+impl SingleQuery {
   pub fn strand_cid(&self) -> &Cid {
     match self {
-      Query::Stitch(stitch) => &stitch.strand,
-      Query::Index(cid, _) => cid,
-      Query::Latest(cid) => cid,
+      SingleQuery::Stitch(stitch) => &stitch.strand,
+      SingleQuery::Index(cid, _) => cid,
+      SingleQuery::Latest(cid) => cid,
     }
   }
 
   pub fn unwrap_index(self) -> i64 {
     match self {
-      Query::Index(_, index) => index,
-      _ => panic!("Query is not an index query"),
+      SingleQuery::Index(_, index) => index,
+      _ => panic!("SingleQuery is not an index query"),
     }
   }
 
@@ -41,47 +41,47 @@ impl Query {
   /// - For a latest query, the twine has the same strand cid
   pub fn matches(&self, twine: &Twine) -> bool {
     match self {
-      Query::Stitch(stitch) => {
+      SingleQuery::Stitch(stitch) => {
         twine == stitch
       },
-      Query::Index(cid, index) => {
+      SingleQuery::Index(cid, index) => {
         if *index >= 0 && *index as u64 != twine.index() {
           return false;
         }
         twine.strand_cid() == *cid
       },
-      Query::Latest(cid) => {
+      SingleQuery::Latest(cid) => {
         twine.strand_cid() == *cid
       },
     }
   }
 }
 
-impl From<Stitch> for Query {
+impl From<Stitch> for SingleQuery {
   fn from(stitch: Stitch) -> Self {
     Self::Stitch(stitch)
   }
 }
 
-impl From<Tixel> for Query {
+impl From<Tixel> for SingleQuery {
   fn from(tixel: Tixel) -> Self {
     tixel.into()
   }
 }
 
-impl From<Strand> for Query {
+impl From<Strand> for SingleQuery {
   fn from(strand: Strand) -> Self {
     Self::Latest(strand.into())
   }
 }
 
-impl<C> From<(C, u64)> for Query where C: AsCid {
+impl<C> From<(C, u64)> for SingleQuery where C: AsCid {
   fn from((strand, index): (C, u64)) -> Self {
     Self::Index(strand.as_cid().clone(), index as i64)
   }
 }
 
-impl<C> From<(C, i64)> for Query where C: AsCid {
+impl<C> From<(C, i64)> for SingleQuery where C: AsCid {
   fn from((strand, index): (C, i64)) -> Self {
     if index == -1 {
       Self::Latest(strand.as_cid().clone())
@@ -91,19 +91,19 @@ impl<C> From<(C, i64)> for Query where C: AsCid {
   }
 }
 
-impl<C> From<(C, C)> for Query where C: AsCid {
+impl<C> From<(C, C)> for SingleQuery where C: AsCid {
   fn from((strand, tixel): (C, C)) -> Self {
     Self::Stitch((strand.as_cid().clone(), tixel.as_cid().clone()).into())
   }
 }
 
-impl From<Cid> for Query {
+impl From<Cid> for SingleQuery {
   fn from(cid: Cid) -> Self {
     Self::Latest(cid)
   }
 }
 
-impl FromStr for Query {
+impl FromStr for SingleQuery {
   type Err = ConversionError;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -130,12 +130,12 @@ impl FromStr for Query {
   }
 }
 
-impl Display for Query {
+impl Display for SingleQuery {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      Query::Stitch(stitch) => write!(f, "{}:{}", stitch.strand, stitch.tixel),
-      Query::Index(cid, index) => write!(f, "{}:{}", cid, index),
-      Query::Latest(cid) => write!(f, "{}:-1", cid),
+      SingleQuery::Stitch(stitch) => write!(f, "{}:{}", stitch.strand, stitch.tixel),
+      SingleQuery::Index(cid, index) => write!(f, "{}:{}", cid, index),
+      SingleQuery::Latest(cid) => write!(f, "{}:-1", cid),
     }
   }
 }
@@ -236,7 +236,7 @@ pub struct AbsoluteRangeIter {
 }
 
 impl IntoIterator for AbsoluteRange {
-  type Item = Query;
+  type Item = SingleQuery;
   type IntoIter = AbsoluteRangeIter;
 
   fn into_iter(self) -> Self::IntoIter {
@@ -253,7 +253,7 @@ impl AbsoluteRangeIter {
 }
 
 impl Iterator for AbsoluteRangeIter {
-  type Item = Query;
+  type Item = SingleQuery;
 
   fn next(&mut self) -> Option<Self::Item> {
     if self.decreasing {
@@ -444,7 +444,7 @@ impl RangeQuery {
     }
   }
 
-  pub fn to_stream<'a, R: Resolver>(self, resolver: &'a R) -> impl Stream<Item = Result<Query, ResolutionError>> + 'a {
+  pub fn to_stream<'a, R: Resolver>(self, resolver: &'a R) -> impl Stream<Item = Result<SingleQuery, ResolutionError>> + 'a {
     once(async move {
       self.try_to_absolute(resolver).await
     })
@@ -570,7 +570,7 @@ impl Display for RangeQuery {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AnyQuery {
-  One(Query),
+  One(SingleQuery),
   Many(RangeQuery),
 }
 
@@ -589,7 +589,7 @@ impl AnyQuery {
       Self::Many(range) => {
         if let RangeQuery::Absolute(range) = range {
           if range.len() == 1 {
-            return Self::One(Query::Index(range.strand, range.start as i64));
+            return Self::One(SingleQuery::Index(range.strand, range.start as i64));
           }
         }
       },
@@ -599,8 +599,8 @@ impl AnyQuery {
   }
 }
 
-impl From<Query> for AnyQuery {
-  fn from(query: Query) -> Self {
+impl From<SingleQuery> for AnyQuery {
+  fn from(query: SingleQuery) -> Self {
     Self::One(query)
   }
 }
@@ -618,7 +618,7 @@ impl FromStr for AnyQuery {
     if s.split(':').count() == 3 {
       Ok(RangeQuery::from_str(s)?.into())
     } else {
-      Ok(Query::from_str(s)?.into())
+      Ok(SingleQuery::from_str(s)?.into())
     }
   }
 }
@@ -634,19 +634,19 @@ impl Display for AnyQuery {
 
 impl From<(Cid, i64)> for AnyQuery {
   fn from((strand, index): (Cid, i64)) -> Self {
-    Query::from((strand, index)).into()
+    SingleQuery::from((strand, index)).into()
   }
 }
 
 impl From<(Cid, Cid)> for AnyQuery {
   fn from((strand, tixel): (Cid, Cid)) -> Self {
-    Query::from((strand, tixel)).into()
+    SingleQuery::from((strand, tixel)).into()
   }
 }
 
 impl From<Cid> for AnyQuery {
   fn from(cid: Cid) -> Self {
-    Query::from(cid).into()
+    SingleQuery::from(cid).into()
   }
 }
 
@@ -718,14 +718,14 @@ mod test {
     let range = AbsoluteRange::new(Cid::default(), 0, 100);
     let queries = range.into_iter().collect::<Vec<_>>();
     assert_eq!(queries.len(), 101);
-    assert_eq!(queries[0], Query::Index(Cid::default(), 0));
-    assert_eq!(queries[100], Query::Index(Cid::default(), 100));
+    assert_eq!(queries[0], SingleQuery::Index(Cid::default(), 0));
+    assert_eq!(queries[100], SingleQuery::Index(Cid::default(), 100));
 
     let range = AbsoluteRange::new(Cid::default(), 100, 0);
     let queries = range.into_iter().collect::<Vec<_>>();
     assert_eq!(queries.len(), 101);
-    assert_eq!(queries[0], Query::Index(Cid::default(), 100));
-    assert_eq!(queries[100], Query::Index(Cid::default(), 0));
+    assert_eq!(queries[0], SingleQuery::Index(Cid::default(), 100));
+    assert_eq!(queries[100], SingleQuery::Index(Cid::default(), 0));
   }
 
   #[test]
@@ -850,7 +850,7 @@ mod test {
       cid.clone() + ":-1",
     ];
     for input in inputs.iter() {
-      let range: Query = input.parse().unwrap();
+      let range: SingleQuery = input.parse().unwrap();
       assert_eq!(range.to_string(), output);
     }
   }

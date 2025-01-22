@@ -56,7 +56,7 @@ fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result
         ResolutionError::NotFound => Err(StoreError::Saving("Not found".to_string())),
         ResolutionError::Invalid(e) => Err(StoreError::Invalid(e)),
         ResolutionError::BadData(e) => Err(StoreError::Saving(e)),
-        ResolutionError::QueryMismatch(q) => Err(StoreError::Saving(format!("Query mismatch: {:?}", q))),
+        ResolutionError::QueryMismatch(q) => Err(StoreError::Saving(format!("SingleQuery mismatch: {:?}", q))),
       }
     },
   }

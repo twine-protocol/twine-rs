@@ -2,7 +2,7 @@ use serde_ipld_dagjson::error::CodecError as JsonCodecError;
 use serde_ipld_dagcbor::error::CodecError as CborCodecError;
 use thiserror::Error;
 use std::fmt::Display;
-use crate::resolver::Query;
+use crate::resolver::SingleQuery;
 
 #[derive(Debug, Error)]
 pub enum VerificationError {
@@ -50,7 +50,7 @@ pub enum ResolutionError {
   #[error("Bad data: {0}")]
   BadData(String),
   #[error("Data does not match query: {0}")]
-  QueryMismatch(Query),
+  QueryMismatch(SingleQuery),
   #[error("Problem fetching data: {0}")]
   Fetch(String),
 }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use clap::Parser;
 use anyhow::Result;
-use twine_core::{errors::ResolutionError, resolver::{Query, RangeQuery, Resolver}, twine::{Strand, Twine}, Cid, Ipld};
+use twine_core::{errors::ResolutionError, resolver::{SingleQuery, RangeQuery, Resolver}, twine::{Strand, Twine}, Cid, Ipld};
 use futures::stream::{Stream, StreamExt, TryStreamExt};
 use num_format::{ToFormattedString, SystemLocale};
 use crate::{selector::{parse_selector, Selector}, stores::resolver_from_args};
@@ -90,7 +90,7 @@ impl ListCommand {
       Some(selector) => match selector {
         Selector::All => self.list_strands(&resolver).await?,
         Selector::Strand(cid) => self.list_strand(&cid, &resolver).await?,
-        Selector::Query(query) => self.list_query(*query, &resolver).await?,
+        Selector::SingleQuery(query) => self.list_query(*query, &resolver).await?,
         Selector::RangeQuery(range) => self.list_range(*range, &resolver).await?,
       },
       None => self.list_strands(&resolver).await?,
@@ -109,7 +109,7 @@ impl ListCommand {
     Ok(())
   }
 
-  async fn list_query<R: Resolver>(&self, query: Query, resolver: &R) -> Result<()> {
+  async fn list_query<R: Resolver>(&self, query: SingleQuery, resolver: &R) -> Result<()> {
     log::trace!("Resolving query {}", query);
     let twine = resolver.resolve(query).await?.unpack();
     self.print_twine_stream(
