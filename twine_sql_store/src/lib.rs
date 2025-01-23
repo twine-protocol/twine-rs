@@ -50,7 +50,7 @@ fn to_resolution_error(err: sqlx::Error) -> ResolutionError {
 
 #[derive(Debug, Clone)]
 pub struct SqlStore {
-    pool: sqlx::Pool<sqlx::Any>,
+  pool: sqlx::Pool<sqlx::Any>,
 }
 
 impl SqlStore {
@@ -64,7 +64,7 @@ impl SqlStore {
     Ok(Self::new(pool))
   }
 
-  pub async fn create_tables(&self) -> Result<(), sqlx::Error> {
+  pub async fn create_sqlite_tables(&self) -> Result<(), sqlx::Error> {
     let mut conn = self.pool.acquire().await?;
     sqlx::query(SCHEMA).execute(&mut *conn).await?;
     Ok(())
