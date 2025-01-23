@@ -4,9 +4,16 @@ use twine_core::{ipld_core::ipld, multihash_codetable::Code, resolver::Resolver,
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
-  let store = twine_sql_store::SqlStore::open("sqlite:file:foo?mode=memory&cache=shared").await?;
-  store.create_tables().await?;
+  // {
+  //   let mysqlpool = sqlx::mysql::MySqlPool::connect("mysql://root:root@127.0.0.1:3306/testdb").await?;
+  //   sqlx::migrate!("./schemas/mysql").run(&mysqlpool).await?;
+  // }
+  // let store = twine_sql_store::SqlStore::open("mysql://root:root@127.0.0.1:3306/testdb").await?;
 
+  let store = twine_sql_store::SqlStore::open("sqlite:file:foo?mode=memory&cache=shared").await?;
+  store.create_sqlite_tables().await?;
+
+  println!("tables created");
   let signer = RingSigner::generate_ed25519().unwrap();
   let builder = TwineBuilder::new(signer);
   let strand = builder.build_strand()
@@ -17,6 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .done()?;
 
   {
+    println!("saving strand");
     store.save(strand.clone()).await?;
 
     let mut prev = builder.build_first(strand.clone())
@@ -25,9 +33,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       }))
       .done()?;
 
+    println!("saving first");
     store.save(prev.clone()).await?;
 
-    let n = 1000;
+    let n = 10;
     for i in 1..n {
       prev = builder.build_next(&prev)
         .payload(ipld!({
@@ -44,9 +53,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let strands: Vec<_> = store.strands().await?.try_collect().await?;
   println!("{} strands", strands.len());
   let strand2 = store.resolve_strand(&strand.cid()).await?;
+  println!("strand: {}", strand2.unpack());
   let latest = store.resolve_latest(&strand.cid()).await?;
   let latest_index = latest.index();
-  println!("strand: {}", strand2.unpack());
   println!("latest index: {}", latest_index);
 
   println!("deleting latest");

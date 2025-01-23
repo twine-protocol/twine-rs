@@ -3,6 +3,12 @@ name = "twine_sql_store"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+mysql = ["sqlx/mysql"]
+sqlite = ["sqlx/sqlite"]
+postgres = ["sqlx/postgres"]
+
 [dependencies]
 twine_core = { path = "../twine_core" }
 futures = "0.3"
@@ -11,7 +17,7 @@ sqlx = { version = "0.8.3", features = ["any", "json"] }
 serde_json = { version = "1.0" }
 
 [dev-dependencies]
-sqlx = { version = "0.8.3", features = ["any", "sqlite", "runtime-tokio"] }
+sqlx = { version = "0.8.3", features = ["any", "mysql", "sqlite", "postgres", "runtime-tokio"] }
 tokio = { version = "1", features = ["full"] }
 twine_builder = { path = "../twine_builder" }
 
