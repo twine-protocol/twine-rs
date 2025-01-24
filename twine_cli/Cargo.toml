@@ -10,7 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 twine_core = { path = "../twine_core" }
-twine_builder = { path = "../twine_builder" }
+twine_builder = { path = "../twine_builder", features = ["rsa"] }
 twine_http_store = { path = "../twine_http_store" }
 twine_sled_store = { path = "../twine_sled_store" }
 twine_car_store = { path = "../twine_car_store" }

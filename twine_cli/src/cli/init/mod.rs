@@ -65,6 +65,8 @@ impl InitCommand {
     cfg.store = Some(store_cfg.into());
     let _store = cfg.get_store()?.unwrap();
 
+    cfg.save()?;
+
     Ok(())
   }
 

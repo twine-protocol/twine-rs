@@ -24,22 +24,23 @@ impl KeygenCommand {
     let items = vec![
       "Ed25519",
       "EcdsaP256",
-      "EcdsaP384"
+      "EcdsaP384",
+      "RSA2048 (sha256)",
+      "RSA3072 (sha384)",
+      "RSA4096 (sha512)",
     ];
 
     let key_type = Select::new("Select key type", items)
       .prompt()?;
 
     let signer = match key_type {
-      "Ed25519" => RingSigner::generate_ed25519(),
-      "EcdsaP256" => RingSigner::generate_p256(),
-      "EcdsaP384" => RingSigner::generate_p384(),
+      "Ed25519" => RingSigner::generate_ed25519().map_err(|e| anyhow::anyhow!(e))?,
+      "EcdsaP256" => RingSigner::generate_p256().map_err(|e| anyhow::anyhow!(e))?,
+      "EcdsaP384" => RingSigner::generate_p384().map_err(|e| anyhow::anyhow!(e))?,
+      "RSA2048 (sha256)" => RingSigner::generate_rs256(2048)?,
+      "RSA3072 (sha384)" => RingSigner::generate_rs384(3072)?,
+      "RSA4096 (sha512)" => RingSigner::generate_rs512(4096)?,
       _ => unreachable!(),
-    };
-
-    let signer = match signer {
-      Ok(s) => s,
-      Err(e) => return Err(anyhow::anyhow!("Error generating keypair: {}", e)),
     };
 
     let pem = signer.private_key_pem()?;

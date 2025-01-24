@@ -38,6 +38,8 @@ impl CreateCommand {
     let pem = tokio::fs::read_to_string(&self.key).await?;
     let signer = RingSigner::from_pem(&pem).map_err(|e| anyhow::anyhow!("Failed to load key. {}", e))?;
 
+    log::info!("Using key with algorithm: {}", signer.alg());
+
     let builder = twine_builder::TwineBuilder::new(signer);
 
     // Hash type to use

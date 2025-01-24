@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::{Path, PathBuf}};
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use serde_with::{serde_as, DisplayFromStr};
@@ -21,6 +21,8 @@ impl From<StoreUri> for StoreUriString {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub(crate) struct Config {
+  #[serde(skip)]
+  pub path : Option<PathBuf>,
   pub resolvers: HashMap<String, StoreUriString>,
   pub store: Option<StoreUriString>,
 }
@@ -30,6 +32,7 @@ impl Default for Config {
     Self {
       resolvers: HashMap::new(),
       store: None,
+      path: None,
     }
   }
 }
@@ -64,7 +67,8 @@ impl Config {
   }
 
   pub fn load_path(path: impl AsRef<Path>) -> Result<Self> {
-    let config = confy::load_path(path)?;
+    let mut config: Self = confy::load_path(path.as_ref())?;
+    config.path = Some(path.as_ref().to_path_buf());
     Ok(config)
   }
 
@@ -75,7 +79,7 @@ impl Config {
 
   pub fn load_or_create_local() -> Result<Self> {
     let path = Path::new("./twine.toml");
-    Ok(confy::load_path(path)?)
+    Ok(Self::load_path(path)?)
   }
 
   pub fn load_local() -> Result<Option<Self>> {
@@ -83,12 +87,21 @@ impl Config {
     if !path.exists() {
       return Ok(None);
     }
-    Ok(Some(confy::load_path(path)?))
+    Ok(Some(Self::load_path(path)?))
   }
 
   pub fn save_local(&self) -> Result<()> {
     let path = Path::new("./twine.toml");
     confy::store_path(path, self)?;
+    Ok(())
+  }
+
+  pub fn save(&self) -> Result<()> {
+    if let Some(path) = &self.path {
+      confy::store_path(path, self)?;
+    } else {
+      unreachable!("Config has no path");
+    }
     Ok(())
   }
 
