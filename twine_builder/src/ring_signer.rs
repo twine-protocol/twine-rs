@@ -175,6 +175,10 @@ impl RingSigner {
     Self::new(alg, pkcs8)
   }
 
+  pub fn alg(&self) -> &SignatureAlgorithm {
+    &self.alg
+  }
+
   pub fn pkcs8(&self) -> &SecretDocument {
     &self.pkcs8
   }
@@ -305,9 +309,9 @@ impl Signer for RingSigner {
       },
       Keys::Rsa(keypair) => {
         let alg = match self.alg {
-          SignatureAlgorithm::Sha256Rsa(_) => SignatureAlgorithm::Sha256Rsa(keypair.public().modulus_len()),
-          SignatureAlgorithm::Sha384Rsa(_) => SignatureAlgorithm::Sha384Rsa(keypair.public().modulus_len()),
-          SignatureAlgorithm::Sha512Rsa(_) => SignatureAlgorithm::Sha512Rsa(keypair.public().modulus_len()),
+          SignatureAlgorithm::Sha256Rsa(_) => SignatureAlgorithm::Sha256Rsa(keypair.public().modulus_len() * 8),
+          SignatureAlgorithm::Sha384Rsa(_) => SignatureAlgorithm::Sha384Rsa(keypair.public().modulus_len() * 8),
+          SignatureAlgorithm::Sha512Rsa(_) => SignatureAlgorithm::Sha512Rsa(keypair.public().modulus_len() * 8),
           _ => unreachable!(),
         };
         PublicKey {

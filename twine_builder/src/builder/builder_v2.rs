@@ -207,3 +207,28 @@ impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
     Ok(Strand::try_new(container)?)
   }
 }
+
+
+#[cfg(test)]
+mod test {
+  use crate::RingSigner;
+  use super::*;
+
+  const TEST_KEY: &str = include_str!("../../test_data/test_rsa_key.pem");
+
+  #[test]
+  fn test_rsa(){
+    let signer = RingSigner::from_pem(TEST_KEY).unwrap();
+    let strand = StrandBuilder::new(&signer)
+      .hasher(Code::Sha3_512)
+      .details("test")
+      .radix(32)
+      .done().unwrap();
+
+    let tixel = TixelBuilder::new_first(&signer, Arc::new(strand))
+      .payload("test")
+      .done().unwrap();
+
+    dbg!(tixel);
+  }
+}

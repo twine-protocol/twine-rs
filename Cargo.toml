@@ -33,6 +33,7 @@ blake3 = ["twine_core/blake3"]
 ripemd = ["twine_core/ripemd"]
 blake2s = ["twine_core/blake2s"]
 blake2b = ["twine_core/blake2b"]
+rsa = ["twine_builder/rsa"]
 
 [dependencies]
 twine_core = { path = "./twine_core" }

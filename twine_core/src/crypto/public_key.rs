@@ -99,20 +99,15 @@ impl PublicKey {
     let alg = match self.alg {
       SignatureAlgorithm::Sha256Rsa(bitsize) => match bitsize {
         2048 => &ring::signature::RSA_PKCS1_2048_8192_SHA256,
-        3072 => &ring::signature::RSA_PKCS1_2048_8192_SHA256,
-        4096 => &ring::signature::RSA_PKCS1_2048_8192_SHA256,
         _ => return Err(VerificationError::UnsupportedKeyAlgorithm),
       },
       SignatureAlgorithm::Sha384Rsa(bitsize) => match bitsize {
         2048 => &ring::signature::RSA_PKCS1_2048_8192_SHA384,
-        3072 => &ring::signature::RSA_PKCS1_2048_8192_SHA384,
-        4096 => &ring::signature::RSA_PKCS1_2048_8192_SHA384,
+        3072 => &ring::signature::RSA_PKCS1_3072_8192_SHA384,
         _ => return Err(VerificationError::UnsupportedKeyAlgorithm),
       },
       SignatureAlgorithm::Sha512Rsa(bitsize) => match bitsize {
         2048 => &ring::signature::RSA_PKCS1_2048_8192_SHA512,
-        3072 => &ring::signature::RSA_PKCS1_2048_8192_SHA512,
-        4096 => &ring::signature::RSA_PKCS1_2048_8192_SHA512,
         _ => return Err(VerificationError::UnsupportedKeyAlgorithm),
       },
       _ => unreachable!(),
