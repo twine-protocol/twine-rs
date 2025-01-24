@@ -10,7 +10,7 @@ use twine_core::{twine::{Strand, Tixel}, Cid};
 use twine_core::resolver::{unchecked_base, Resolver};
 use twine_core::store::Store;
 use twine_core::resolver::AbsoluteRange;
-use super::{Block, to_resolution_error};
+use super::{Block, to_resolution_error, to_storage_error};
 
 #[derive(Debug, Clone)]
 pub struct MysqlStore {
@@ -169,8 +169,8 @@ impl MysqlStore {
     Ok(Arc::new(Tixel::from_block(cid, block.1)?))
   }
 
-  async fn save_strand(&self, strand: &Strand) -> Result<(), ResolutionError> {
-    let mut conn = self.pool.acquire().await.map_err(to_resolution_error)?;
+  async fn save_strand(&self, strand: &Strand) -> Result<(), StoreError> {
+    let mut conn = self.pool.acquire().await.map_err(to_storage_error)?;
 
     let query = "INSERT IGNORE INTO Strands (cid, data, spec) VALUES (?, ?, ?)";
 
@@ -183,15 +183,27 @@ impl MysqlStore {
       .bind(strand.spec_str())
       .execute(&mut *conn)
       .await
-      .map_err(to_resolution_error)?;
+      .map_err(to_storage_error)?;
 
     Ok(())
   }
 
-  async fn save_tixel(&self, tixel: &Tixel) -> Result<(), ResolutionError> {
-    let mut conn = self.pool.acquire().await.map_err(to_resolution_error)?;
+  async fn save_tixel(&self, tixel: &Tixel) -> Result<(), StoreError> {
+    let mut conn = self.pool.acquire().await.map_err(to_storage_error)?;
+
+    // Ensure that the previous tixel exists
+    let previous_exists = if tixel.index() == 0 {
+      self.has_strand_cid(&tixel.strand_cid()).await?
+    } else {
+      self.has_tixel(&tixel.previous().unwrap().tixel).await?
+    };
+
+    if !previous_exists {
+      return Err(StoreError::Saving("Previous tixel does not exist in store".to_string()));
+    }
+
     let query = "
-      INSERT IGNORE INTO Tixels (cid, data, strand, idx)
+      INSERT INTO Tixels (cid, data, strand, idx)
       SELECT ?, ?, s.id, ?
       FROM Strands s
       WHERE s.cid = ?
@@ -200,7 +212,8 @@ impl MysqlStore {
           FROM Tixels
           WHERE strand = s.id
             AND idx = IF(? = 0, 0, ? - 1)
-        ));
+        ))
+      ON DUPLICATE KEY UPDATE cid = VALUES(cid);
     ";
 
     let cid = tixel.cid().to_bytes();
@@ -217,26 +230,26 @@ impl MysqlStore {
       .bind(index)
       .execute(&mut *conn)
       .await
-      .map_err(to_resolution_error)?;
+      .map_err(to_storage_error)?;
 
     Ok(())
   }
 
-  async fn remove_strand(&self, cid: &Cid) -> Result<(), ResolutionError> {
+  async fn remove_strand(&self, cid: &Cid) -> Result<(), StoreError> {
     let query = "DELETE FROM Strands WHERE cid = ?";
 
-    let mut conn = self.pool.acquire().await.map_err(to_resolution_error)?;
+    let mut conn = self.pool.acquire().await.map_err(to_storage_error)?;
 
     let _ret = sqlx::query(&query)
       .bind(cid.to_bytes())
       .execute(&mut *conn)
       .await
-      .map_err(to_resolution_error)?;
+      .map_err(to_storage_error)?;
 
     Ok(())
   }
 
-  async fn remove_tixel_if_latest(&self, cid: &Cid) -> Result<(), ResolutionError> {
+  async fn remove_tixel_if_latest(&self, cid: &Cid) -> Result<(), StoreError> {
     let query = "
       DELETE T1
       FROM Tixels T1
@@ -248,13 +261,13 @@ impl MysqlStore {
       WHERE T1.cid = ?;
     ";
 
-    let mut conn = self.pool.acquire().await.map_err(to_resolution_error)?;
+    let mut conn = self.pool.acquire().await.map_err(to_storage_error)?;
 
     let _ret = sqlx::query(&query)
       .bind(cid.to_bytes())
       .execute(&mut *conn)
       .await
-      .map_err(to_resolution_error)?;
+      .map_err(to_storage_error)?;
 
     Ok(())
   }
@@ -341,8 +354,8 @@ impl Resolver for MysqlStore {}
 impl Store for MysqlStore {
   async fn save<T: Into<AnyTwine> + Send>(&self, twine: T) -> Result<(), StoreError> {
     match twine.into() {
-      AnyTwine::Tixel(t) => self.save_tixel(&t).await.map_err(|e| e.into()),
-      AnyTwine::Strand(s) => self.save_strand(&s).await.map_err(|e| e.into()),
+      AnyTwine::Tixel(t) => self.save_tixel(&t).await,
+      AnyTwine::Strand(s) => self.save_strand(&s).await,
     }
   }
 
@@ -364,9 +377,9 @@ impl Store for MysqlStore {
 
   async fn delete<C: AsCid + Send>(&self, cid: C) -> Result<(), StoreError> {
     if self.has_strand_cid(cid.as_cid()).await? {
-      self.remove_strand(cid.as_cid()).await.map_err(|e| e.into())
+      self.remove_strand(cid.as_cid()).await
     } else if self.has_tixel(cid.as_cid()).await? {
-      self.remove_tixel_if_latest(cid.as_cid()).await.map_err(|e| e.into())
+      self.remove_tixel_if_latest(cid.as_cid()).await
     } else {
       Ok(())
     }

@@ -24,6 +24,10 @@ fn to_resolution_error(err: sqlx::Error) -> ResolutionError {
   }
 }
 
+fn to_storage_error(err: sqlx::Error) -> StoreError {
+  StoreError::Saving(err.to_string())
+}
+
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum SqlStore {

@@ -47,6 +47,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
       store.save(prev.clone()).await?;
     }
+
+    prev = builder.build_next(&prev)
+      .payload(ipld!({
+        "baz": "qux",
+        "index": n,
+      }))
+      .done()?;
+
+    prev = builder.build_next(&prev)
+      .payload(ipld!({
+        "baz": "qux",
+        "index": n + 1,
+      }))
+      .done()?;
+
+    // try saving one out of order
+    match store.save(prev.clone()).await {
+      Ok(_) => println!("unexpectedly saved out of order"),
+      Err(e) => println!("got expected error: {}", e),
+    }
   }
 
   use futures::TryStreamExt;
@@ -57,6 +77,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let latest = store.resolve_latest(&strand.cid()).await?;
   let latest_index = latest.index();
   println!("latest index: {}", latest_index);
+
+  let third = store.resolve((strand.cid(), 3)).await?;
+  println!("third: {}", third.unpack());
 
   println!("deleting latest");
   store.delete(latest.cid()).await?;
