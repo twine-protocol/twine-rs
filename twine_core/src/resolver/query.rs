@@ -91,6 +91,36 @@ impl<C> From<(C, i64)> for SingleQuery where C: AsCid {
   }
 }
 
+impl<C> From<(C, i32)> for SingleQuery where C: AsCid {
+  fn from((strand, index): (C, i32)) -> Self {
+    (strand, index as i64).into()
+  }
+}
+
+impl<C> From<(C, u32)> for SingleQuery where C: AsCid {
+  fn from((strand, index): (C, u32)) -> Self {
+    (strand, index as i64).into()
+  }
+}
+
+impl<C> From<(C, usize)> for SingleQuery where C: AsCid {
+  fn from((strand, index): (C, usize)) -> Self {
+    (strand, index as u64).into()
+  }
+}
+
+impl<C> From<(C, i16)> for SingleQuery where C: AsCid {
+  fn from((strand, index): (C, i16)) -> Self {
+    (strand, index as i64).into()
+  }
+}
+
+impl<C> From<(C, u16)> for SingleQuery where C: AsCid {
+  fn from((strand, index): (C, u16)) -> Self {
+    (strand, index as u64).into()
+  }
+}
+
 impl<C> From<(C, C)> for SingleQuery where C: AsCid {
   fn from((strand, tixel): (C, C)) -> Self {
     Self::Stitch((strand.as_cid().clone(), tixel.as_cid().clone()).into())
