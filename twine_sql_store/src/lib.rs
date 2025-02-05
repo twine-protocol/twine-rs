@@ -59,8 +59,8 @@ impl SqlStore {
     match self {
       #[cfg(feature = "sqlite")]
       SqlStore::Sqlite(store) => store.create_tables().await,
-      #[cfg(feature = "mysql")]
-      SqlStore::Mysql(_) => unimplemented!(),
+      #[allow(unreachable_patterns)]
+      _ => unimplemented!(),
     }
   }
 }
@@ -73,6 +73,8 @@ impl unchecked_base::BaseResolver for SqlStore {
       SqlStore::Sqlite(store) => store.has_index(strand, index).await,
       #[cfg(feature = "mysql")]
       SqlStore::Mysql(store) => store.has_index(strand, index).await,
+      #[allow(unreachable_patterns)]
+      _ => unimplemented!(),
     }
   }
 
@@ -82,6 +84,8 @@ impl unchecked_base::BaseResolver for SqlStore {
       SqlStore::Sqlite(store) => store.has_twine(strand, cid).await,
       #[cfg(feature = "mysql")]
       SqlStore::Mysql(store) => store.has_twine(strand, cid).await,
+      #[allow(unreachable_patterns)]
+      _ => unimplemented!(),
     }
   }
 
@@ -91,6 +95,8 @@ impl unchecked_base::BaseResolver for SqlStore {
       SqlStore::Sqlite(store) => store.has_strand(cid).await,
       #[cfg(feature = "mysql")]
       SqlStore::Mysql(store) => store.has_strand(cid).await,
+      #[allow(unreachable_patterns)]
+      _ => unimplemented!(),
     }
   }
 
@@ -100,6 +106,8 @@ impl unchecked_base::BaseResolver for SqlStore {
       SqlStore::Sqlite(store) => store.fetch_latest(strand).await,
       #[cfg(feature = "mysql")]
       SqlStore::Mysql(store) => store.fetch_latest(strand).await,
+      #[allow(unreachable_patterns)]
+      _ => unimplemented!(),
     }
   }
 
@@ -109,6 +117,8 @@ impl unchecked_base::BaseResolver for SqlStore {
       SqlStore::Sqlite(store) => store.fetch_index(strand, index).await,
       #[cfg(feature = "mysql")]
       SqlStore::Mysql(store) => store.fetch_index(strand, index).await,
+      #[allow(unreachable_patterns)]
+      _ => unimplemented!(),
     }
   }
 
@@ -118,6 +128,8 @@ impl unchecked_base::BaseResolver for SqlStore {
       SqlStore::Sqlite(store) => store.fetch_tixel(strand, tixel).await,
       #[cfg(feature = "mysql")]
       SqlStore::Mysql(store) => store.fetch_tixel(strand, tixel).await,
+      #[allow(unreachable_patterns)]
+      _ => unimplemented!(),
     }
   }
 
@@ -127,6 +139,8 @@ impl unchecked_base::BaseResolver for SqlStore {
       SqlStore::Sqlite(store) => store.fetch_strand(strand).await,
       #[cfg(feature = "mysql")]
       SqlStore::Mysql(store) => store.fetch_strand(strand).await,
+      #[allow(unreachable_patterns)]
+      _ => unimplemented!(),
     }
   }
 
@@ -136,6 +150,8 @@ impl unchecked_base::BaseResolver for SqlStore {
       SqlStore::Sqlite(store) => store.range_stream(range).await,
       #[cfg(feature = "mysql")]
       SqlStore::Mysql(store) => store.range_stream(range).await,
+      #[allow(unreachable_patterns)]
+      _ => unimplemented!(),
     }
   }
 
@@ -145,6 +161,8 @@ impl unchecked_base::BaseResolver for SqlStore {
       SqlStore::Sqlite(store) => store.fetch_strands().await,
       #[cfg(feature = "mysql")]
       SqlStore::Mysql(store) => store.fetch_strands().await,
+      #[allow(unreachable_patterns)]
+      _ => unimplemented!(),
     }
   }
 }
@@ -159,6 +177,8 @@ impl Store for SqlStore {
       SqlStore::Sqlite(store) => store.save(twine).await,
       #[cfg(feature = "mysql")]
       SqlStore::Mysql(store) => store.save(twine).await,
+      #[allow(unreachable_patterns)]
+      _ => unimplemented!(),
     }
   }
 
@@ -168,6 +188,8 @@ impl Store for SqlStore {
       SqlStore::Sqlite(store) => store.save_many(twines).await,
       #[cfg(feature = "mysql")]
       SqlStore::Mysql(store) => store.save_many(twines).await,
+      #[allow(unreachable_patterns)]
+      _ => unimplemented!(),
     }
   }
 
@@ -177,6 +199,8 @@ impl Store for SqlStore {
       SqlStore::Sqlite(store) => store.save_stream(twines).await,
       #[cfg(feature = "mysql")]
       SqlStore::Mysql(store) => store.save_stream(twines).await,
+      #[allow(unreachable_patterns)]
+      _ => unimplemented!(),
     }
   }
 
@@ -186,6 +210,8 @@ impl Store for SqlStore {
       SqlStore::Sqlite(store) => store.delete(cid).await,
       #[cfg(feature = "mysql")]
       SqlStore::Mysql(store) => store.delete(cid).await,
+      #[allow(unreachable_patterns)]
+      _ => unimplemented!(),
     }
   }
 }

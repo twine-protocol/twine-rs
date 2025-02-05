@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = []
+default = ['sqlite']
 mysql = ["sqlx/mysql"]
 sqlite = ["sqlx/sqlite"]
 postgres = ["sqlx/postgres"]
