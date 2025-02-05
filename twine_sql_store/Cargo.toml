@@ -8,6 +8,8 @@ default = ['sqlite']
 mysql = ["sqlx/mysql"]
 sqlite = ["sqlx/sqlite"]
 postgres = ["sqlx/postgres"]
+runtime-tokio = ["sqlx/runtime-tokio"]
+runtime-async-std = ["sqlx/runtime-async-std"]
 
 [dependencies]
 twine_core = { path = "../twine_core" }
