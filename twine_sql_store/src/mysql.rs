@@ -323,9 +323,13 @@ impl unchecked_base::BaseResolver for MysqlStore {
           Ok(conn) => conn,
           Err(e) => return Some((Err(e), batches)),
         };
-        let tixels: Result<Vec<_>, ResolutionError> = sqlx::query_as::<_, Block>("
-          SELECT cid, data FROM Tixels WHERE strand = ? AND idx >= ? AND idx <= ?
-        ")
+        let dir = if range.is_increasing() { "ASC" } else { "DESC" };
+        let tixels: Result<Vec<_>, ResolutionError> = sqlx::query_as::<_, Block>(&format!("
+          SELECT t.cid, t.data
+          FROM Tixels t JOIN Strands s ON t.strand = s.id
+          WHERE s.cid = ? AND t.idx >= ? AND t.idx <= ?
+          ORDER BY t.idx {}
+        ", dir))
           .bind(range.strand.to_bytes())
           .bind(batch.start as i64)
           .bind(batch.end as i64)

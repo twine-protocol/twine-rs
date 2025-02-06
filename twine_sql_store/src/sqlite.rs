@@ -337,12 +337,16 @@ impl unchecked_base::BaseResolver for SqliteStore {
           Ok(conn) => conn,
           Err(e) => return Some((Err(e), batches)),
         };
-        let tixels: Result<Vec<_>, ResolutionError> = sqlx::query_as::<_, Block>("
-          SELECT cid, data FROM Tixels WHERE strand = $1 AND idx >= $2 AND idx <= $3
-        ")
+        let dir = if range.is_increasing() { "ASC" } else { "DESC" };
+        let tixels: Result<Vec<_>, ResolutionError> = sqlx::query_as::<_, Block>(&format!("
+          SELECT t.cid, t.data
+          FROM Tixels t JOIN Strands s ON t.strand = s.id
+          WHERE s.cid = $1 AND t.idx >= $2 AND t.idx <= $3
+          ORDER BY t.idx {}
+        ", dir))
           .bind(range.strand.to_bytes())
-          .bind(batch.start as i64)
-          .bind(batch.end as i64)
+          .bind(batch.lower() as i64)
+          .bind(batch.upper() as i64)
           .fetch(&mut *conn)
           .map_err(to_resolution_error)
           .map_ok(|(cid, data)| {

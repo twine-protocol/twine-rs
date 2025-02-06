@@ -81,6 +81,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let third = store.resolve((strand.cid(), 3)).await?;
   println!("third: {}", third.unpack());
 
+  use futures::StreamExt;
+  let count = store.resolve_range((&strand, ..)).await?.count().await;
+  println!("fount {} tixels", count);
+
   println!("deleting latest");
   store.delete(latest.cid()).await?;
   let latest = store.resolve_latest(&strand.cid()).await?;
