@@ -12,10 +12,8 @@ impl TryFrom<Vec<(Cid, Cid)>> for EncodedCrossStitches {
   type Error = VerificationError;
 
   fn try_from(v: Vec<(Cid, Cid)>) -> Result<Self, Self::Error> {
-    for i in 0..v.len() - 1 {
-      if v[i].0 >= v[i + 1].0 {
-        return Err(VerificationError::InvalidTwineFormat("Cross-stitches are not ordered correctly".into()));
-      }
+    if v.windows(2).any(|w| w[0].0 >= w[1].0) {
+      return Err(VerificationError::InvalidTwineFormat("Cross-stitches are not ordered correctly".into()));
     }
 
     Ok(Self(v.into()))
