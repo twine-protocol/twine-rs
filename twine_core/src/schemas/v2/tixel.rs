@@ -2,19 +2,31 @@ use crate::{errors::VerificationError, twine::BackStitches};
 
 use super::*;
 
+/// It's vital that these are ordered to ensure that
+/// the entries can't be used as a kind of nonce.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(from = "Vec<(Cid, Cid)>", into = "Vec<(Cid, Cid)>")]
+#[serde(try_from = "Vec<(Cid, Cid)>", into = "Vec<(Cid, Cid)>")]
 pub struct EncodedCrossStitches(CrossStitches);
 
-impl From<Vec<(Cid, Cid)>> for EncodedCrossStitches {
-  fn from(v: Vec<(Cid, Cid)>) -> Self {
-    Self(v.into())
+impl TryFrom<Vec<(Cid, Cid)>> for EncodedCrossStitches {
+  type Error = VerificationError;
+
+  fn try_from(v: Vec<(Cid, Cid)>) -> Result<Self, Self::Error> {
+    for i in 0..v.len() - 1 {
+      if v[i].0 >= v[i + 1].0 {
+        return Err(VerificationError::InvalidTwineFormat("Cross-stitches are not ordered correctly".into()));
+      }
+    }
+
+    Ok(Self(v.into()))
   }
 }
 
 impl From<EncodedCrossStitches> for Vec<(Cid, Cid)> {
   fn from(v: EncodedCrossStitches) -> Self {
-    v.0.into()
+    let mut vec : Vec<_> = v.0.into();
+    vec.sort_by(|a: &(Cid, Cid), b: &(Cid, Cid)| a.0.cmp(&b.0));
+    vec
   }
 }
 
