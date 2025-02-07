@@ -100,6 +100,22 @@ impl <'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
 
   pub fn done(self) -> Result<Twine, BuildError> {
     use twine_core::schemas::*;
+
+    // validate the cross stitches
+    let cross_stitches = self.stitches.clone();
+    if let Some(prev) = &self.prev {
+      let prev_stitches = prev.cross_stitches();
+      // ensure all previous cross stitches are present
+      let all_present = prev_stitches.into_iter()
+        .all(|s| cross_stitches.strand_is_stitched(s.1.strand));
+
+      if !all_present {
+        return Err(BuildError::BadData(VerificationError::InvalidTwineFormat(
+          "Cross stitches must contain all cross stitches from previous tixel".into()
+        )));
+      }
+    }
+
     let content: PulseContentV1 = match self.strand.version().major {
       1 => v1::PulseContentV1 {
         index: self.prev.as_ref().map(|p|

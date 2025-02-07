@@ -93,6 +93,21 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
     // TODO: Implement drop
     let drop = 0;
 
+    // validate the cross stitches
+    let cross_stitches = self.stitches.clone();
+    if let Some(prev) = &self.prev {
+      let prev_stitches = prev.cross_stitches();
+      // ensure all previous cross stitches are present
+      let all_present = prev_stitches.into_iter()
+        .all(|s| cross_stitches.strand_is_stitched(s.1.strand));
+
+      if !all_present {
+        return Err(BuildError::BadData(VerificationError::InvalidTwineFormat(
+          "Cross stitches must contain all cross stitches from previous tixel until drop index is implemented".into()
+        )));
+      }
+    }
+
     let content: v2::TixelContentV2 = match self.strand.version().major {
       2 => v2::TixelContentV2 {
         code: self.strand.hasher().into(),
@@ -104,7 +119,7 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
           ).unwrap_or(Ok(0))?,
           back_stitches: self.next_back_stitches()?.into_iter().map(|s| Some(s.tixel)).collect(),
           payload: self.payload,
-          cross_stitches: self.stitches.into(),
+          cross_stitches: cross_stitches.into(),
           strand: self.strand.cid(),
           drop,
         })?,

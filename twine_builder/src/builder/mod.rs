@@ -69,7 +69,7 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<PublicKey, S> {
 #[cfg(test)]
 mod test {
   use biscuit::jws::Secret;
-  use twine_core::{ipld_core::ipld, twine::TwineBlock};
+  use twine_core::{ipld_core::ipld, store::MemoryStore, twine::TwineBlock};
   use crate::BiscuitSigner;
 
   use super::*;
@@ -257,5 +257,62 @@ mod test {
 
       println!("{}", &prev);
     }
+  }
+
+  #[tokio::test]
+  async fn test_entwining(){
+    fn make_strand(builder: &TwineBuilder<PublicKey, Ed25519KeyPair>, store: MemoryStore) -> (Strand, Twine) {
+      let strand = builder.build_strand()
+        .done()
+        .unwrap();
+
+      store.save_sync(strand.clone().into()).unwrap();
+
+      let mut prev = builder.build_first(strand.clone())
+        .payload(ipld!({
+          "index": 0,
+        }))
+        .done()
+        .unwrap();
+
+      for i in 1..10 {
+        let tixel = builder.build_next(&prev)
+          .payload(ipld!({
+            "index": i,
+          }))
+          .done()
+          .unwrap();
+        store.save_sync(tixel.clone().into()).unwrap();
+        prev = tixel;
+      }
+
+      store.save_sync(strand.clone().into()).unwrap();
+      (strand, prev)
+    }
+
+    let store = MemoryStore::new();
+    let rng = ring::rand::SystemRandom::new();
+    let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
+    let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
+    let builder = TwineBuilder::new(key);
+
+    let first = make_strand(&builder, store.clone());
+    let second = make_strand(&builder, store.clone());
+    let third = make_strand(&builder, store.clone());
+
+    let cross_stitches = third.1.cross_stitches()
+      .resolve_and_add(&first.0, &store).await.unwrap()
+      .resolve_and_add(&second.0, &store).await.unwrap();
+
+    let tixel = builder.build_next(&third.1)
+      .cross_stitches(cross_stitches)
+      .payload(ipld!({
+        "index": 10,
+      }))
+      .done()
+      .unwrap();
+
+    assert!(tixel.cross_stitches().strand_is_stitched(first.0));
+    assert!(tixel.cross_stitches().strand_is_stitched(second.0));
   }
 }

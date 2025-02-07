@@ -1,6 +1,7 @@
 use std::hash::Hash;
 use std::{collections::HashMap, sync::Arc};
 
+use crate::as_cid::AsCid;
 use crate::errors::VerificationError;
 use crate::Cid;
 use crate::{errors::ResolutionError, resolver::Resolver};
@@ -10,6 +11,18 @@ use super::{Tixel, Twine};
 pub struct Stitch {
   pub strand: Cid,
   pub tixel: Cid,
+}
+
+impl Stitch {
+  pub async fn refresh(self, resolver: &impl Resolver) -> Result<Self, ResolutionError> {
+    use futures::join;
+    let (old, new) = join!(resolver.resolve(self), resolver.resolve_latest(self.strand));
+    let (old, new) = (old?.unpack(), new?.unpack());
+    if old.index() > new.index() {
+      return Err(ResolutionError::BadData("Latest tixel in resolver is behind recorded stitch".into()));
+    }
+    Ok(new.into())
+  }
 }
 
 impl PartialEq<Twine> for Stitch {
@@ -168,19 +181,39 @@ impl CrossStitches {
     self.0
   }
 
+  pub fn strand_is_stitched<C: AsCid>(&self, strand: C) -> bool {
+    self.0.contains_key(strand.as_cid())
+  }
+
+  pub async fn resolve_and_add<R: Resolver, C: AsCid>(mut self, strand: C, resolver: &R) -> Result<Self, ResolutionError> {
+    let latest = resolver.resolve_latest(strand.as_cid()).await?;
+    let stitch : Stitch = latest.unpack().into();
+    self.0.insert(stitch.strand, stitch);
+    Ok(self)
+  }
+
+  /// Refreshes as many stitches as possible, returning the new stitches and any errors.
+  pub async fn refresh_any<R: Resolver>(self, resolver: &R) -> (Self, Vec<(Stitch, ResolutionError)>) {
+    let mut new_stitches = HashMap::new();
+    let mut errors = Vec::new();
+    for (strand, stitch) in self {
+      match stitch.refresh(resolver).await {
+        Ok(new) => {
+          new_stitches.insert(strand, new);
+        },
+        Err(err) => {
+          errors.push((stitch, err));
+        },
+      }
+    }
+    (Self(new_stitches), errors)
+  }
+
   pub async fn refresh<R: Resolver>(self, resolver: &R) -> Result<Self, ResolutionError> {
     let mut new_stitches = HashMap::new();
     for (strand, stitch) in self {
-      use futures::join;
-      let (old, new) = match join!(resolver.resolve(stitch), resolver.resolve(strand)) {
-        (Ok(old), Ok(new)) => (old, new),
-        (Err(e), _) | (_, Err(e)) => return Err(e),
-      };
-      let (old, new) = (old.unpack(), new.unpack());
-      if old.index() > new.index() {
-        return Err(ResolutionError::BadData("Latest tixel in resolver is behind recorded stitch".into()));
-      }
-      new_stitches.insert(strand, new.into());
+      let new = stitch.refresh(resolver).await?;
+      new_stitches.insert(strand, new);
     }
     Ok(Self(new_stitches))
   }
