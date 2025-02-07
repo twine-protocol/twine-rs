@@ -38,7 +38,7 @@ impl <'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
       signer,
       strand: prev.strand(),
       prev: Some(prev),
-      stitches: CrossStitches::default(),
+      stitches: prev.cross_stitches(),
       payload: Ipld::Map(Default::default()),
       source: String::new(),
     }
