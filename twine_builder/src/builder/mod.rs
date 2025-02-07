@@ -301,8 +301,8 @@ mod test {
     let third = make_strand(&builder, store.clone());
 
     let cross_stitches = third.1.cross_stitches()
-      .resolve_and_add(&first.0, &store).await.unwrap()
-      .resolve_and_add(&second.0, &store).await.unwrap();
+      .add_or_refresh(&first.0, &store).await.unwrap()
+      .add_or_refresh(&second.0, &store).await.unwrap();
 
     let tixel = builder.build_next(&third.1)
       .cross_stitches(cross_stitches)

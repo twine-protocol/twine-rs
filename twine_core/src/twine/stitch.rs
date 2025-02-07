@@ -185,7 +185,7 @@ impl CrossStitches {
     self.0.contains_key(strand.as_cid())
   }
 
-  pub async fn resolve_and_add<R: Resolver, C: AsCid>(mut self, strand: C, resolver: &R) -> Result<Self, ResolutionError> {
+  pub async fn add_or_refresh<R: Resolver, C: AsCid>(mut self, strand: C, resolver: &R) -> Result<Self, ResolutionError> {
     let latest = resolver.resolve_latest(strand.as_cid()).await?;
     let stitch : Stitch = latest.unpack().into();
     self.0.insert(stitch.strand, stitch);
@@ -209,7 +209,7 @@ impl CrossStitches {
     (Self(new_stitches), errors)
   }
 
-  pub async fn refresh<R: Resolver>(self, resolver: &R) -> Result<Self, ResolutionError> {
+  pub async fn refresh_all<R: Resolver>(self, resolver: &R) -> Result<Self, ResolutionError> {
     let mut new_stitches = HashMap::new();
     for (strand, stitch) in self {
       let new = stitch.refresh(resolver).await?;
