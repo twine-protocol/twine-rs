@@ -24,22 +24,9 @@ impl<T: TwineBlock> Tagged<T> {
   }
 }
 
-impl From<Strand> for Tagged<Strand> {
-  fn from(data: Strand) -> Self {
+impl<T> From<T> for Tagged<T> where T: TwineBlock {
+  fn from(data: T) -> Self {
     Tagged::new(data)
-  }
-}
-
-impl From<Tixel> for Tagged<Tixel> {
-  fn from(data: Tixel) -> Self {
-    Tagged::new(data)
-  }
-}
-
-impl From<AnyTwine> for Tagged<AnyTwine> {
-  fn from(data: AnyTwine) -> Self {
-    let cid = data.cid();
-    Tagged { cid, data }
   }
 }
 
