@@ -6,8 +6,10 @@ use twine_core::{
   }
 };
 use crate::{signer::SigningError, Signer};
-use biscuit::jwk::JWK;
 
+#[cfg(feature = "v1")]
+use biscuit::jwk::JWK;
+#[cfg(feature = "v1")]
 mod builder_v1;
 mod builder_v2;
 
@@ -37,6 +39,7 @@ impl<T, S: Signer<Key = T>> TwineBuilder<T, S> {
   }
 }
 
+#[cfg(feature = "v1")]
 impl<S: Signer<Key = JWK<()>>> TwineBuilder<JWK<()>, S> {
   pub fn build_strand<'a>(&'a self) -> builder_v1::StrandBuilder<'a, S> {
     builder_v1::StrandBuilder::new(&self.signer)
@@ -65,12 +68,13 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<PublicKey, S> {
   }
 }
 
+#[cfg(feature = "v1")]
 #[allow(deprecated)]
 #[cfg(test)]
-mod test {
+mod testv1 {
   use biscuit::jws::Secret;
-  use twine_core::{ipld_core::ipld, store::MemoryStore, twine::TwineBlock};
   use crate::BiscuitSigner;
+  use twine_core::ipld_core::ipld;
 
   use super::*;
   use ring::signature::*;
@@ -221,6 +225,14 @@ mod test {
     let t: Timestamped = tixel.extract_payload().unwrap();
     assert_eq!(t.timestamp, "2023-10-26T21:25:56.936Z");
   }
+}
+
+#[allow(deprecated)]
+#[cfg(test)]
+mod testv2 {
+  use ring::signature::Ed25519KeyPair;
+  use twine_core::{ipld_core::ipld, store::MemoryStore, twine::{Twine, TwineBlock}};
+  use super::*;
 
   #[test]
   fn test_v2() {

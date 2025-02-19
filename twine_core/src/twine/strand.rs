@@ -1,130 +1,65 @@
 use std::{fmt::Display, sync::Arc};
-use crate::{as_cid::AsCid, crypto::{get_hasher, PublicKey}, specification::Subspec, verify::{Verifiable, Verified}};
-use crate::schemas::v1::{self, ChainContentV1};
-use crate::schemas::v2;
+use crate::{as_cid::AsCid, crypto::{get_hasher, PublicKey}, schemas::StrandSchemaVersion, specification::Subspec, verify::Verified};
 use multihash_codetable::Code;
 use semver::Version;
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use serde_ipld_dagjson::codec::DagJsonCodec;
 use crate::Ipld;
-use serde::{Serialize, Deserialize};
 use ipld_core::{cid::Cid, codec::Codec};
 use super::{Tagged, Tixel, TwineBlock};
 use crate::errors::VerificationError;
-use crate::schemas::{StrandContainer, TwineContainer};
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
-#[serde(untagged)]
-pub enum StrandContainerVersion {
-  V1(v1::ContainerV1<ChainContentV1>),
-  V2(v2::StrandContainerV2),
-}
-
-impl StrandContainerVersion {
-  pub fn compute_cid(&mut self, hasher: Code) {
-    match self {
-      StrandContainerVersion::V1(v) => {
-        v.compute_cid(hasher);
-      },
-      StrandContainerVersion::V2(_) => unimplemented!(),
-    }
-  }
-}
-
-impl Verifiable for StrandContainerVersion {
-  fn verify(&self) -> Result<(), VerificationError> {
-    match self {
-      StrandContainerVersion::V1(v) => v.verify(),
-      StrandContainerVersion::V2(v) => v.verify(),
-    }
-  }
-}
-
-impl From<v1::ContainerV1<ChainContentV1>> for StrandContainerVersion {
-  fn from(v: v1::ContainerV1<ChainContentV1>) -> Self {
-    StrandContainerVersion::V1(v)
-  }
-}
-
-impl From<v2::StrandContainerV2> for StrandContainerVersion {
-  fn from(v: v2::StrandContainerV2) -> Self {
-    StrandContainerVersion::V2(v)
-  }
-}
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct Strand(pub(crate) Verified<StrandContainerVersion>);
+pub struct Strand(pub(crate) Verified<StrandSchemaVersion>);
 
 impl Strand {
-  pub fn try_new<C: Into<StrandContainerVersion>>(container: C) -> Result<Self, VerificationError> {
-    let verified = Verified::try_new(container.into())?;
-    Ok(Self(verified))
+  pub fn try_new<C>(container: C) -> Result<Self, VerificationError>
+  where
+    C: TryInto<StrandSchemaVersion>,
+    VerificationError:From<<C as TryInto<StrandSchemaVersion>>::Error>
+  {
+    let container = container.try_into()?;
+    Ok(Self(Verified::try_new(container)?))
   }
 
   pub fn cid(&self) -> Cid {
-    match &*self.0 {
-      StrandContainerVersion::V1(v) => v.cid().clone(),
-      StrandContainerVersion::V2(v) => v.cid().clone(),
-    }
+    *self.0.cid()
   }
 
   pub fn key(&self) -> PublicKey {
-    match &*self.0 {
-      StrandContainerVersion::V1(v) => v.key().into(),
-      StrandContainerVersion::V2(v) => v.key().clone(),
-    }
+    self.0.key()
   }
 
   pub fn radix(&self) -> u8 {
-    match &*self.0 {
-      StrandContainerVersion::V1(v) => v.radix(),
-      StrandContainerVersion::V2(v) => v.radix(),
-    }
+    self.0.radix()
   }
 
   pub fn spec_str(&self) -> &str {
-    match &*self.0 {
-      StrandContainerVersion::V1(v) => v.spec_str(),
-      StrandContainerVersion::V2(v) => v.spec_str(),
-    }
+    self.0.spec_str()
   }
 
   pub fn version(&self) -> Version {
-    match &*self.0 {
-      StrandContainerVersion::V1(v) => v.version(),
-      StrandContainerVersion::V2(v) => v.version(),
-    }
+    self.0.version()
   }
 
   pub fn subspec(&self) -> Option<Subspec> {
-    match &*self.0 {
-      StrandContainerVersion::V1(v) => v.subspec(),
-      StrandContainerVersion::V2(v) => v.subspec(),
-    }
+    self.0.subspec()
   }
 
   pub fn details(&self) -> &Ipld {
-    match &*self.0 {
-      StrandContainerVersion::V1(v) => &v.details(),
-      StrandContainerVersion::V2(v) => &v.details(),
-    }
+    self.0.details()
+  }
+
+  pub fn expiry(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+    self.0.expiry()
   }
 
   pub fn verify_tixel(&self, tixel: &Tixel) -> Result<(), VerificationError> {
-    match &*self.0 {
-      StrandContainerVersion::V1(v) => {
-        // also verify that this tixel belongs to the strand
-        if tixel.strand_cid() != self.cid() {
-          return Err(VerificationError::TixelNotOnStrand);
-        }
-        v.verify_signature(String::from_utf8(tixel.signature().into()).unwrap(), tixel.content_hash())
-      },
-      StrandContainerVersion::V2(v) => v.verify_tixel(tixel.v2_container()),
-    }
+    self.0.verify_tixel(tixel)
   }
 
   pub fn hasher(&self) -> Code {
-    get_hasher(&self.cid()).unwrap()
+    self.0.hasher()
   }
 }
 
@@ -136,10 +71,7 @@ impl From<Strand> for Cid {
 
 impl AsCid for Strand {
   fn as_cid(&self) -> &Cid {
-    match &*self.0 {
-      StrandContainerVersion::V1(v) => v.cid(),
-      StrandContainerVersion::V2(v) => v.cid(),
-    }
+    self.0.cid()
   }
 }
 
@@ -154,13 +86,12 @@ impl TwineBlock for Strand {
   }
 
   fn from_bytes_unchecked(hasher: Code, bytes: Vec<u8>) -> Result<Self, VerificationError> {
-    let mut twine: StrandContainerVersion = DagCborCodec::decode_from_slice(bytes.as_slice())?;
+    let mut twine: StrandSchemaVersion = DagCborCodec::decode_from_slice(bytes.as_slice())?;
     // if v1... recompute cid
-    if let StrandContainerVersion::V1(_) = twine {
+    if let StrandSchemaVersion::V1(_) = twine {
       twine.compute_cid(hasher);
     }
-    let twine = Self(Verified::try_new(twine)?);
-    Ok(twine)
+    Ok(Self(Verified::try_new(twine)?))
   }
 
   fn from_block<T: AsRef<[u8]>>(cid: Cid, bytes: T) -> Result<Self, VerificationError> {
@@ -183,11 +114,7 @@ impl TwineBlock for Strand {
   }
 
   fn content_bytes(&self) -> Arc<[u8]> {
-    let bytes = match &*self.0 {
-      StrandContainerVersion::V1(v) => DagCborCodec::encode_to_vec(v.content()).unwrap(),
-      StrandContainerVersion::V2(v) => v.content_bytes().unwrap().into(),
-    };
-    bytes.as_slice().into()
+    self.0.content_bytes()
   }
 }
 

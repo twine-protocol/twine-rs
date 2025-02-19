@@ -196,6 +196,8 @@ impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
   pub fn done(self) -> Result<Strand, BuildError> {
     use twine_core::schemas::*;
     let key = self.signer.public_key();
+    dbg!(&key);
+
     let content = match self.version.major {
       2 => v2::StrandContentV2 {
         code: self.hasher.into(),
@@ -224,6 +226,7 @@ impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
 }
 
 
+#[cfg(feature = "rsa")]
 #[cfg(test)]
 mod test {
   use crate::RingSigner;

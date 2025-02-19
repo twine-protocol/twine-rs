@@ -1,5 +1,6 @@
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
+use chrono::{DateTime, Utc};
 use multihash_codetable::Code;
 use semver::Version;
 use serde::Deserializer;
@@ -19,8 +20,6 @@ mod strand;
 use content::*;
 pub use tixel::{TixelContentV2, TixelFields};
 pub use strand::{StrandContentV2, StrandFields};
-
-use super::{StrandContainer, TixelContainer, TwineContainer};
 
 pub type V2 = crate::specification::Specification<2>;
 
@@ -103,28 +102,28 @@ impl<C> ContainerV2<C> where C: Clone + Send + Verifiable + Serialize {
   }
 }
 
-impl<C> TwineContainer for ContainerV2<C> where C: Clone + Send + Verifiable + Serialize {
-  fn cid(&self) -> &Cid {
+impl<C> ContainerV2<C> where C: Clone + Send + Verifiable + Serialize {
+  pub fn cid(&self) -> &Cid {
     &self.cid
   }
 
-  fn version(&self) -> Version {
+  pub fn version(&self) -> Version {
     self.fields.content.specification.semver()
   }
 
-  fn spec_str(&self) -> &str {
+  pub fn spec_str(&self) -> &str {
     self.fields.content.specification.0.as_str()
   }
 
-  fn subspec(&self) -> Option<crate::specification::Subspec> {
+  pub fn subspec(&self) -> Option<crate::specification::Subspec> {
     self.fields.content.specification.subspec()
   }
 
-  fn signature(&self) -> Signature {
+  pub fn signature(&self) -> Signature {
     self.fields.signature.clone()
   }
 
-  fn content_bytes(&self) -> Result<Bytes, VerificationError> {
+  pub fn content_bytes(&self) -> Result<Bytes, VerificationError> {
     crypto_serialize(&self.fields.content)
       .map_err(|e| VerificationError::General(e.to_string()))
       .map(Bytes)
@@ -174,49 +173,61 @@ impl<'de, T> Deserialize<'de> for ContainerV2<T> where T: Clone + Send + Verifia
 pub type StrandContainerV2 = ContainerV2<StrandFields>;
 pub type TixelContainerV2 = ContainerV2<TixelFields>;
 
-impl StrandContainer for StrandContainerV2 {
-  fn key(&self) -> &PublicKey {
+impl StrandContainerV2 {
+  pub fn key(&self) -> &PublicKey {
     &self.fields.content.key
   }
 
-  fn radix(&self) -> u8 {
+  pub fn radix(&self) -> u8 {
     self.fields.content.radix
   }
 
-  fn details(&self) -> &Ipld {
+  pub fn details(&self) -> &Ipld {
     &self.fields.content.details
+  }
+
+  pub fn expiry(&self) -> Option<DateTime<Utc>> {
+    self.fields.content.expiry
   }
 }
 
 impl Verifiable for StrandContainerV2 {
   fn verify(&self) -> Result<(), VerificationError> {
-    self.verify_signature(&self.key())
+    self.key().verify(self.signature(), &self.content_bytes()?)?;
+    Ok(())
   }
 }
 
-impl TixelContainer for TixelContainerV2 {
-  fn index(&self) -> u64 {
+impl TixelContainerV2 {
+  pub fn index(&self) -> u64 {
     self.fields.content.index
   }
 
-  fn strand_cid(&self) -> &Cid {
+  pub fn strand_cid(&self) -> &Cid {
     &self.fields.content.strand
   }
 
-  fn cross_stitches(&self) -> CrossStitches {
+  pub fn cross_stitches(&self) -> CrossStitches {
     (*self.fields.content.cross_stitches).clone()
   }
 
-  fn back_stitches(&self) -> crate::twine::BackStitches {
+  pub fn back_stitches(&self) -> crate::twine::BackStitches {
     // checked in verify method
     BackStitches::try_new_from_condensed(*self.strand_cid(), self.fields.content.back_stitches.clone()).unwrap()
   }
 
-  fn drop(&self) -> u64 {
+  pub fn drop_index(&self) -> u64 {
     self.fields.content.drop
   }
 
-  fn payload(&self) -> &Ipld {
+  pub fn payload(&self) -> &Ipld {
     &self.fields.content.payload
+  }
+}
+
+impl Verifiable for TixelContainerV2 {
+  fn verify(&self) -> Result<(), VerificationError> {
+    // currently there are no further verifications to do for the tixel alone
+    Ok(())
   }
 }

@@ -2,8 +2,8 @@ use either::Either;
 use ipld_core::cid::Cid;
 use serde::{Deserialize, Serialize, Serializer};
 use crate::{crypto::get_hasher, errors::VerificationError};
-
-use super::{AnyTwine, Strand, StrandContainerVersion, Tixel, TixelContainerVersion, TwineBlock};
+use crate::schemas::{StrandSchemaVersion, TixelSchemaVersion};
+use super::{AnyTwine, Strand, Tixel, TwineBlock};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct Tagged<T> {
@@ -30,19 +30,19 @@ impl<T> From<T> for Tagged<T> where T: TwineBlock {
   }
 }
 
-impl TryFrom<Tagged<StrandContainerVersion>> for Tagged<Strand> {
+impl TryFrom<Tagged<StrandSchemaVersion>> for Tagged<Strand> {
   type Error = VerificationError;
 
-  fn try_from(c: Tagged<StrandContainerVersion>) -> Result<Self, Self::Error> {
+  fn try_from(c: Tagged<StrandSchemaVersion>) -> Result<Self, Self::Error> {
     let cid = c.cid;
     let container = match c.data {
       // v1 requires recomputing the CID
-      mut container@StrandContainerVersion::V1(_) => {
+      mut container@StrandSchemaVersion::V1(_) => {
         let hasher = get_hasher(&cid)?;
         container.compute_cid(hasher);
         container
       },
-      container@StrandContainerVersion::V2(_) => container,
+      container@StrandSchemaVersion::V2(_) => container,
     };
     let data = Strand::try_new(container)?;
     data.verify_cid(&cid)?;
@@ -51,19 +51,19 @@ impl TryFrom<Tagged<StrandContainerVersion>> for Tagged<Strand> {
   }
 }
 
-impl TryFrom<Tagged<TixelContainerVersion>> for Tagged<Tixel> {
+impl TryFrom<Tagged<TixelSchemaVersion>> for Tagged<Tixel> {
   type Error = VerificationError;
 
-  fn try_from(c: Tagged<TixelContainerVersion>) -> Result<Self, Self::Error> {
+  fn try_from(c: Tagged<TixelSchemaVersion>) -> Result<Self, Self::Error> {
     let cid = c.cid;
     let container = match c.data {
       // v1 requires recomputing the CID
-      mut container@TixelContainerVersion::V1(_) => {
+      mut container@TixelSchemaVersion::V1(_) => {
         let hasher = get_hasher(&cid)?;
         container.compute_cid(hasher);
         container
       },
-      container@TixelContainerVersion::V2(_) => container,
+      container@TixelSchemaVersion::V2(_) => container,
     };
     let data = Tixel::try_new(container)?;
     data.verify_cid(&cid)?;
@@ -74,14 +74,14 @@ impl TryFrom<Tagged<TixelContainerVersion>> for Tagged<Tixel> {
 
 impl<'de> Deserialize<'de> for Tagged<Strand> {
   fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
-    let c: Tagged<StrandContainerVersion> = Tagged::deserialize(deserializer)?;
+    let c: Tagged<StrandSchemaVersion> = Tagged::deserialize(deserializer)?;
     Tagged::try_from(c).map_err(serde::de::Error::custom)
   }
 }
 
 impl<'de> Deserialize<'de> for Tagged<Tixel> {
   fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
-    let c: Tagged<TixelContainerVersion> = Tagged::deserialize(deserializer)?;
+    let c: Tagged<TixelSchemaVersion> = Tagged::deserialize(deserializer)?;
     Tagged::try_from(c).map_err(serde::de::Error::custom)
   }
 }
@@ -92,7 +92,7 @@ impl<'de> Deserialize<'de> for Tagged<AnyTwine> {
     #[serde(transparent)]
     struct EitherContainer(
       #[serde(with = "either::serde_untagged")]
-      Either<Tagged<StrandContainerVersion>, Tagged<TixelContainerVersion>>
+      Either<Tagged<StrandSchemaVersion>, Tagged<TixelSchemaVersion>>
     );
     let item = EitherContainer::deserialize(deserializer)?;
     match item.0 {
@@ -110,14 +110,14 @@ impl<'de> Deserialize<'de> for Tagged<AnyTwine> {
 
 impl Serialize for Tagged<Strand> {
   fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-    let c = Tagged { cid: self.cid.clone(), data: self.data.0.as_inner() };
+    let c = Tagged { cid: self.cid.clone(), data: self.data.0.clone() };
     c.serialize(serializer)
   }
 }
 
 impl Serialize for Tagged<Tixel> {
   fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-    let c = Tagged { cid: self.cid.clone(), data: self.data.0.as_inner() };
+    let c = Tagged { cid: self.cid.clone(), data: self.data.0.clone() };
     c.serialize(serializer)
   }
 }
@@ -126,11 +126,11 @@ impl Serialize for Tagged<AnyTwine> {
   fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
     match &self.data {
       AnyTwine::Strand(s) => {
-        let c = Tagged { cid: self.cid.clone(), data: s.0.as_inner() };
+        let c = Tagged { cid: self.cid.clone(), data: s.0.clone() };
         c.serialize(serializer)
       },
       AnyTwine::Tixel(t) => {
-        let c = Tagged { cid: self.cid.clone(), data: t.0.as_inner() };
+        let c = Tagged { cid: self.cid.clone(), data: t.0.clone() };
         c.serialize(serializer)
       },
     }

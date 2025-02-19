@@ -1,7 +1,7 @@
 use serde_ipld_dagjson::error::CodecError as JsonCodecError;
 use serde_ipld_dagcbor::error::CodecError as CborCodecError;
 use thiserror::Error;
-use std::fmt::Display;
+use std::{convert::Infallible, fmt::Display};
 use crate::resolver::SingleQuery;
 
 #[derive(Debug, Error)]
@@ -38,6 +38,12 @@ pub enum VerificationError {
   General(String),
   #[error("Payload invalid: {0}")]
   Payload(String),
+}
+
+impl From<Infallible> for VerificationError {
+  fn from(_: Infallible) -> Self {
+    unreachable!()
+  }
 }
 
 

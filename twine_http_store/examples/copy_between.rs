@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use futures::{StreamExt, TryStreamExt};
-use tokio::pin;
+// use tokio::pin;
 use twine_core::twine::Strand;
 use twine_http_store::*;
 use twine_core::resolver::*;
