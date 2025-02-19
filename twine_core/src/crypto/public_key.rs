@@ -70,6 +70,7 @@ impl FromStr for SignatureAlgorithm {
 pub struct PublicKey {
   #[serde(rename = "a")]
   pub alg: SignatureAlgorithm,
+  /// ASN.1 DER encoded public key
   #[serde(rename = "k")]
   pub key: Bytes,
 }
