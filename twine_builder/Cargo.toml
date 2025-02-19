@@ -7,12 +7,13 @@ rust-version = "1.78"
 [features]
 default = []
 rsa = ["dep:rsa", "dep:rand"]
+v1 = ["dep:biscuit"]
 
 [dependencies]
 twine_core = { path = "../twine_core/" }
 thiserror = "2.0.8"
 futures = "0.3"
-biscuit = "0.7"
+biscuit = { version = "0.7", optional = true }
 ring = "0.17"
 anyhow = "1.0"
 serde = "1.0"
