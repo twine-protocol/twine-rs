@@ -159,6 +159,10 @@ impl BackStitches {
   pub fn into_inner(self) -> Vec<Stitch> {
     self.0
   }
+
+  pub fn includes<C: AsCid>(&self, cid: C) -> bool {
+    self.0.iter().any(|s| &s.tixel == cid.as_cid())
+  }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -216,6 +220,10 @@ impl CrossStitches {
       new_stitches.insert(strand, new);
     }
     Ok(Self(new_stitches))
+  }
+
+  pub fn includes<C: AsCid>(&self, cid: C) -> bool {
+    self.0.values().any(|s| &s.tixel == cid.as_cid())
   }
 }
 

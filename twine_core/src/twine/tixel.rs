@@ -95,6 +95,11 @@ impl Tixel {
     self.back_stitches().get(0).cloned()
   }
 
+  pub fn includes<C: AsCid>(&self, other: C) -> bool {
+    self.back_stitches().includes(other.as_cid())
+    || self.cross_stitches().includes(other.as_cid())
+  }
+
   pub(crate) fn signature(&self) -> Signature {
     self.0.signature()
   }
