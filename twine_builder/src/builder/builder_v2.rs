@@ -87,6 +87,16 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
     }
   }
 
+  pub fn build_payload_then_done<F, P>(mut self, build_fn: F) -> Result<Twine, BuildError>
+  where
+    F: FnOnce(&Strand, Option<&Twine>) -> Result<P, BuildError>,
+    P: serde::ser::Serialize
+  {
+    let payload = build_fn(&self.strand, self.prev)?;
+    self.payload = to_ipld(payload).unwrap();
+    self.done()
+  }
+
   pub fn done(self) -> Result<Twine, BuildError> {
     use twine_core::schemas::*;
 
@@ -196,7 +206,6 @@ impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
   pub fn done(self) -> Result<Strand, BuildError> {
     use twine_core::schemas::*;
     let key = self.signer.public_key();
-    dbg!(&key);
 
     let content = match self.version.major {
       2 => v2::StrandContentV2 {

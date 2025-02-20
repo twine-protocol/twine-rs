@@ -225,6 +225,28 @@ mod testv1 {
     let t: Timestamped = tixel.extract_payload().unwrap();
     assert_eq!(t.timestamp, "2023-10-26T21:25:56.936Z");
   }
+
+  #[test]
+  fn test_payload_builder() {
+    let key = ec_key(&ECDSA_P256_SHA256_FIXED_SIGNING);
+    let secret = Secret::EcdsaKeyPair(Arc::new(key));
+    let signer = BiscuitSigner::new(secret, "ES256".to_string());
+    let builder = TwineBuilder::new(signer);
+    let strand = builder.build_strand()
+      .details(ipld!({
+        "foo": "bar",
+      }))
+      .done()
+      .unwrap();
+
+    let tixel = builder.build_first(strand)
+      .build_payload_then_done(|_strand, _| {
+        Ok("payload".to_string())
+      })
+      .unwrap();
+
+    assert_eq!(tixel.extract_payload::<String>().unwrap(), "payload".to_string());
+  }
 }
 
 #[allow(deprecated)]
@@ -326,5 +348,31 @@ mod testv2 {
 
     assert!(tixel.cross_stitches().strand_is_stitched(first.0));
     assert!(tixel.cross_stitches().strand_is_stitched(second.0));
+  }
+
+  #[test]
+  fn test_payload_builder_v2() {
+    let rng = ring::rand::SystemRandom::new();
+    let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
+    let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
+    let builder = TwineBuilder::new(key);
+    let strand = builder.build_strand()
+      .details(ipld!({
+        "foo": "bar",
+      }))
+      .done()
+      .unwrap();
+
+    let build_payload = |message: String| {
+      move |_strand: &Strand, _prev: Option<&Twine>| {
+        Ok(ipld!(message))
+      }
+    };
+
+    let tixel = builder.build_first(strand)
+      .build_payload_then_done(build_payload("payload".to_string()))
+      .unwrap();
+
+    assert_eq!(tixel.extract_payload::<String>().unwrap(), "payload".to_string());
   }
 }

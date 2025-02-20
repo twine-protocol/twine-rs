@@ -98,6 +98,16 @@ impl <'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
     }
   }
 
+  pub fn build_payload_then_done<F, P>(mut self, build_fn: F) -> Result<Twine, BuildError>
+  where
+    F: FnOnce(&Strand, Option<&Twine>) -> Result<P, BuildError>,
+    P: serde::ser::Serialize
+  {
+    let payload = build_fn(&self.strand, self.prev)?;
+    self.payload = to_ipld(payload).unwrap();
+    self.done()
+  }
+
   pub fn done(self) -> Result<Twine, BuildError> {
     use twine_core::schemas::*;
 
