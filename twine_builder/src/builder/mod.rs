@@ -23,6 +23,8 @@ pub enum BuildError {
   ProblemSigning(#[from] SigningError),
   #[error("Tixel index maximum reached")]
   IndexMaximum,
+  #[error("Payload construction failed: {0}")]
+  PayloadConstruction(String),
 }
 
 pub struct TwineBuilder<T, S: Signer<Key = T>> {
