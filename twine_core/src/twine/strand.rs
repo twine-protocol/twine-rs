@@ -2,10 +2,11 @@ use std::{fmt::Display, sync::Arc};
 use crate::{as_cid::AsCid, crypto::{get_hasher, PublicKey}, schemas::StrandSchemaVersion, specification::Subspec, verify::Verified};
 use multihash_codetable::Code;
 use semver::Version;
+use serde::de::DeserializeOwned;
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use serde_ipld_dagjson::codec::DagJsonCodec;
 use crate::Ipld;
-use ipld_core::{cid::Cid, codec::Codec};
+use ipld_core::{cid::Cid, codec::Codec, serde::from_ipld};
 use super::{Tagged, Tixel, TwineBlock};
 use crate::errors::VerificationError;
 
@@ -48,6 +49,11 @@ impl Strand {
 
   pub fn details(&self) -> &Ipld {
     self.0.details()
+  }
+
+  pub fn extract_details<T: DeserializeOwned>(&self) -> Result<T, VerificationError> {
+    let details = self.details();
+    Ok(from_ipld(details.clone()).map_err(|e| VerificationError::Payload(e.to_string()))?)
   }
 
   pub fn expiry(&self) -> Option<chrono::DateTime<chrono::Utc>> {
