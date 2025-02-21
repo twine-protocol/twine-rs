@@ -27,22 +27,20 @@ pub enum BuildError {
   PayloadConstruction(String),
 }
 
-pub struct TwineBuilder<K, S: Signer<Key = K>> {
-  signer: S,
-  _phantom: std::marker::PhantomData<K>,
+pub struct TwineBuilder<const V: u8, S: Signer> {
+  signer: S
 }
 
-impl<K, S: Signer<Key = K>> TwineBuilder<K, S> {
+impl<const V: u8, S: Signer> TwineBuilder<V, S> {
   pub fn new(signer: S) -> Self {
     Self {
-      signer,
-      _phantom: std::marker::PhantomData,
+      signer
     }
   }
 }
 
 #[cfg(feature = "v1")]
-impl<S: Signer<Key = JWK<()>>> TwineBuilder<JWK<()>, S> {
+impl<S: Signer<Key = JWK<()>>> TwineBuilder<1, S> {
   pub fn build_strand<'a>(&'a self) -> builder_v1::StrandBuilder<'a, S> {
     builder_v1::StrandBuilder::new(&self.signer)
   }
@@ -56,7 +54,7 @@ impl<S: Signer<Key = JWK<()>>> TwineBuilder<JWK<()>, S> {
   }
 }
 
-impl<S: Signer<Key = PublicKey>> TwineBuilder<PublicKey, S> {
+impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
   pub fn build_strand<'a>(&'a self) -> builder_v2::StrandBuilder<'a, S> {
     builder_v2::StrandBuilder::new(&self.signer)
   }
@@ -297,7 +295,7 @@ mod testv2 {
 
   #[tokio::test]
   async fn test_entwining(){
-    fn make_strand(builder: &TwineBuilder<PublicKey, Ed25519KeyPair>, store: MemoryStore) -> (Strand, Twine) {
+    fn make_strand(builder: &TwineBuilder<2, Ed25519KeyPair>, store: MemoryStore) -> (Strand, Twine) {
       let strand = builder.build_strand()
         .done()
         .unwrap();
