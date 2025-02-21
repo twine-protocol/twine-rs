@@ -27,12 +27,12 @@ pub enum BuildError {
   PayloadConstruction(String),
 }
 
-pub struct TwineBuilder<T, S: Signer<Key = T>> {
+pub struct TwineBuilder<K, S: Signer<Key = K>> {
   signer: S,
-  _phantom: std::marker::PhantomData<T>,
+  _phantom: std::marker::PhantomData<K>,
 }
 
-impl<T, S: Signer<Key = T>> TwineBuilder<T, S> {
+impl<K, S: Signer<Key = K>> TwineBuilder<K, S> {
   pub fn new(signer: S) -> Self {
     Self {
       signer,
