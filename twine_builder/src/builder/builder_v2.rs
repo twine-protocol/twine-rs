@@ -35,7 +35,7 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
       strand: prev.strand(),
       prev: Some(prev),
       stitches: prev.cross_stitches(),
-      payload: Ipld::Map(Default::default()),
+      payload: Ipld::Null,
     }
   }
 
