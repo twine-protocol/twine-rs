@@ -178,6 +178,10 @@ impl CrossStitches {
     self.0.get(strand)
   }
 
+  pub fn len(&self) -> usize {
+    self.0.len()
+  }
+
   pub fn strands(&self) -> HashSet<Cid> {
     self.0.keys().cloned().collect()
   }
