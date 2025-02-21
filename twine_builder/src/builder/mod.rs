@@ -47,7 +47,7 @@ impl<S: Signer<Key = JWK<()>>> TwineBuilder<JWK<()>, S> {
     builder_v1::StrandBuilder::new(&self.signer)
   }
 
-  pub fn build_first<'a>(&'a self, strand: Strand) -> builder_v1::TixelBuilder<'a, '_, S> {
+  pub fn build_first<'a>(&'a self, strand: Strand) -> builder_v1::TixelBuilder<'a, 'a, S> {
     builder_v1::TixelBuilder::new_first(&self.signer, Arc::new(strand))
   }
 
@@ -61,7 +61,7 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<PublicKey, S> {
     builder_v2::StrandBuilder::new(&self.signer)
   }
 
-  pub fn build_first<'a>(&'a self, strand: Strand) -> builder_v2::TixelBuilder<'a, '_, S> {
+  pub fn build_first<'a>(&'a self, strand: Strand) -> builder_v2::TixelBuilder<'a, 'a, S> {
     builder_v2::TixelBuilder::new_first(&self.signer, Arc::new(strand))
   }
 
