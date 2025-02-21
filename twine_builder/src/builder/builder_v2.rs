@@ -100,36 +100,35 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
   pub fn done(self) -> Result<Twine, BuildError> {
     use twine_core::schemas::*;
 
-    // TODO: Implement drop
-    let drop = 0;
+    let index = self.prev.as_ref().map(|p|
+      (p.index()).checked_add(1)
+        .ok_or(BuildError::IndexMaximum)
+    ).unwrap_or(Ok(0))?;
 
-    // validate the cross stitches
-    let cross_stitches = self.stitches.clone();
-    if let Some(prev) = &self.prev {
-      let prev_stitches = prev.cross_stitches();
-      // ensure all previous cross stitches are present
-      let all_present = prev_stitches.into_iter()
-        .all(|s| cross_stitches.strand_is_stitched(s.1.strand));
-
-      if !all_present {
-        return Err(BuildError::BadData(VerificationError::InvalidTwineFormat(
-          "Cross stitches must contain all cross stitches from previous tixel until drop index is implemented".into()
-        )));
-      }
-    }
+    // The drop index becomes the current tixel index if
+    // the specified cross-stitches are not a superset of the previous ones
+    let drop = match self.prev {
+      Some(prev) => {
+        let prev_stitches = prev.cross_stitches().strands();
+        let cross_stitches = self.stitches.strands();
+        if !cross_stitches.is_superset(&prev_stitches) {
+          index
+        } else {
+          prev.drop_index()
+        }
+      },
+      None => 0,
+    };
 
     let content: v2::TixelContentV2 = match self.strand.version().major {
       2 => v2::TixelContentV2 {
         code: self.strand.hasher().into(),
         specification: self.strand.spec_str().parse()?,
         fields: Verified::try_new(v2::TixelFields {
-          index: self.prev.as_ref().map(|p|
-            (p.index()).checked_add(1)
-              .ok_or(BuildError::IndexMaximum)
-          ).unwrap_or(Ok(0))?,
+          index,
           back_stitches: self.next_back_stitches()?.into_iter().map(|s| Some(s.tixel)).collect(),
           payload: self.payload,
-          cross_stitches: cross_stitches.into(),
+          cross_stitches: self.stitches.into(),
           strand: self.strand.cid(),
           drop,
         })?,

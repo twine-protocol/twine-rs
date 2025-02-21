@@ -253,7 +253,7 @@ mod testv1 {
 #[cfg(test)]
 mod testv2 {
   use ring::signature::Ed25519KeyPair;
-  use twine_core::{ipld_core::ipld, store::MemoryStore, twine::{Twine, TwineBlock}};
+  use twine_core::{ipld_core::ipld, store::MemoryStore, twine::{CrossStitches, Twine, TwineBlock}};
   use super::*;
 
   #[test]
@@ -374,5 +374,80 @@ mod testv2 {
       .unwrap();
 
     assert_eq!(tixel.extract_payload::<String>().unwrap(), "payload".to_string());
+  }
+
+  #[test]
+  fn test_deny_stitches_to_self() {
+    let rng = ring::rand::SystemRandom::new();
+    let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
+    let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
+    let builder = TwineBuilder::new(key);
+    let strand = builder.build_strand()
+      .details("a".to_string())
+      .done()
+      .unwrap();
+
+    let t_a1 = builder.build_first(strand.clone())
+      .payload("a1".to_string())
+      .done()
+      .unwrap();
+
+    let res = builder.build_next(&t_a1)
+      .payload("a2".to_string())
+      .cross_stitches(CrossStitches::new(vec![t_a1.clone().into()]))
+      .done();
+
+    assert!(res.is_err());
+  }
+
+  #[test]
+  fn test_dropped_stitch() {
+    let rng = ring::rand::SystemRandom::new();
+    let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
+    let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
+    let builder = TwineBuilder::new(key);
+    let strand_a = builder.build_strand()
+      .details("a".to_string())
+      .done()
+      .unwrap();
+
+    let t_a1 = builder.build_first(strand_a.clone())
+      .payload("a1".to_string())
+      .done()
+      .unwrap();
+
+    let strand_b = builder.build_strand()
+      .details("b".to_string())
+      .done()
+      .unwrap();
+
+    let t_b1 = builder.build_first(strand_b.clone())
+      .payload("b1".to_string())
+      .done()
+      .unwrap();
+
+    let strand_c = builder.build_strand()
+      .details("c".to_string())
+      .done()
+      .unwrap();
+
+    let t_c1 = builder.build_first(strand_c.clone())
+      .payload("c1".to_string())
+      .cross_stitches(CrossStitches::new(vec![t_a1.clone().into(), t_b1.clone().into()]))
+      .done()
+      .unwrap();
+
+    let t_c2 = builder.build_next(&t_c1)
+      .payload("c2".to_string())
+      .cross_stitches(CrossStitches::new(vec![t_a1.clone().into()]))
+      .done()
+      .unwrap();
+
+    assert!(t_c1.includes(&t_a1));
+    assert!(t_c1.includes(&t_b1));
+    assert!(t_c2.includes(&t_a1));
+    assert!(!t_c2.includes(&t_b1));
+    assert!(t_c2.drop_index() == 1);
+    assert!(t_c2.cross_stitches().len() == 1);
   }
 }
