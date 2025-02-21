@@ -156,7 +156,6 @@ pub struct StrandBuilder<'a, S: Signer<Key = PublicKey>> {
   genesis: Option<chrono::DateTime<chrono::Utc>>,
   subspec: Option<Subspec>,
   radix: u8,
-  stitches: CrossStitches,
 }
 
 impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
@@ -169,7 +168,6 @@ impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
       genesis: None,
       subspec: None,
       radix: 32,
-      stitches: CrossStitches::default(),
     }
   }
 
@@ -198,11 +196,6 @@ impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
     self
   }
 
-  pub fn cross_stitches<C: Into<CrossStitches>>(mut self, stitches: C) -> Self {
-    self.stitches = stitches.into();
-    self
-  }
-
   pub fn done(self) -> Result<Strand, BuildError> {
     use twine_core::schemas::*;
     let key = self.signer.public_key();
@@ -217,7 +210,7 @@ impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
         fields: Verified::try_new(v2::StrandFields {
           radix: self.radix,
           details: self.details,
-          key: key,
+          key,
           genesis: self.genesis.unwrap_or_else(|| chrono::Utc::now()),
           expiry: None,
         })?,
