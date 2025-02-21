@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::hash::Hash;
 use std::{collections::HashMap, sync::Arc};
 
@@ -175,6 +176,10 @@ impl CrossStitches {
 
   pub fn get(&self, strand: &Cid) -> Option<&Stitch> {
     self.0.get(strand)
+  }
+
+  pub fn strands(&self) -> HashSet<Cid> {
+    self.0.keys().cloned().collect()
   }
 
   pub fn stitches(&self) -> Vec<Stitch> {
