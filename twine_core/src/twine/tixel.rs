@@ -75,6 +75,10 @@ impl Tixel {
     from_ipld(payload.clone()).map_err(|e| VerificationError::Payload(e.to_string()))
   }
 
+  pub fn drop_index(&self) -> u64 {
+    self.0.drop_index()
+  }
+
   pub fn back_stitches(&self) -> BackStitches {
     self.0.back_stitches()
   }
