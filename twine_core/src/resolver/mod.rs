@@ -245,6 +245,26 @@ impl<T> ResolverSetSeries<T> where T: BaseResolver {
   pub fn new(resolvers: Vec<T>) -> Self {
     Self(resolvers)
   }
+
+  pub fn add(&mut self, resolver: T) {
+    self.0.push(resolver);
+  }
+}
+
+impl ResolverSetSeries<Box<dyn BaseResolver>> {
+  pub fn new_boxed<T: BaseResolver + 'static>(resolvers: Vec<T>) -> Self {
+    Self(resolvers.into_iter().map(|r| Box::new(r) as Box<dyn BaseResolver>).collect())
+  }
+
+  pub fn add_boxed<T: BaseResolver + 'static>(&mut self, resolver: T) {
+    self.add(Box::new(resolver));
+  }
+}
+
+impl<T> Default for ResolverSetSeries<T> where T: BaseResolver {
+  fn default() -> Self {
+    Self(Vec::new())
+  }
 }
 
 impl<T> std::ops::Deref for ResolverSetSeries<T> where T: BaseResolver {
@@ -407,3 +427,21 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
 }
 
 impl<T> Resolver for ResolverSetSeries<T> where T: BaseResolver {}
+
+#[cfg(test)]
+mod test {
+  use crate::store::{MemoryCache, MemoryStore};
+  use super::*;
+
+  #[test]
+  fn test_resolver_set_series(){
+    let mut resolver = ResolverSetSeries::default();
+    let r1 = MemoryCache::new(MemoryStore::default());
+    let r2 = MemoryStore::default();
+
+    resolver.add_boxed(r1);
+    resolver.add_boxed(r2);
+
+    assert_eq!(resolver.len(), 2);
+  }
+}
