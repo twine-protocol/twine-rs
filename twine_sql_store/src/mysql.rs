@@ -331,8 +331,8 @@ impl unchecked_base::BaseResolver for MysqlStore {
           ORDER BY t.idx {}
         ", dir))
           .bind(range.strand.to_bytes())
-          .bind(batch.start as i64)
-          .bind(batch.end as i64)
+          .bind(batch.lower() as i64)
+          .bind(batch.upper() as i64)
           .fetch(&mut *conn)
           .map_err(to_resolution_error)
           .map_ok(|(cid, data)| {
