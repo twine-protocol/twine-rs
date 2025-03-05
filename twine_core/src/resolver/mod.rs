@@ -275,6 +275,8 @@ impl<T> std::ops::Deref for ResolverSetSeries<T> where T: BaseResolver {
   }
 }
 
+// TODO: Error handling is confusing since if resolvers fail
+// for a different reason the result will still be NotFound
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
@@ -430,18 +432,35 @@ impl<T> Resolver for ResolverSetSeries<T> where T: BaseResolver {}
 
 #[cfg(test)]
 mod test {
-  use crate::store::{MemoryCache, MemoryStore};
+  use crate::{store::{MemoryCache, MemoryStore}, twine::TwineBlock};
   use super::*;
 
-  #[test]
-  fn test_resolver_set_series(){
+  #[tokio::test]
+  async fn test_resolver_set_series(){
     let mut resolver = ResolverSetSeries::default();
     let r1 = MemoryCache::new(MemoryStore::default());
     let r2 = MemoryStore::default();
+    let r3 = MemoryStore::default();
 
     resolver.add_boxed(r1);
     resolver.add_boxed(r2);
+    resolver.add_boxed(r3.clone());
 
-    assert_eq!(resolver.len(), 2);
+    assert_eq!(resolver.len(), 3);
+
+    let strand = Strand::from_tagged_dag_json(crate::test::STRAND_V2_JSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(crate::test::TIXEL_V2_JSON).unwrap();
+
+    r3.save_sync(strand.clone().into()).unwrap();
+    r3.save_sync(tixel.clone().into()).unwrap();
+
+    let strand_cid = strand.cid();
+    let tixel_cid = tixel.cid();
+
+    let res = resolver.resolve(strand_cid).await;
+    assert!(res.is_ok());
+    let res = res.unwrap();
+    assert_eq!(res.strand().cid(), strand_cid);
+    assert_eq!(res.tixel().cid(), tixel_cid);
   }
 }

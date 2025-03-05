@@ -210,33 +210,66 @@ pub (crate) const INVALID_SIGNATURE_TIXELJSON: &'static str = r#"
 pub (crate) const STRAND_V2_JSON: &'static str = r#"
 {
   "cid": {
-    "/": "bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune"
+    "/": "bafyrmieej3j3sprtnbfziv6vhixzr3xxrcabnma43ajb5grhsixdvxzdvu"
   },
   "data": {
     "c": {
-      "h": 20,
-      "v": "twine/2.0.0",
+      "h": 22,
+      "v": "twine/2.0.0/time/1.0.0",
       "k": {
         "a": "ED25519",
         "k": {
           "/": {
-            "bytes": "F7WhDGX9A6/qyAemypkayzcAbirt4mgM6ixVNwdp9yg"
+            "bytes": "q0Th03lW3omSuQQSMKZZewQgmCalQLmAo3DN3M4PizM"
           }
         }
       },
       "r": 32,
       "d": {
-        "hello": "world"
+
       },
-      "g": "2024-06-13T00:55:29.509Z",
+      "g": "2024-12-20T00:00:00Z",
       "e": null
     },
     "s": {
       "/": {
-        "bytes": "iiiTldByhe/CSqjBp9aWhKGtLWIzAjXDsvtAdfqViGQ6DnnLzS9X9UP4LaZeAmUiFHJ083nXzPivAsoueoLdCg"
+        "bytes": "hN5hlT+3+zwJzgmrej8LvtPrAnRsf0c2Qo8xZE0Bj0uY0Tudhi9CbBx/5AjPmceyYGifWb0uw5SZRLMDS15YBA"
       }
     }
   }
 }"#;
+
+pub (crate) const TIXEL_V2_JSON: &'static str = r#"
+{
+  "cid": {
+    "/": "bafyrmibrw2iojkmsnyaffhaqwujqriumkk6whnd3bc6rdob7le7zquslp4"
+  },
+  "data": {
+    "c": {
+      "h": 22,
+      "v": "twine/2.0.0/time/1.0.0",
+      "s": {
+        "/": "bafyrmieej3j3sprtnbfziv6vhixzr3xxrcabnma43ajb5grhsixdvxzdvu"
+      },
+      "i": 0,
+      "x": [
+
+      ],
+      "b": [
+
+      ],
+      "d": 0,
+      "p": {
+        "timestamp": 1734743590
+      }
+    },
+    "s": {
+      "/": {
+        "bytes": "pVbiA08WcgO9ru3ngsBEs2jB5IEtykyJBIGgYwhQmZd0SaVgdVzfkK9StZTSKaoq1cjbJyHTR8PEPJBeFUN9BQ"
+      }
+    }
+  }
+}
+"#;
 
 mod serialization;
