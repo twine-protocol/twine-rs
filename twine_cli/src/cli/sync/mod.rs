@@ -220,7 +220,7 @@ impl SyncCommand {
   async fn pull_one<R: Resolver>(&self, store: &AnyStore, resolver: &R, query: SingleQuery) -> Result<()> {
     let twine = resolver.resolve(query).await?.unpack();
     log::debug!("Saving strand: {}", twine.strand_cid());
-    store.save(twine.strand()).await?;
+    store.save(twine.strand().clone()).await?;
     log::debug!("Saving twine: ({}) {}", twine.index(), twine.cid());
     store.save(twine).await?;
     Ok(())

@@ -144,7 +144,7 @@ impl From<Strand> for AnyTwine {
 
 impl From<Twine> for AnyTwine {
   fn from(t: Twine) -> Self {
-    Self::Tixel(t.tixel())
+    Self::Tixel(t.tixel().clone())
   }
 }
 

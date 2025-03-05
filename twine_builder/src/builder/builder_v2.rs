@@ -31,7 +31,7 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
   pub fn new_next(signer: &'a S, prev: &'b Twine) -> Self {
     Self {
       signer,
-      strand: prev.strand(),
+      strand: prev.strand().clone(),
       prev: Some(prev),
       stitches: prev.cross_stitches(),
       payload: Ipld::Null,

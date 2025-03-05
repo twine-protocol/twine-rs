@@ -16,12 +16,12 @@ impl Twine {
     Ok(Self { strand, tixel })
   }
 
-  pub fn strand(&self) -> Strand {
-    self.strand.clone()
+  pub fn strand(&self) -> &Strand {
+    &self.strand
   }
 
-  pub fn tixel(&self) -> Tixel {
-    self.tixel.clone()
+  pub fn tixel(&self) -> &Tixel {
+    &self.tixel
   }
 
   pub fn radix(&self) -> u8 {
