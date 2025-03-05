@@ -59,15 +59,6 @@ impl From<Tixel> for Stitch {
   }
 }
 
-impl From<Arc<Tixel>> for Stitch {
-  fn from(tixel: Arc<Tixel>) -> Self {
-    Stitch {
-      strand: tixel.strand_cid(),
-      tixel: tixel.cid(),
-    }
-  }
-}
-
 impl From<Twine> for Stitch {
   fn from(twine: Twine) -> Self {
     Stitch {
