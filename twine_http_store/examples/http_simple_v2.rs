@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use futures::{StreamExt, TryStreamExt};
 use twine_core::twine::Strand;
 use twine_http_store::*;
@@ -17,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   // let store = twine_core::store::MemoryStore::new();
 
   println!("strands:");
-  let strands: Vec<Arc<Strand>> = resolver.strands().await?
+  let strands: Vec<Strand> = resolver.strands().await?
   .inspect_ok(|strand| {
     println!("> cid: {}\n> description: {:?}",
       strand.cid(),

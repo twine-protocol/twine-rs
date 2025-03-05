@@ -163,7 +163,7 @@ impl SledStore {
 #[async_trait]
 impl BaseResolver for SledStore {
 
-  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Strand, ResolutionError>> + Send + '_>>, ResolutionError> {
     let iter = self.db.scan_prefix(get_strand_prefix());
     use futures::stream::StreamExt;
     let stream = futures::stream::iter(iter)
@@ -188,19 +188,19 @@ impl BaseResolver for SledStore {
     Ok(self.db.contains_key(cid.as_cid().to_bytes()).unwrap_or(false))
   }
 
-  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Strand, ResolutionError> {
     let bytes = self.db.get(strand.to_bytes())
       .map_err(|e| ResolutionError::Fetch(e.to_string()))?
       .ok_or(ResolutionError::NotFound)?;
-    Ok(Arc::new(Strand::from_block(strand.clone(), bytes)?))
+    Ok(Strand::from_block(strand.clone(), bytes)?)
   }
 
-  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Tixel, ResolutionError> {
     let tixel = self.get_tixel(strand, tixel).await?;
-    Ok(Arc::new(tixel))
+    Ok(tixel)
   }
 
-  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError> {
     let cid = self.db.get(get_index_key(&strand, index))
       .map_err(|e| ResolutionError::Fetch(e.to_string()))?
       .ok_or(ResolutionError::NotFound)?;
@@ -211,13 +211,13 @@ impl BaseResolver for SledStore {
       return Err(ResolutionError::BadData(format!("Expected index {}, found {}", index, tixel.index())));
     }
 
-    Ok(Arc::new(tixel))
+    Ok(tixel)
   }
 
-  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Tixel, ResolutionError> {
     let cid = self.latest_cid(&strand)?.ok_or(ResolutionError::NotFound)?;
     match self.get_tixel(strand, &cid).await {
-      Ok(tixel) => Ok(Arc::new(tixel)),
+      Ok(tixel) => Ok(tixel),
       Err(ResolutionError::NotFound) => {
         // we have a latest record but no entry for cid... so remove the latest entry
         self.db.remove(get_latest_key(strand))
@@ -228,7 +228,7 @@ impl BaseResolver for SledStore {
     }
   }
 
-  async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Tixel, ResolutionError>> + Send + '_>>, ResolutionError> {
     use futures::stream::StreamExt;
     let strand_cid = range.strand;
     let sled_range = get_index_key(&strand_cid, range.start)..=get_index_key(&strand_cid, range.end);
@@ -244,7 +244,7 @@ impl BaseResolver for SledStore {
           let (_, cid) = item.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
           let cid = Cid::try_from(cid.to_vec()).map_err(|e| ResolutionError::BadData(e.to_string()))?;
           let tixel = self.get_tixel(&strand_cid, &cid).await?;
-          Ok(Arc::new(tixel))
+          Ok(tixel)
         }
       })
       .buffered(self.options.buffer_size);
@@ -308,7 +308,7 @@ impl Store for SledStore {
 
     if tixels.len() > 0 {
       let tixels = tixels.into_iter().map(|t| t.unwrap_tixel());
-      let mut latests: HashMap<Cid, Arc<Tixel>> = HashMap::new();
+      let mut latests: HashMap<Cid, Tixel> = HashMap::new();
       let mut batch = sled::Batch::default();
       for tixel in tixels {
         let strand = tixel.strand_cid();

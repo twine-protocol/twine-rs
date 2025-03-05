@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use async_trait::async_trait;
 use futures::stream::{StreamExt, TryStreamExt};
 use futures::Stream;
@@ -190,7 +189,7 @@ impl HttpStore {
       _ => return Err(ResolutionError::BadData("Expected Strand and Tixel".into())),
     };
 
-    Ok(Twine::try_new_from_shared(strand, tixel)?)
+    Ok(Twine::try_new(strand, tixel)?)
   }
 }
 
@@ -226,11 +225,11 @@ impl BaseResolver for HttpStore {
     }
   }
 
-  async fn fetch_strands(&self) -> Result<TwineStream<'_, Arc<Strand>>, ResolutionError> {
+  async fn fetch_strands(&self) -> Result<TwineStream<'_, Strand>, ResolutionError> {
     let response = self.send(self.get("")).await?;
     let stream = self.parse_response(response).await?;
     let stream = stream.map(|t| {
-      let strand = Arc::<Strand>::try_from(t?)?;
+      let strand = Strand::try_from(t?)?;
       Ok(strand)
     });
     #[cfg(target_arch = "wasm32")]
@@ -239,7 +238,7 @@ impl BaseResolver for HttpStore {
     { Ok(stream.boxed()) }
   }
 
-  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Strand, ResolutionError> {
     let cid = strand.as_cid();
     let path = format!("{}", cid);
     let response = self.send(self.get(&path)).await?;
@@ -247,7 +246,7 @@ impl BaseResolver for HttpStore {
     Ok(strand)
   }
 
-  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Tixel, ResolutionError> {
     let q : SingleQuery = (strand, tixel).into();
     let path = format!("{}", q);
     let response = self.send(self.get(&path)).await?;
@@ -255,7 +254,7 @@ impl BaseResolver for HttpStore {
     Ok(tixel)
   }
 
-  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError> {
     let q : SingleQuery = (strand, index).into();
     let path = format!("{}", q);
     let response = self.send(self.get(&path)).await?;
@@ -263,7 +262,7 @@ impl BaseResolver for HttpStore {
     Ok(tixel)
   }
 
-  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Tixel, ResolutionError> {
     let q = SingleQuery::Latest(*strand);
     let path = format!("{}", q);
     let response = self.send(self.get(&path)).await?;
@@ -271,7 +270,7 @@ impl BaseResolver for HttpStore {
     Ok(tixel)
   }
 
-  async fn range_stream(&self, range: AbsoluteRange) -> Result<TwineStream<'_, Arc<Tixel>>, ResolutionError> {
+  async fn range_stream(&self, range: AbsoluteRange) -> Result<TwineStream<'_, Tixel>, ResolutionError> {
     use futures::stream::StreamExt;
     let stream = futures::stream::iter(range.batches(self.batch_size))
       .map(move |range| {
@@ -285,7 +284,7 @@ impl BaseResolver for HttpStore {
       .try_flatten()
       .then(|t| async {
         let t = t?;
-        let t = Arc::<Tixel>::try_from(t)?;
+        let t = Tixel::try_from(t)?;
         Ok(t)
       });
     #[cfg(target_arch = "wasm32")]
@@ -351,7 +350,7 @@ impl Store for HttpStore {
 
       futures::stream::iter(jobs)
         .buffered(self.concurency)
-        .try_collect().await?;
+        .try_for_each(|_| async { Ok(()) }).await?;
     }
 
     if tixels.len() > 0 {
@@ -387,7 +386,7 @@ impl Store for HttpStore {
 
       futures::stream::iter(jobs)
         .buffered(self.concurency)
-        .try_collect().await?;
+        .try_for_each(|_| async { Ok(()) }).await?;
     }
     Ok(())
   }
@@ -396,7 +395,7 @@ impl Store for HttpStore {
     use futures::stream::StreamExt;
     twines.chunks(self.batch_size as usize)
       .then(|chunk| self.save_many(chunk))
-      .try_collect().await?;
+      .try_for_each(|_| async { Ok(()) }).await?;
     Ok(())
   }
 

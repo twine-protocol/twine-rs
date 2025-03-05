@@ -11,16 +11,16 @@ use super::{Tagged, Tixel, TwineBlock};
 use crate::errors::VerificationError;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct Strand(pub(crate) Verified<StrandSchemaVersion>);
+pub struct Strand(pub(crate) Arc<Verified<StrandSchemaVersion>>);
 
 impl Strand {
   pub fn try_new<C>(container: C) -> Result<Self, VerificationError>
   where
     C: TryInto<StrandSchemaVersion>,
-    VerificationError:From<<C as TryInto<StrandSchemaVersion>>::Error>
+    VerificationError: From<<C as TryInto<StrandSchemaVersion>>::Error>
   {
     let container = container.try_into()?;
-    Ok(Self(Verified::try_new(container)?))
+    Ok(Self(Arc::new(Verified::try_new(container)?)))
   }
 
   pub fn cid(&self) -> Cid {
@@ -97,7 +97,7 @@ impl TwineBlock for Strand {
     if let StrandSchemaVersion::V1(_) = twine {
       twine.compute_cid(hasher);
     }
-    Ok(Self(Verified::try_new(twine)?))
+    Ok(Self(Arc::new(Verified::try_new(twine)?)))
   }
 
   fn from_block<T: AsRef<[u8]>>(cid: Cid, bytes: T) -> Result<Self, VerificationError> {

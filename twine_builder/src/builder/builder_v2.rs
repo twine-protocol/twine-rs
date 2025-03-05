@@ -1,5 +1,4 @@
 use super::*;
-use std::sync::Arc;
 use twine_core::{
   crypto::PublicKey, errors::{SpecificationError, VerificationError}, ipld_core::{codec::Codec, serde::to_ipld}, multihash_codetable::Code, semver::Version, skiplist::get_layer_pos, specification::Subspec, twine::{
     CrossStitches,
@@ -12,14 +11,14 @@ use twine_core::{
 
 pub struct TixelBuilder<'a, 'b, S: Signer<Key = PublicKey>> {
   signer: &'a S,
-  strand: Arc<Strand>,
+  strand: Strand,
   prev: Option<&'b Twine>,
   stitches: CrossStitches,
   payload: Ipld,
 }
 
 impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
-  pub fn new_first(signer: &'a S, strand: Arc<Strand>) -> Self {
+  pub fn new_first(signer: &'a S, strand: Strand) -> Self {
     Self {
       signer,
       strand,
@@ -143,7 +142,7 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
 
     let container = v2::ContainerV2::new_from_parts(Verified::try_new(content)?, signature);
     let tixel = Tixel::try_new(container)?;
-    Ok(Twine::try_new_from_shared(self.strand, Arc::new(tixel))?)
+    Ok(Twine::try_new(self.strand, tixel)?)
   }
 }
 
@@ -244,7 +243,7 @@ mod test {
       .radix(32)
       .done().unwrap();
 
-    let tixel = TixelBuilder::new_first(&signer, Arc::new(strand))
+    let tixel = TixelBuilder::new_first(&signer, strand)
       .payload("test")
       .done().unwrap();
 

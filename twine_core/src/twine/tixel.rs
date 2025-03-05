@@ -21,7 +21,7 @@ use super::{BackStitches, CrossStitches, Stitch, Tagged, TwineBlock};
 use super::Strand;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct Tixel(pub(crate) Verified<TixelSchemaVersion>);
+pub struct Tixel(pub(crate) Arc<Verified<TixelSchemaVersion>>);
 
 impl PartialOrd for Tixel {
   fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -39,7 +39,7 @@ impl Tixel {
     VerificationError:From<<C as TryInto<TixelSchemaVersion>>::Error>
   {
     let container = container.try_into()?;
-    Ok(Self(Verified::try_new(container)?))
+    Ok(Self(Arc::new(Verified::try_new(container)?)))
   }
 
   pub fn cid(&self) -> Cid {
@@ -113,7 +113,7 @@ impl TryFrom<TixelSchemaVersion> for Tixel {
   type Error = VerificationError;
 
   fn try_from(t: TixelSchemaVersion) -> Result<Self, Self::Error> {
-    Ok(Self(Verified::try_new(t)?))
+    Ok(Self(Arc::new(Verified::try_new(t)?)))
   }
 }
 

@@ -6,7 +6,6 @@ use twine_core::resolver::RangeQuery;
 use twine_core::store::MemoryStore;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::pin::Pin;
 use twine_core::{twine::*, errors::*, as_cid::AsCid, store::Store, Cid};
 use twine_core::resolver::{AbsoluteRange, unchecked_base::BaseResolver, Resolver};
@@ -59,8 +58,8 @@ impl CarStore {
   }
 
   pub async fn flush(&self) -> Result<(), StoreError> {
-    let strands: Vec<Arc<Strand>> = self.memstore.fetch_strands().await?.try_collect().await?;
-    let latests: Vec<Arc<Tixel>> = futures::stream::iter(strands.iter())
+    let strands: Vec<Strand> = self.memstore.fetch_strands().await?.try_collect().await?;
+    let latests: Vec<Tixel> = futures::stream::iter(strands.iter())
       .then(|s| async move {
         let cid = s.cid();
         self.memstore.fetch_latest(&cid).await
@@ -111,7 +110,7 @@ impl CarStore {
 #[async_trait]
 impl BaseResolver for CarStore {
 
-  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Strand, ResolutionError>> + Send + '_>>, ResolutionError> {
     self.memstore.fetch_strands().await
   }
 
@@ -127,23 +126,23 @@ impl BaseResolver for CarStore {
     self.memstore.has_twine(strand, cid).await
   }
 
-  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Strand, ResolutionError> {
     self.memstore.fetch_strand(strand).await
   }
 
-  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Tixel, ResolutionError> {
     self.memstore.fetch_tixel(strand, tixel).await
   }
 
-  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError> {
     self.memstore.fetch_index(strand, index).await
   }
 
-  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Tixel, ResolutionError> {
     self.memstore.fetch_latest(strand).await
   }
 
-  async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Tixel, ResolutionError>> + Send + '_>>, ResolutionError> {
     self.memstore.range_stream(range).await
   }
 }

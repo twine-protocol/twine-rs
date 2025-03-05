@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use twine::prelude::*;
 use twine_builder::{TwineBuilder, RingSigner};
 use twine::twine_core::multihash_codetable::Code;
@@ -47,7 +46,7 @@ impl RandomnessPayload {
     )
   }
 
-  fn from_rand(rand: Vec<u8>, pre: Multihash, prev: Arc<Tixel>) -> Result<Self, VerificationError> {
+  fn from_rand(rand: Vec<u8>, pre: Multihash, prev: Tixel) -> Result<Self, VerificationError> {
     if prev.cid().hash().size() != pre.size() {
       return Err(VerificationError::Payload("Pre hash size does not match previous tixel hash size".to_string()));
     }
@@ -66,7 +65,7 @@ impl RandomnessPayload {
     Self::try_new_now(salt, pre)
   }
 
-  fn validate_randomness(&self, prev: Arc<Tixel>) -> Result<(), VerificationError> {
+  fn validate_randomness(&self, prev: Tixel) -> Result<(), VerificationError> {
     if prev.cid().hash().size() != self.0.pre.size() {
       return Err(VerificationError::Payload("Pre hash size does not match previous tixel hash size".to_string()));
     }
@@ -88,7 +87,7 @@ impl RandomnessPayload {
     Ok(())
   }
 
-  fn extract_randomness(current: Arc<Tixel>, prev: Arc<Tixel>) -> Result<Vec<u8>, VerificationError> {
+  fn extract_randomness(current: Tixel, prev: Tixel) -> Result<Vec<u8>, VerificationError> {
     let payload = current.extract_payload::<RandomnessPayload>()?;
     if let Err(e) = payload.validate_randomness(prev) {
       return Err(e);

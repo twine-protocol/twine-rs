@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use clap::Parser;
 use anyhow::Result;
 use twine_core::{errors::ResolutionError, resolver::{SingleQuery, RangeQuery, Resolver}, twine::{Strand, Twine}, Cid, Ipld};
@@ -172,7 +171,7 @@ impl ListCommand {
     Ok(())
   }
 
-  async fn print_strand_stream<S: Stream<Item = Result<Arc<Strand>, ResolutionError>>, R: Resolver>(&self, strands: S, resolver: &R) -> Result<()> {
+  async fn print_strand_stream<S: Stream<Item = Result<Strand, ResolutionError>>, R: Resolver>(&self, strands: S, resolver: &R) -> Result<()> {
     if self.json {
       strands
         .inspect_err(|err| {

@@ -2,7 +2,6 @@ use core::str;
 /// Structs and traits common to both Chain's and Pulses
 
 use std::fmt::Display;
-use std::sync::Arc;
 use ipld_core::codec::Codec;
 use multihash_codetable::Code;
 use serde_ipld_dagjson::codec::DagJsonCodec;
@@ -17,8 +16,8 @@ use std::convert::TryFrom;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum AnyTwine {
-  Strand(Arc<Strand>),
-  Tixel(Arc<Tixel>),
+  Strand(Strand),
+  Tixel(Tixel),
 }
 
 impl AnyTwine {
@@ -54,7 +53,7 @@ impl AnyTwine {
   }
 
   /// Unwrap a Tixel or panic
-  pub fn unwrap_tixel(&self) -> Arc<Tixel> {
+  pub fn unwrap_tixel(&self) -> Tixel {
     match self {
       Self::Tixel(t) => t.clone(),
       _ => panic!("Expected Tixel, found Strand"),
@@ -62,7 +61,7 @@ impl AnyTwine {
   }
 
   /// Unwrap a Strand or panic
-  pub fn unwrap_strand(&self) -> Arc<Strand> {
+  pub fn unwrap_strand(&self) -> Strand {
     match self {
       Self::Strand(s) => s.clone(),
       _ => panic!("Expected Strand, found Tixel"),
@@ -82,7 +81,7 @@ impl AnyTwine {
 impl PartialEq<Tixel> for AnyTwine {
   fn eq(&self, other: &Tixel) -> bool {
     match self {
-      Self::Tixel(t) => **t == *other,
+      Self::Tixel(t) => *t == *other,
       _ => false,
     }
   }
@@ -97,7 +96,7 @@ impl PartialEq<AnyTwine> for Tixel {
 impl PartialEq<Strand> for AnyTwine {
   fn eq(&self, other: &Strand) -> bool {
     match self {
-      Self::Strand(s) => **s == *other,
+      Self::Strand(s) => *s == *other,
       _ => false,
     }
   }
@@ -109,7 +108,7 @@ impl PartialEq<AnyTwine> for Strand {
   }
 }
 
-impl TryFrom<AnyTwine> for Arc<Tixel> {
+impl TryFrom<AnyTwine> for Tixel {
   type Error = VerificationError;
 
   fn try_from(t: AnyTwine) -> Result<Self, Self::Error> {
@@ -123,16 +122,7 @@ impl TryFrom<AnyTwine> for Arc<Tixel> {
   }
 }
 
-impl TryFrom<AnyTwine> for Tixel {
-  type Error = VerificationError;
-
-  fn try_from(t: AnyTwine) -> Result<Self, Self::Error> {
-    let t = Arc::<Tixel>::try_from(t)?;
-    Ok(t.as_ref().clone())
-  }
-}
-
-impl TryFrom<AnyTwine> for Arc<Strand> {
+impl TryFrom<AnyTwine> for Strand {
   type Error = VerificationError;
 
   fn try_from(s: AnyTwine) -> Result<Self, Self::Error> {
@@ -146,18 +136,9 @@ impl TryFrom<AnyTwine> for Arc<Strand> {
   }
 }
 
-impl TryFrom<AnyTwine> for Strand {
-  type Error = VerificationError;
-
-  fn try_from(s: AnyTwine) -> Result<Self, Self::Error> {
-    let s = Arc::<Strand>::try_from(s)?;
-    Ok(s.as_ref().clone())
-  }
-}
-
 impl From<Strand> for AnyTwine {
   fn from(s: Strand) -> Self {
-    Self::Strand(Arc::new(s))
+    Self::Strand(s)
   }
 }
 
@@ -169,18 +150,6 @@ impl From<Twine> for AnyTwine {
 
 impl From<Tixel> for AnyTwine {
   fn from(t: Tixel) -> Self {
-    Self::Tixel(Arc::new(t))
-  }
-}
-
-impl From<Arc<Strand>> for AnyTwine {
-  fn from(s: Arc<Strand>) -> Self {
-    Self::Strand(s)
-  }
-}
-
-impl From<Arc<Tixel>> for AnyTwine {
-  fn from(t: Arc<Tixel>) -> Self {
     Self::Tixel(t)
   }
 }
@@ -259,14 +228,14 @@ impl TwineBlock for AnyTwine {
   }
 
   /// Encode to raw bytes
-  fn bytes(&self) -> Arc<[u8]> {
+  fn bytes(&self) -> std::sync::Arc<[u8]> {
     match self {
       Self::Strand(s) => s.bytes(),
       Self::Tixel(t) => t.bytes(),
     }
   }
 
-  fn content_bytes(&self) -> Arc<[u8]> {
+  fn content_bytes(&self) -> std::sync::Arc<[u8]> {
     match self {
       Self::Strand(s) => s.content_bytes(),
       Self::Tixel(t) => t.content_bytes(),

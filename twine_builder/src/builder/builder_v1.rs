@@ -1,5 +1,4 @@
 use super::*;
-use std::sync::Arc;
 use twine_core::{
   errors::{SpecificationError, VerificationError}, ipld_core::{codec::Codec, serde::to_ipld}, multihash_codetable::{Code, MultihashDigest}, semver::Version, skiplist::get_layer_pos, specification::Subspec, twine::{
     CrossStitches,
@@ -14,7 +13,7 @@ use biscuit::jwk::JWK;
 
 pub struct TixelBuilder<'a, 'b, S: Signer<Key = JWK<()>>> {
   signer: &'a S,
-  strand: Arc<Strand>,
+  strand: Strand,
   prev: Option<&'b Twine>,
   stitches: CrossStitches,
   payload: Ipld,
@@ -22,7 +21,7 @@ pub struct TixelBuilder<'a, 'b, S: Signer<Key = JWK<()>>> {
 }
 
 impl <'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
-  pub fn new_first(signer: &'a S, strand: Arc<Strand>) -> Self {
+  pub fn new_first(signer: &'a S, strand: Strand) -> Self {
     Self {
       signer,
       strand,
@@ -150,7 +149,7 @@ impl <'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
 
     let container = ContainerV1::<PulseContentV1>::new_from_parts(hasher, Verified::try_new(content)?, signature);
     let tixel = Tixel::try_new(container)?;
-    Ok(Twine::try_new_from_shared(self.strand, Arc::new(tixel))?)
+    Ok(Twine::try_new(self.strand, tixel)?)
   }
 }
 

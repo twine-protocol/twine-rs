@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::sync::Arc;
 use futures::{Stream, StreamExt, TryStreamExt};
 use async_trait::async_trait;
 use crate::Cid;
@@ -85,7 +84,7 @@ pub trait Resolver: BaseResolver {
     let (strand, tixel) = join!(self.fetch_strand(strand_cid), self.fetch_latest(strand_cid));
     TwineResolution::try_new(
       SingleQuery::Latest(*strand_cid),
-      Twine::try_new_from_shared(strand?, tixel?)?
+      Twine::try_new(strand?, tixel?)?
     )
   }
 
@@ -95,7 +94,7 @@ pub trait Resolver: BaseResolver {
     let (strand, tixel) = join!(self.fetch_strand(strand_cid), self.fetch_index(strand_cid, index));
     TwineResolution::try_new(
       SingleQuery::Index(*strand_cid, index as i64),
-      Twine::try_new_from_shared(strand?, tixel?)?
+      Twine::try_new(strand?, tixel?)?
     )
   }
 
@@ -106,7 +105,7 @@ pub trait Resolver: BaseResolver {
     let (strand, tixel) = join!(self.fetch_strand(strand_cid), self.fetch_tixel(strand_cid, tixel_cid));
     TwineResolution::try_new(
       SingleQuery::Stitch((*strand_cid, *tixel_cid).into()),
-      Twine::try_new_from_shared(strand?, tixel?)?
+      Twine::try_new(strand?, tixel?)?
     )
   }
 
@@ -146,7 +145,7 @@ pub trait Resolver: BaseResolver {
           if tixel.index() != range.start {
             return Err(ResolutionError::Fetch(format!("index mismatch (expected: {}, got: {})", tixel.index(), range.start)));
           }
-          Twine::try_new_from_shared(latest.strand(), tixel).map_err(|e| e.into())
+          Twine::try_new(latest.strand(), tixel).map_err(|e| e.into())
         }
       });
       #[cfg(target_arch = "wasm32")]
@@ -170,7 +169,7 @@ pub trait Resolver: BaseResolver {
         if tixel.index() != q.unwrap_index() as u64 {
           return Err(ResolutionError::Fetch(format!("index mismatch (expected: {}, got: {})", q.unwrap_index(), tixel.index())));
         }
-        Twine::try_new_from_shared(latest.strand(), tixel)
+        Twine::try_new(latest.strand(), tixel)
           .map_err(|e| e.into())
       });
     #[cfg(target_arch = "wasm32")]
@@ -187,7 +186,7 @@ pub trait Resolver: BaseResolver {
     }
   }
 
-  async fn strands<'a>(&'a self) -> Result<TwineStream<'a, Arc<Strand>>, ResolutionError> {
+  async fn strands<'a>(&'a self) -> Result<TwineStream<'a, Strand>, ResolutionError> {
     self.fetch_strands().await
   }
 
@@ -211,27 +210,27 @@ impl<T> BaseResolver for T where T: AsRef<dyn BaseResolver> + BaseResolverBounds
     self.as_ref().has_strand(cid).await
   }
 
-  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Tixel, ResolutionError> {
     self.as_ref().fetch_latest(strand).await
   }
 
-  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError> {
     self.as_ref().fetch_index(strand, index).await
   }
 
-  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Tixel, ResolutionError> {
     self.as_ref().fetch_tixel(strand, tixel).await
   }
 
-  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Strand, ResolutionError> {
     self.as_ref().fetch_strand(strand).await
   }
 
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<TwineStream<'a, Arc<Tixel>>, ResolutionError> {
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<TwineStream<'a, Tixel>, ResolutionError> {
     self.as_ref().range_stream(range).await
   }
 
-  async fn fetch_strands<'a>(&'a self) -> Result<TwineStream<'a, Arc<Strand>>, ResolutionError> {
+  async fn fetch_strands<'a>(&'a self) -> Result<TwineStream<'a, Strand>, ResolutionError> {
     self.as_ref().fetch_strands().await
   }
 }
@@ -331,7 +330,7 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
     Ok(res)
   }
 
-  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Tixel, ResolutionError> {
     let tasks = self.iter().map(|r| r.fetch_latest(strand))
       .collect::<Vec<_>>();
     let results = futures::future::join_all(tasks).await.into_iter()
@@ -346,7 +345,7 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
     }
   }
 
-  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError> {
     for resolver in self.iter() {
       if let Ok(tixel) = resolver.fetch_index(strand, index).await {
         return Ok(tixel);
@@ -355,7 +354,7 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
     Err(ResolutionError::NotFound)
   }
 
-  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Tixel, ResolutionError> {
     for resolver in self.iter() {
       if let Ok(t) = resolver.fetch_tixel(strand, tixel).await {
         return Ok(t);
@@ -364,7 +363,7 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
     Err(ResolutionError::NotFound)
   }
 
-  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Strand, ResolutionError> {
     for resolver in self.iter() {
       if let Ok(s) = resolver.fetch_strand(strand).await {
         return Ok(s);
@@ -373,7 +372,7 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
     Err(ResolutionError::NotFound)
   }
 
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<TwineStream<'a, Arc<Tixel>>, ResolutionError> {
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<TwineStream<'a, Tixel>, ResolutionError> {
     for resolver in self.iter() {
       // TODO: should find a way to merge streams
       if resolver.has_index(range.strand_cid(), range.start).await? {
@@ -385,7 +384,7 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
     Err(ResolutionError::NotFound)
   }
 
-  async fn fetch_strands<'a>(&'a self) -> Result<TwineStream<'a, Arc<Strand>>, ResolutionError> {
+  async fn fetch_strands<'a>(&'a self) -> Result<TwineStream<'a, Strand>, ResolutionError> {
     let s = futures::stream::iter(self.iter())
       .map(|r| r.fetch_strands())
       .buffered(10)

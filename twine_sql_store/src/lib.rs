@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use futures::stream::Stream;
 use twine_core::as_cid::AsCid;
 use twine_core::twine::AnyTwine;
-use std::sync::Arc;
 use twine_core::errors::{ResolutionError, StoreError};
 use twine_core::{twine::{Strand, Tixel}, Cid};
 use twine_core::resolver::{unchecked_base, Resolver};
@@ -100,7 +99,7 @@ impl unchecked_base::BaseResolver for SqlStore {
     }
   }
 
-  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Tixel, ResolutionError> {
     match self {
       #[cfg(feature = "sqlite")]
       SqlStore::Sqlite(store) => store.fetch_latest(strand).await,
@@ -111,7 +110,7 @@ impl unchecked_base::BaseResolver for SqlStore {
     }
   }
 
-  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError> {
     match self {
       #[cfg(feature = "sqlite")]
       SqlStore::Sqlite(store) => store.fetch_index(strand, index).await,
@@ -122,7 +121,7 @@ impl unchecked_base::BaseResolver for SqlStore {
     }
   }
 
-  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Tixel, ResolutionError> {
     match self {
       #[cfg(feature = "sqlite")]
       SqlStore::Sqlite(store) => store.fetch_tixel(strand, tixel).await,
@@ -133,7 +132,7 @@ impl unchecked_base::BaseResolver for SqlStore {
     }
   }
 
-  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Strand, ResolutionError> {
     match self {
       #[cfg(feature = "sqlite")]
       SqlStore::Sqlite(store) => store.fetch_strand(strand).await,
@@ -144,7 +143,7 @@ impl unchecked_base::BaseResolver for SqlStore {
     }
   }
 
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<unchecked_base::TwineStream<'a, Arc<Tixel>>, ResolutionError> {
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<unchecked_base::TwineStream<'a, Tixel>, ResolutionError> {
     match self {
       #[cfg(feature = "sqlite")]
       SqlStore::Sqlite(store) => store.range_stream(range).await,
@@ -155,7 +154,7 @@ impl unchecked_base::BaseResolver for SqlStore {
     }
   }
 
-  async fn fetch_strands<'a>(&'a self) -> Result<unchecked_base::TwineStream<'a, Arc<Strand>>, ResolutionError> {
+  async fn fetch_strands<'a>(&'a self) -> Result<unchecked_base::TwineStream<'a, Strand>, ResolutionError> {
     match self {
       #[cfg(feature = "sqlite")]
       SqlStore::Sqlite(store) => store.fetch_strands().await,

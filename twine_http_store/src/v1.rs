@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use futures::{Stream, TryStreamExt};
 use reqwest::{header::{ACCEPT, CONTENT_TYPE}, StatusCode, Url};
-use std::sync::Arc;
 use twine_core::{as_cid::AsCid, car::from_car_bytes, errors::*, resolver::{unchecked_base::TwineStream, AbsoluteRange, MaybeSend, Resolver}, store::Store, twine::{TwineBlock, *}, Cid};
 use twine_core::resolver::unchecked_base::BaseResolver;
 
@@ -129,10 +128,10 @@ impl HttpStore {
       .header(CONTENT_TYPE, "application/json")
   }
 
-  async fn get_tixel(&self, path: &str) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn get_tixel(&self, path: &str) -> Result<Tixel, ResolutionError> {
     let response = self.send(self.req(&path)).await?;
     let tixel = self.parse(response).await?.try_into()?;
-    Ok(Arc::new(tixel))
+    Ok(tixel)
   }
 
   async fn fetch_tixel_range(&self, strand: &Cid, upper: u64, lower: u64) -> Result<reqwest::Response, ResolutionError> {
@@ -224,30 +223,30 @@ impl BaseResolver for HttpStore {
     }
   }
 
-  async fn fetch_strands(&self) -> Result<TwineStream<'_, Arc<Strand>>, ResolutionError> {
+  async fn fetch_strands(&self) -> Result<TwineStream<'_, Strand>, ResolutionError> {
     let response = self.send(self.req("chains")).await?;
     use futures::stream::StreamExt;
     let stream = self.parse_collection_response(response).await?;
     let stream = stream.map(|t| {
-      let strand = Arc::<Strand>::try_from(t?)?;
+      let strand = Strand::try_from(t?)?;
       Ok(strand)
     });
     Ok(stream.boxed())
   }
 
-  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Strand, ResolutionError> {
     let cid = strand.as_cid();
     let path = format!("chains/{}", cid);
     let response = self.send(self.req(&path)).await?;
     Ok(self.parse_expect(cid, response).await?.try_into()?)
   }
 
-  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Tixel, ResolutionError> {
     let path = format!("chains/{}/pulses/{}", strand.as_cid(), tixel.as_cid());
     self.get_tixel(&path).await
   }
 
-  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError> {
     let path = format!("chains/{}/pulses/{}", strand.as_cid(), index);
     let tixel = self.get_tixel(&path).await?;
     if tixel.index() != index {
@@ -256,13 +255,13 @@ impl BaseResolver for HttpStore {
     Ok(tixel)
   }
 
-  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Tixel, ResolutionError> {
     let path = format!("chains/{}/pulses/latest", strand.as_cid());
     let tixel = self.get_tixel(&path).await?;
     Ok(tixel)
   }
 
-  async fn range_stream(&self, range: AbsoluteRange) -> Result<TwineStream<'_, Arc<Tixel>>, ResolutionError> {
+  async fn range_stream(&self, range: AbsoluteRange) -> Result<TwineStream<'_, Tixel>, ResolutionError> {
     use futures::stream::StreamExt;
     let decreasing = range.is_decreasing();
 
@@ -284,7 +283,7 @@ impl BaseResolver for HttpStore {
       .try_flatten()
       .then(|t| async {
         let t = t?;
-        let t = Arc::<Tixel>::try_from(t)?;
+        let t = Tixel::try_from(t)?;
         Ok(t)
       });
 
@@ -352,7 +351,7 @@ impl Store for HttpStore {
         ).await;
         handle_save_result(res)
       })
-      .try_collect().await?;
+      .try_for_each(|_| async { Ok(()) }).await?;
     }
     Ok(())
   }

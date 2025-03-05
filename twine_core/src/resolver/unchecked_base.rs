@@ -24,10 +24,10 @@ pub trait BaseResolver: BaseResolverBounds {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError>;
   async fn has_twine(&self, strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError>;
   async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError>;
-  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError>;
-  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError>;
-  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError>;
-  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError>;
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<TwineStream<'a, Arc<Tixel>>, ResolutionError>;
-  async fn fetch_strands<'a>(&'a self) -> Result<TwineStream<'a, Arc<Strand>>, ResolutionError>;
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Tixel, ResolutionError>;
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError>;
+  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Tixel, ResolutionError>;
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Strand, ResolutionError>;
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<TwineStream<'a, Tixel>, ResolutionError>;
+  async fn fetch_strands<'a>(&'a self) -> Result<TwineStream<'a, Strand>, ResolutionError>;
 }

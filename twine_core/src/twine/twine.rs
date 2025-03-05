@@ -1,35 +1,26 @@
 use std::{ops::Deref, fmt::Display};
 use crate::Cid;
 use semver::Version;
-use std::sync::Arc;
 
 use crate::{as_cid::AsCid, errors::VerificationError, specification::Subspec, twine::{Strand, Tixel}};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Twine {
-  // so we have the option of not duplicating immutable data
-  strand: Arc<Strand>,
-  tixel: Arc<Tixel>,
+  strand: Strand,
+  tixel: Tixel,
 }
 
 impl Twine {
   pub fn try_new(strand: Strand, tixel: Tixel) -> Result<Self, VerificationError> {
     strand.verify_tixel(&tixel)?;
-    let strand = Arc::new(strand);
-    let tixel = Arc::new(tixel);
     Ok(Self { strand, tixel })
   }
 
-  pub fn try_new_from_shared(strand: Arc<Strand>, tixel: Arc<Tixel>) -> Result<Self, VerificationError> {
-    strand.verify_tixel(&tixel)?;
-    Ok(Self { strand, tixel })
-  }
-
-  pub fn strand(&self) -> Arc<Strand> {
+  pub fn strand(&self) -> Strand {
     self.strand.clone()
   }
 
-  pub fn tixel(&self) -> Arc<Tixel> {
+  pub fn tixel(&self) -> Tixel {
     self.tixel.clone()
   }
 
@@ -82,13 +73,13 @@ impl AsCid for Twine {
 
 impl PartialEq<Tixel> for Twine {
   fn eq(&self, other: &Tixel) -> bool {
-    (*self.tixel).eq(other)
+    self.tixel.eq(other)
   }
 }
 
 impl PartialEq<Twine> for Tixel {
   fn eq(&self, other: &Twine) -> bool {
-    self.eq(&*other.tixel)
+    self.eq(&other.tixel)
   }
 }
 

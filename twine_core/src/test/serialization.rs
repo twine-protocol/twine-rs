@@ -106,18 +106,6 @@ fn test_twine() {
 }
 
 #[test]
-fn test_shared_twine() {
-  use std::sync::Arc;
-  let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
-  let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
-  let strand = Arc::new(strand);
-  let tixel = Arc::new(tixel);
-  let twine = Twine::try_new_from_shared(strand.clone(), tixel.clone()).unwrap();
-  let _other = Twine::try_new_from_shared(strand.clone(), tixel).unwrap();
-  assert_eq!(twine.previous(), twine.back_stitches().first().copied());
-}
-
-#[test]
 fn test_null_payload(){
   let ipld = ipld!({
     "payload": {

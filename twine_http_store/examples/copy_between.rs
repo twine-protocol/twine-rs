@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use futures::{StreamExt, TryStreamExt};
 // use tokio::pin;
 use twine_core::twine::Strand;
@@ -28,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   println!("strands:");
   let strands = resolver.strands().await?;
-  let strands: Vec<Arc<Strand>> = strands.inspect_ok(|strand| {
+  let strands: Vec<Strand> = strands.inspect_ok(|strand| {
     println!("> cid: {}\n> description: {:?}",
       strand.cid(),
       strand.details().get("description").unwrap()
@@ -39,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   })
   .try_collect().await?;
 
-  let strand = &(*strands[0]);
+  let strand = &strands[0];
   // check if the strand is already in the store
   if !store.has(strand.clone()).await? {
     store.save(strand.clone()).await?;

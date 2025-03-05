@@ -14,12 +14,12 @@ use std::sync::RwLock;
 
 #[derive(Debug, Clone)]
 struct StrandMap {
-  strand: Arc<Strand>,
-  by_index: BTreeMap<u64, Arc<Tixel>>,
+  strand: Strand,
+  by_index: BTreeMap<u64, Tixel>,
 }
 
 impl StrandMap {
-  fn new(strand: Arc<Strand>) -> Self {
+  fn new(strand: Strand) -> Self {
     Self {
       strand,
       by_index: BTreeMap::new(),
@@ -29,7 +29,7 @@ impl StrandMap {
 
 #[derive(Debug, Default, Clone)]
 pub struct MemoryStore {
-  tixels: Arc<RwLock<HashMap<Cid, Arc<Tixel>>>>,
+  tixels: Arc<RwLock<HashMap<Cid, Tixel>>>,
   strands: Arc<RwLock<HashMap<Cid, StrandMap>>>,
 }
 
@@ -78,18 +78,18 @@ impl BaseResolver for MemoryStore {
     Ok(self.strands.read().unwrap().contains_key(cid))
   }
 
-  async fn fetch_strands<'a>(&'a self) -> Result<unchecked_base::TwineStream<'a, Arc<Strand>>, ResolutionError> {
+  async fn fetch_strands<'a>(&'a self) -> Result<unchecked_base::TwineStream<'a, Strand>, ResolutionError> {
     let iter = self.strands.read().unwrap()
       .values()
       .map(|s| Ok(s.strand.clone()))
-      .collect::<Vec<Result<Arc<Strand>, ResolutionError>>>();
+      .collect::<Vec<Result<Strand, ResolutionError>>>();
 
     use futures::stream::StreamExt;
     let stream = futures::stream::iter(iter);
     Ok(stream.boxed())
   }
 
-  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Strand, ResolutionError> {
     let cid = strand.as_cid();
     if let Some(s) = self.strands.read().unwrap().get(&cid) {
       Ok(s.strand.clone())
@@ -98,7 +98,7 @@ impl BaseResolver for MemoryStore {
     }
   }
 
-  async fn fetch_tixel(&self, _strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_tixel(&self, _strand: &Cid, tixel: &Cid) -> Result<Tixel, ResolutionError> {
     let cid = tixel.as_cid();
     if let Some(t) = self.tixels.read().unwrap().get(&cid) {
       Ok(t.clone())
@@ -107,7 +107,7 @@ impl BaseResolver for MemoryStore {
     }
   }
 
-  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError> {
     let cid = strand.as_cid();
     if let Some(s) = self.strands.read().unwrap().get(&cid) {
       if let Some(tixel) = s.by_index.get(&index) {
@@ -120,7 +120,7 @@ impl BaseResolver for MemoryStore {
     }
   }
 
-  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Tixel, ResolutionError> {
     let cid = strand.as_cid();
     if let Some(s) = self.strands.read().unwrap().get(&cid) {
       if let Some((_index, tixel)) = s.by_index.last_key_value() {
@@ -133,13 +133,13 @@ impl BaseResolver for MemoryStore {
     }
   }
 
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<unchecked_base::TwineStream<'a, Arc<Tixel>>, ResolutionError> {
+  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<unchecked_base::TwineStream<'a, Tixel>, ResolutionError> {
     use futures::stream::StreamExt;
     if let Some(entry) = self.strands.read().unwrap().get(range.strand_cid()) {
       let list = range.into_iter()
         .map(|q| entry.by_index.get(&(q.unwrap_index() as u64)).cloned())
         .map(|t| t.ok_or(ResolutionError::NotFound))
-        .collect::<Vec<Result<Arc<Tixel>, ResolutionError>>>();
+        .collect::<Vec<Result<Tixel, ResolutionError>>>();
       let stream = futures::stream::iter(list);
       Ok(stream.boxed())
     } else {
@@ -205,8 +205,8 @@ mod test {
     store.save(tixel.clone()).await.unwrap();
     let strand2 = store.fetch_strand(&strand.cid()).await.unwrap();
     let tixel2 = store.fetch_tixel(&strand2.cid(), &tixel.cid()).await.unwrap();
-    assert_eq!(strand, *strand2);
-    assert_eq!(tixel, *tixel2);
+    assert_eq!(strand, strand2);
+    assert_eq!(tixel, tixel2);
     store.delete(strand.cid()).await.unwrap();
     store.delete(tixel.cid()).await.unwrap();
     assert!(store.fetch_strand(&strand.cid()).await.is_err());
@@ -222,8 +222,8 @@ mod test {
     store.save_many(things).await.unwrap();
     let strand2 = store.fetch_strand(&strand.cid()).await.unwrap();
     let tixel2 = store.fetch_tixel(&strand2.cid(), &tixel.cid()).await.unwrap();
-    assert_eq!(strand, *strand2);
-    assert_eq!(tixel, *tixel2);
+    assert_eq!(strand, strand2);
+    assert_eq!(tixel, tixel2);
     store.delete(strand.cid()).await.unwrap();
     store.delete(tixel.cid()).await.unwrap();
     assert!(store.fetch_strand(&strand.cid()).await.is_err());
@@ -238,7 +238,7 @@ mod test {
     let mut stream = store.strands().await.unwrap();
     use futures::stream::TryStreamExt;
     let strand2 = stream.try_next().await.unwrap().unwrap();
-    assert_eq!(strand, *strand2);
+    assert_eq!(strand, strand2);
   }
 
   #[tokio::test]

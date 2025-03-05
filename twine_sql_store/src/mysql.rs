@@ -4,7 +4,6 @@ use futures::stream::{StreamExt, TryStreamExt};
 use twine_core::as_cid::AsCid;
 use twine_core::twine::{AnyTwine, TwineBlock};
 use std::pin::Pin;
-use std::sync::Arc;
 use twine_core::errors::{ResolutionError, StoreError};
 use twine_core::{twine::{Strand, Tixel}, Cid};
 use twine_core::resolver::{unchecked_base, Resolver};
@@ -27,7 +26,7 @@ impl MysqlStore {
     Ok(Self::new(pool))
   }
 
-  async fn all_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn all_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Strand, ResolutionError>> + Send + '_>>, ResolutionError> {
     let query = "SELECT cid, data FROM Strands LIMIT 10 OFFSET ?";
 
     let stream = unfold(0, move |offset| {
@@ -42,7 +41,7 @@ impl MysqlStore {
           .map_err(to_resolution_error)
           .map_ok(|(cid, data)| {
             let cid = Cid::try_from(cid).map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-            Ok::<_, ResolutionError>(Arc::new(Strand::from_block(cid, data)?))
+            Ok::<_, ResolutionError>(Strand::from_block(cid, data)?)
           })
           .try_collect()
           .await;
@@ -61,7 +60,7 @@ impl MysqlStore {
     Ok(stream)
   }
 
-  async fn get_strand(&self, cid: &Cid) -> Result<Arc<Strand>, ResolutionError> {
+  async fn get_strand(&self, cid: &Cid) -> Result<Strand, ResolutionError> {
     let query = "SELECT cid, data FROM Strands WHERE cid = ?";
 
     let mut conn = self.pool.acquire().await.map_err(to_resolution_error)?;
@@ -73,7 +72,7 @@ impl MysqlStore {
       .map_err(to_resolution_error)?;
 
     let cid = Cid::try_from(block.0).map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-    Ok(Arc::new(Strand::from_block(cid, block.1)?))
+    Ok(Strand::from_block(cid, block.1)?)
   }
 
   async fn has_tixel(&self, cid: &Cid) -> Result<bool, ResolutionError> {
@@ -123,7 +122,7 @@ impl MysqlStore {
     }
   }
 
-  async fn get_tixel(&self, cid: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn get_tixel(&self, cid: &Cid) -> Result<Tixel, ResolutionError> {
     let query = "SELECT cid, data FROM Tixels WHERE cid = ?";
 
     let mut conn = self.pool.acquire().await.map_err(to_resolution_error)?;
@@ -135,10 +134,10 @@ impl MysqlStore {
       .map_err(to_resolution_error)?;
 
     let cid = Cid::try_from(block.0).map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-    Ok(Arc::new(Tixel::from_block(cid, block.1)?))
+    Ok(Tixel::from_block(cid, block.1)?)
   }
 
-  async fn get_tixel_by_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn get_tixel_by_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError> {
     let query = "SELECT t.cid, t.data FROM Tixels t JOIN Strands s ON t.strand = s.id WHERE s.cid = ? AND t.idx = ?";
 
     let mut conn = self.pool.acquire().await.map_err(to_resolution_error)?;
@@ -151,10 +150,10 @@ impl MysqlStore {
       .map_err(to_resolution_error)?;
 
     let cid = Cid::try_from(block.0).map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-    Ok(Arc::new(Tixel::from_block(cid, block.1)?))
+    Ok(Tixel::from_block(cid, block.1)?)
   }
 
-  async fn latest_tixel(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn latest_tixel(&self, strand: &Cid) -> Result<Tixel, ResolutionError> {
     let query = "SELECT t.cid, t.data FROM Tixels t JOIN Strands s ON t.strand = s.id WHERE s.cid = ? ORDER BY t.idx DESC LIMIT 1";
 
     let mut conn = self.pool.acquire().await.map_err(to_resolution_error)?;
@@ -166,7 +165,7 @@ impl MysqlStore {
       .map_err(to_resolution_error)?;
 
     let cid = Cid::try_from(block.0).map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-    Ok(Arc::new(Tixel::from_block(cid, block.1)?))
+    Ok(Tixel::from_block(cid, block.1)?)
   }
 
   async fn save_strand(&self, strand: &Strand) -> Result<(), StoreError> {
@@ -276,7 +275,7 @@ impl MysqlStore {
 #[async_trait]
 impl unchecked_base::BaseResolver for MysqlStore {
 
-  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Strand>, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Strand, ResolutionError>> + Send + '_>>, ResolutionError> {
     self.all_strands().await
   }
 
@@ -298,23 +297,23 @@ impl unchecked_base::BaseResolver for MysqlStore {
     self.has_tixel(cid).await
   }
 
-  async fn fetch_strand(&self, strand: &Cid) -> Result<Arc<Strand>, ResolutionError> {
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Strand, ResolutionError> {
     self.get_strand(strand).await
   }
 
-  async fn fetch_tixel(&self, _strand: &Cid, tixel: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_tixel(&self, _strand: &Cid, tixel: &Cid) -> Result<Tixel, ResolutionError> {
     self.get_tixel(tixel).await
   }
 
-  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError> {
     self.get_tixel_by_index(strand, index).await
   }
 
-  async fn fetch_latest(&self, strand: &Cid) -> Result<Arc<Tixel>, ResolutionError> {
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Tixel, ResolutionError> {
     self.latest_tixel(strand).await
   }
 
-  async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Arc<Tixel>, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Tixel, ResolutionError>> + Send + '_>>, ResolutionError> {
     let batches = range.batches(100);
     let stream = unfold(batches.into_iter(), move |mut batches| {
       async move {
@@ -337,7 +336,7 @@ impl unchecked_base::BaseResolver for MysqlStore {
           .map_err(to_resolution_error)
           .map_ok(|(cid, data)| {
             let cid = Cid::try_from(cid).map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-            Ok::<_, ResolutionError>(Arc::new(Tixel::from_block(cid, data)?))
+            Ok::<_, ResolutionError>(Tixel::from_block(cid, data)?)
           })
           .try_collect()
           .await;

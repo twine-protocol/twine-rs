@@ -78,11 +78,11 @@ impl AsCid for TwineResolution {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StrandResolution {
   cid: Cid,
-  strand: Arc<Strand>,
+  strand: Strand,
 }
 
 impl StrandResolution {
-  pub fn try_new(cid: Cid, strand: Arc<Strand>) -> Result<Self, ResolutionError> {
+  pub fn try_new(cid: Cid, strand: Strand) -> Result<Self, ResolutionError> {
     if cid != strand.cid() {
       return Err(VerificationError::CidMismatch{
         expected: cid.to_string(),
@@ -100,7 +100,7 @@ impl StrandResolution {
     &self.strand
   }
 
-  pub fn unpack(self) -> Arc<Strand> {
+  pub fn unpack(self) -> Strand {
     self.strand
   }
 }
@@ -113,19 +113,19 @@ impl Deref for StrandResolution {
   }
 }
 
-impl From<StrandResolution> for Arc<Strand> {
+impl From<StrandResolution> for Strand {
   fn from(resolution: StrandResolution) -> Self {
     resolution.strand
   }
 }
 
-impl PartialEq<Arc<Strand>> for StrandResolution {
-  fn eq(&self, other: &Arc<Strand>) -> bool {
+impl PartialEq<Strand> for StrandResolution {
+  fn eq(&self, other: &Strand) -> bool {
     self.strand == *other
   }
 }
 
-impl PartialEq<StrandResolution> for Arc<Strand> {
+impl PartialEq<StrandResolution> for Strand {
   fn eq(&self, other: &StrandResolution) -> bool {
     *self == other.strand
   }

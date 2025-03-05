@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use twine_core::{
   crypto::PublicKey, errors::{SpecificationError, VerificationError}, twine::{
     Strand,
@@ -46,7 +45,7 @@ impl<S: Signer<Key = JWK<()>>> TwineBuilder<1, S> {
   }
 
   pub fn build_first<'a>(&'a self, strand: Strand) -> builder_v1::TixelBuilder<'a, 'a, S> {
-    builder_v1::TixelBuilder::new_first(&self.signer, Arc::new(strand))
+    builder_v1::TixelBuilder::new_first(&self.signer, strand)
   }
 
   pub fn build_next<'a, 'b>(&'a self, prev: &'b Twine) -> builder_v1::TixelBuilder<'a, 'b, S> {
@@ -60,7 +59,7 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
   }
 
   pub fn build_first<'a>(&'a self, strand: Strand) -> builder_v2::TixelBuilder<'a, 'a, S> {
-    builder_v2::TixelBuilder::new_first(&self.signer, Arc::new(strand))
+    builder_v2::TixelBuilder::new_first(&self.signer, strand)
   }
 
   pub fn build_next<'a, 'b>(&'a self, prev: &'b Twine) -> builder_v2::TixelBuilder<'a, 'b, S> {
@@ -72,6 +71,7 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
 #[allow(deprecated)]
 #[cfg(test)]
 mod testv1 {
+  use std::sync::Arc;
   use biscuit::jws::Secret;
   use crate::BiscuitSigner;
   use twine_core::ipld_core::ipld;
