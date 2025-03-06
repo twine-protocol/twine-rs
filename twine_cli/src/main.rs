@@ -1,16 +1,16 @@
+use anyhow::Result;
 use clap::Parser;
 use config::Config;
 use directories::ProjectDirs;
 use indicatif::MultiProgress;
 use simplelog::{ConfigBuilder, TermLogger};
-use anyhow::Result;
 
-mod config;
+pub(crate) mod cid_str;
 mod cli;
+mod config;
+mod prompt;
 mod selector;
 mod stores;
-mod prompt;
-pub(crate) mod cid_str;
 
 lazy_static::lazy_static! {
   pub(crate) static ref PROJECT_DIRS: ProjectDirs = ProjectDirs::from("rs", "twine", "twine_cli")
@@ -35,16 +35,14 @@ async fn main() -> Result<()> {
   };
   let config = {
     let mut c = ConfigBuilder::new();
-    c
-      .set_time_level(log::LevelFilter::Debug)
+    c.set_time_level(log::LevelFilter::Debug)
       .set_target_level(log::LevelFilter::Trace)
       .set_location_level(log::LevelFilter::Off)
       .set_max_level(log::LevelFilter::Debug);
 
     #[cfg(not(debug_assertions))]
     {
-      c
-        .add_filter_ignore_str("reqwest")
+      c.add_filter_ignore_str("reqwest")
         .add_filter_ignore_str("sled")
         .add_filter_ignore_str("hyper_util")
         .add_filter_ignore_str("tokio_util");
@@ -57,18 +55,15 @@ async fn main() -> Result<()> {
   let logger = TermLogger::new(log_level, config, mode, color_choice);
 
   let multi_progress = MultiProgress::new();
-  indicatif_log_bridge::LogWrapper::new(
-    multi_progress.clone(),
-    logger
-  ).try_init()?;
+  indicatif_log_bridge::LogWrapper::new(multi_progress.clone(), logger).try_init()?;
 
   let config = Config::load_local()?;
-  let result = cli.run(
-    Context {
+  let result = cli
+    .run(Context {
       multi_progress: multi_progress.clone(),
       cfg: config,
-    }
-  ).await;
+    })
+    .await;
 
   if let Err(e) = result {
     log::error!("Error: {}", e);

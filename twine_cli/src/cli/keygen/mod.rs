@@ -1,10 +1,9 @@
-use std::os::unix::fs::PermissionsExt;
-use clap::Parser;
-use anyhow::Result;
-use inquire::Select;
-use twine_builder::RingSigner;
 use crate::prompt::prompt_for_filename;
-
+use anyhow::Result;
+use clap::Parser;
+use inquire::Select;
+use std::os::unix::fs::PermissionsExt;
+use twine_builder::RingSigner;
 
 #[derive(Debug, Parser)]
 pub struct KeygenCommand {
@@ -30,8 +29,7 @@ impl KeygenCommand {
       "RSA4096 (sha512)",
     ];
 
-    let key_type = Select::new("Select key type", items)
-      .prompt()?;
+    let key_type = Select::new("Select key type", items).prompt()?;
 
     let signer = match key_type {
       "Ed25519" => RingSigner::generate_ed25519().map_err(|e| anyhow::anyhow!(e))?,
@@ -55,5 +53,4 @@ impl KeygenCommand {
 
     Ok(())
   }
-
 }

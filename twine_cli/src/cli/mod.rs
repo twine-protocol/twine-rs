@@ -1,11 +1,11 @@
 use anyhow::Result;
-use clap::{Subcommand, Parser};
+use clap::{Parser, Subcommand};
+mod check;
+mod create;
+mod init;
+mod keygen;
 mod list;
 mod sync;
-mod create;
-mod keygen;
-mod init;
-mod check;
 
 #[derive(Debug, Parser)]
 #[command(version, about)]
@@ -39,24 +39,12 @@ pub enum SubCommands {
 impl Cli {
   pub async fn run(&self, ctx: crate::Context) -> Result<()> {
     match &self.subcommand {
-      SubCommands::Ls(ls) => {
-        ls.run(ctx).await
-      },
-      SubCommands::Sync(sync) => {
-        sync.run(ctx).await
-      },
-      SubCommands::Create(create) => {
-        create.run(ctx).await
-      },
-      SubCommands::Keygen(keygen) => {
-        keygen.run(ctx).await
-      },
-      SubCommands::Init(init) => {
-        init.run(ctx).await
-      },
-      SubCommands::Check(check) => {
-        check.run(ctx).await
-      },
+      SubCommands::Ls(ls) => ls.run(ctx).await,
+      SubCommands::Sync(sync) => sync.run(ctx).await,
+      SubCommands::Create(create) => create.run(ctx).await,
+      SubCommands::Keygen(keygen) => keygen.run(ctx).await,
+      SubCommands::Init(init) => init.run(ctx).await,
+      SubCommands::Check(check) => check.run(ctx).await,
     }
   }
 }

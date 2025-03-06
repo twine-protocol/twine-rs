@@ -1,12 +1,12 @@
-use std::io::Read;
-use futures::Stream;
-use futures::stream::StreamExt;
-use rs_car_sync::CarReader;
-use crate::{errors::VerificationError, twine::AnyTwine, Cid};
-use ipld_core::codec::Codec;
-use serde_ipld_dagcbor::codec::DagCborCodec;
-use serde::{Deserialize, Serialize};
 use crate::twine::TwineBlock;
+use crate::{errors::VerificationError, twine::AnyTwine, Cid};
+use futures::stream::StreamExt;
+use futures::Stream;
+use ipld_core::codec::Codec;
+use rs_car_sync::CarReader;
+use serde::{Deserialize, Serialize};
+use serde_ipld_dagcbor::codec::DagCborCodec;
+use std::io::Read;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CarDecodeError {
@@ -42,52 +42,48 @@ pub struct CarHeader {
   pub roots: Vec<Cid>,
 }
 
-pub fn to_car_stream<I: TwineBlock, S: Stream<Item=I>>(stream: S, roots: Vec<Cid>) -> impl Stream<Item=Vec<u8>> {
-  let header = CarHeader {
-    version: 1,
-    roots,
-  };
+pub fn to_car_stream<I: TwineBlock, S: Stream<Item = I>>(
+  stream: S,
+  roots: Vec<Cid>,
+) -> impl Stream<Item = Vec<u8>> {
+  let header = CarHeader { version: 1, roots };
   let header_bytes = DagCborCodec::encode_to_vec(&header).unwrap();
   let mut buf = [0u8; U64_LEN];
   let (buf_ref, input_len) = encode_varint_u64(header_bytes.len() as u64, &mut buf);
   let (enc, _) = buf_ref.split_at(input_len);
-  let header = vec!(enc.to_vec(), header_bytes).concat();
+  let header = vec![enc.to_vec(), header_bytes].concat();
   let blocks = stream.map(|twine| {
     let cid = twine.cid();
     let bytes = twine.bytes();
     let mut buf = [0u8; U64_LEN];
     let (buf_ref, len) = encode_varint_u64((bytes.len() + cid.encoded_len()) as u64, &mut buf);
     let (enc, _) = buf_ref.split_at(len);
-    vec![
-      enc,
-      &cid.to_bytes(),
-      &bytes,
-    ].concat()
+    vec![enc, &cid.to_bytes(), &bytes].concat()
   });
-  futures::stream::iter(vec![header])
-    .chain(blocks)
+  futures::stream::iter(vec![header]).chain(blocks)
 }
 
 pub fn from_car_bytes<R: Read>(mut reader: &mut R) -> Result<Vec<AnyTwine>, CarDecodeError> {
   // block validation happens in twine creation
   let car_reader = CarReader::new(&mut reader, false)?;
-  car_reader.map(|result| -> Result<AnyTwine, CarDecodeError> {
-    let (cid, bytes) = result?;
-    let cid = Cid::read_bytes(&*cid.to_bytes()).expect("cid should be valid format");
-    let twine = AnyTwine::from_block(cid, bytes)?;
-    Ok(twine)
-  })
-  .collect()
+  car_reader
+    .map(|result| -> Result<AnyTwine, CarDecodeError> {
+      let (cid, bytes) = result?;
+      let cid = Cid::read_bytes(&*cid.to_bytes()).expect("cid should be valid format");
+      let twine = AnyTwine::from_block(cid, bytes)?;
+      Ok(twine)
+    })
+    .collect()
 }
 
 #[cfg(test)]
 mod test {
   use super::*;
-  use futures::io::Cursor;
-  use std::error::Error;
-  use rs_car::CarReader;
-  use crate::twine::*;
   use crate::test::STRANDJSON;
+  use crate::twine::*;
+  use futures::io::Cursor;
+  use rs_car::CarReader;
+  use std::error::Error;
 
   #[tokio::test]
   async fn test_to_car_stream() -> Result<(), Box<dyn Error>> {

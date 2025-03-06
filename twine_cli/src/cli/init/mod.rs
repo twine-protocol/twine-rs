@@ -1,12 +1,11 @@
-use std::{collections::HashMap, path::PathBuf};
-use clap::Parser;
-use anyhow::Result;
-use inquire::Select;
 use crate::{prompt::prompt_for_directory, stores::StoreUri};
+use anyhow::Result;
+use clap::Parser;
+use inquire::Select;
+use std::{collections::HashMap, path::PathBuf};
 
 #[derive(Debug, Parser)]
-pub struct InitCommand {
-}
+pub struct InitCommand {}
 
 impl InitCommand {
   pub async fn run(&self, ctx: crate::Context) -> Result<()> {
@@ -36,29 +35,32 @@ impl InitCommand {
       ("Car", StoreType::Car),
     ]);
 
-    let store_type = Select::new("Select store type", store_types.keys().cloned().collect())
-      .prompt()?;
+    let store_type =
+      Select::new("Select store type", store_types.keys().cloned().collect()).prompt()?;
 
     let store_path = prompt_for_directory("Path to store data:", "./")?;
 
     let store_cfg = match store_types.get(&store_type).unwrap() {
-      StoreType::Car => {
-        StoreUri {
-          scheme: "car".to_string(),
-          path: PathBuf::from(store_path).join("store.car").to_string_lossy().to_string(),
-        }
+      StoreType::Car => StoreUri {
+        scheme: "car".to_string(),
+        path: PathBuf::from(store_path)
+          .join("store.car")
+          .to_string_lossy()
+          .to_string(),
       },
-      StoreType::Sled => {
-        StoreUri {
-          scheme: "sled".to_string(),
-          path: PathBuf::from(store_path).join("store.sled").to_string_lossy().to_string(),
-        }
+      StoreType::Sled => StoreUri {
+        scheme: "sled".to_string(),
+        path: PathBuf::from(store_path)
+          .join("store.sled")
+          .to_string_lossy()
+          .to_string(),
       },
-      StoreType::PickleDb => {
-        StoreUri {
-          scheme: "pickledb".to_string(),
-          path: PathBuf::from(store_path).join("store.pickle").to_string_lossy().to_string(),
-        }
+      StoreType::PickleDb => StoreUri {
+        scheme: "pickledb".to_string(),
+        path: PathBuf::from(store_path)
+          .join("store.pickle")
+          .to_string_lossy()
+          .to_string(),
       },
     };
 
@@ -69,5 +71,4 @@ impl InitCommand {
 
     Ok(())
   }
-
 }

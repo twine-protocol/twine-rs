@@ -11,19 +11,28 @@ impl AsCid for Cid {
   }
 }
 
-impl<T> AsCid for &T where T: AsCid {
+impl<T> AsCid for &T
+where
+  T: AsCid,
+{
   fn as_cid(&self) -> &Cid {
     (*self).as_cid()
   }
 }
 
-impl<T> AsCid for Arc<T> where T: AsCid {
+impl<T> AsCid for Arc<T>
+where
+  T: AsCid,
+{
   fn as_cid(&self) -> &Cid {
     self.as_ref().as_cid()
   }
 }
 
-impl<T> AsCid for Box<T> where T: AsCid {
+impl<T> AsCid for Box<T>
+where
+  T: AsCid,
+{
   fn as_cid(&self) -> &Cid {
     self.as_ref().as_cid()
   }

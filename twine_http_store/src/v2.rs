@@ -1,23 +1,33 @@
 use async_trait::async_trait;
 use futures::stream::{StreamExt, TryStreamExt};
 use futures::Stream;
-use reqwest::{header::{ACCEPT, CONTENT_TYPE}, Method, StatusCode, Url};
+use reqwest::{
+  header::{ACCEPT, CONTENT_TYPE},
+  Method, StatusCode, Url,
+};
 use twine_core::car::from_car_bytes;
 use twine_core::resolver::unchecked_base::TwineStream;
 use twine_core::resolver::{MaybeSend, Resolver, TwineResolution};
 use twine_core::twine::Twine;
-use twine_core::{as_cid::AsCid, errors::{ResolutionError, StoreError}, resolver::{AbsoluteRange, unchecked_base::BaseResolver, SingleQuery}, store::Store, twine::{AnyTwine, Strand, Tixel}, Cid};
+use twine_core::{
+  as_cid::AsCid,
+  errors::{ResolutionError, StoreError},
+  resolver::{unchecked_base::BaseResolver, AbsoluteRange, SingleQuery},
+  store::Store,
+  twine::{AnyTwine, Strand, Tixel},
+  Cid,
+};
 
 fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result<(), StoreError> {
   match res {
     Ok(_) => Ok::<(), StoreError>(()),
-    Err(e) => {
-      match e {
-        ResolutionError::Fetch(e) => Err(StoreError::Saving(e)),
-        ResolutionError::NotFound => Err(StoreError::Saving("Not found".to_string())),
-        ResolutionError::Invalid(e) => Err(StoreError::Invalid(e)),
-        ResolutionError::BadData(e) => Err(StoreError::Saving(e)),
-        ResolutionError::QueryMismatch(q) => Err(StoreError::Saving(format!("SingleQuery mismatch: {}", q))),
+    Err(e) => match e {
+      ResolutionError::Fetch(e) => Err(StoreError::Saving(e)),
+      ResolutionError::NotFound => Err(StoreError::Saving("Not found".to_string())),
+      ResolutionError::Invalid(e) => Err(StoreError::Invalid(e)),
+      ResolutionError::BadData(e) => Err(StoreError::Saving(e)),
+      ResolutionError::QueryMismatch(q) => {
+        Err(StoreError::Saving(format!("SingleQuery mismatch: {}", q)))
       }
     },
   }
@@ -33,9 +43,7 @@ pub struct HttpStore {
 
 impl Default for HttpStore {
   fn default() -> Self {
-    Self::new(
-      reqwest::Client::new(),
-    )
+    Self::new(reqwest::Client::new())
   }
 }
 
@@ -88,7 +96,9 @@ impl HttpStore {
   fn req(&self, method: Method, path: &str) -> reqwest::RequestBuilder {
     let mut url = self.url.clone();
     url.set_path(path);
-    self.client.request(method, url)
+    self
+      .client
+      .request(method, url)
       .header(ACCEPT, "application/vnd.ipld.car")
   }
 
@@ -111,57 +121,67 @@ impl HttpStore {
   }
 
   fn put_car(&self, path: &str) -> reqwest::RequestBuilder {
-    self.req(Method::PUT, path)
+    self
+      .req(Method::PUT, path)
       .header(CONTENT_TYPE, "application/vnd.ipld.car")
   }
 
   async fn send(&self, req: reqwest::RequestBuilder) -> Result<reqwest::Response, ResolutionError> {
-    use backon::{Retryable, ExponentialBuilder};
+    use backon::{ExponentialBuilder, Retryable};
     let req = req.build().unwrap();
     let response = (|| async {
-      self.client.execute(req.try_clone().expect("Could not clone request")).await
+      self
+        .client
+        .execute(req.try_clone().expect("Could not clone request"))
+        .await
     })
-      .retry(ExponentialBuilder::default())
-      .when(|e| {
-        if e.is_status() {
-          e.status().map(|s| s.is_server_error()).unwrap_or(false)
-        } else if e.is_timeout() {
-          true
-        } else {
-          false
-        }
-      })
-      .await
-      .map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+    .retry(ExponentialBuilder::default())
+    .when(|e| {
+      if e.is_status() {
+        e.status().map(|s| s.is_server_error()).unwrap_or(false)
+      } else if e.is_timeout() {
+        true
+      } else {
+        false
+      }
+    })
+    .await
+    .map_err(|e| ResolutionError::Fetch(e.to_string()))?;
 
     match response.error_for_status_ref() {
       Ok(_) => Ok(response),
-      Err(e) => {
-        match e.status() {
-          Some(StatusCode::NOT_FOUND) => Err(ResolutionError::NotFound),
-          Some(status) if status.is_client_error() => {
-            let body = response.text().await.unwrap_or(e.to_string());
-            match serde_json::from_str::<serde_json::Value>(&body) {
-              Ok(j) => {
-                Err(ResolutionError::Fetch(j.get("error").map(|e| e.to_string()).unwrap_or(e.to_string())))
-              },
-              Err(_) => {
-                if body.len() > 0 {
-                  Err(ResolutionError::Fetch(body))
-                } else {
-                  Err(ResolutionError::Fetch(e.to_string()))
-                }
-              },
+      Err(e) => match e.status() {
+        Some(StatusCode::NOT_FOUND) => Err(ResolutionError::NotFound),
+        Some(status) if status.is_client_error() => {
+          let body = response.text().await.unwrap_or(e.to_string());
+          match serde_json::from_str::<serde_json::Value>(&body) {
+            Ok(j) => Err(ResolutionError::Fetch(
+              j.get("error")
+                .map(|e| e.to_string())
+                .unwrap_or(e.to_string()),
+            )),
+            Err(_) => {
+              if body.len() > 0 {
+                Err(ResolutionError::Fetch(body))
+              } else {
+                Err(ResolutionError::Fetch(e.to_string()))
+              }
             }
-          },
-          _ => Err(ResolutionError::Fetch(e.to_string()))
+          }
         }
+        _ => Err(ResolutionError::Fetch(e.to_string())),
       },
     }
   }
 
-  async fn parse_response(&self, response: reqwest::Response) -> Result<impl Stream<Item = Result<AnyTwine, ResolutionError>>, ResolutionError> {
-    let reader = response.bytes().await.map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+  async fn parse_response(
+    &self,
+    response: reqwest::Response,
+  ) -> Result<impl Stream<Item = Result<AnyTwine, ResolutionError>>, ResolutionError> {
+    let reader = response
+      .bytes()
+      .await
+      .map_err(|e| ResolutionError::Fetch(e.to_string()))?;
     use twine_core::car::CarDecodeError;
     let twines = from_car_bytes(&mut reader.as_ref()).map_err(|e| match e {
       CarDecodeError::DecodeError(e) => ResolutionError::BadData(e.to_string()),
@@ -171,17 +191,34 @@ impl HttpStore {
     Ok(stream)
   }
 
-  async fn type_from_response<E, T: TryFrom<AnyTwine, Error = E>>(&self, response: reqwest::Response) -> Result<T, ResolutionError> where ResolutionError: From<E> {
+  async fn type_from_response<E, T: TryFrom<AnyTwine, Error = E>>(
+    &self,
+    response: reqwest::Response,
+  ) -> Result<T, ResolutionError>
+  where
+    ResolutionError: From<E>,
+  {
     let mut stream = self.parse_response(response).await?;
-    let first = stream.next().await.ok_or(ResolutionError::BadData("No data in response".into()))?;
+    let first = stream
+      .next()
+      .await
+      .ok_or(ResolutionError::BadData("No data in response".into()))?;
     let item = T::try_from(first?)?;
     Ok(item)
   }
 
-  async fn twine_from_response(&self, response: reqwest::Response) -> Result<Twine, ResolutionError> {
+  async fn twine_from_response(
+    &self,
+    response: reqwest::Response,
+  ) -> Result<Twine, ResolutionError> {
     let mut stream = self.parse_response(response).await?;
-    let first = stream.next().await.ok_or(ResolutionError::BadData("No data in response".into()))?;
-    let second = stream.next().await.ok_or(ResolutionError::BadData("Expected more data in response".into()))?;
+    let first = stream
+      .next()
+      .await
+      .ok_or(ResolutionError::BadData("No data in response".into()))?;
+    let second = stream.next().await.ok_or(ResolutionError::BadData(
+      "Expected more data in response".into(),
+    ))?;
 
     let (strand, tixel) = match (first?, second?) {
       (AnyTwine::Strand(s), AnyTwine::Tixel(t)) => (s, t),
@@ -197,7 +234,7 @@ impl HttpStore {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl BaseResolver for HttpStore {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
-    let q : SingleQuery = (strand, index).into();
+    let q: SingleQuery = (strand, index).into();
     let path = format!("{}", q);
     match self.send(self.head(&path)).await {
       Ok(response) => Ok(response.status() == StatusCode::OK),
@@ -207,7 +244,7 @@ impl BaseResolver for HttpStore {
   }
 
   async fn has_twine(&self, strand: &Cid, tixel: &Cid) -> Result<bool, ResolutionError> {
-    let q : SingleQuery = (strand, tixel).into();
+    let q: SingleQuery = (strand, tixel).into();
     let path = format!("{}", q);
     match self.send(self.head(&path)).await {
       Ok(response) => Ok(response.status() == StatusCode::OK),
@@ -233,9 +270,13 @@ impl BaseResolver for HttpStore {
       Ok(strand)
     });
     #[cfg(target_arch = "wasm32")]
-    { Ok(stream.boxed_local()) }
+    {
+      Ok(stream.boxed_local())
+    }
     #[cfg(not(target_arch = "wasm32"))]
-    { Ok(stream.boxed()) }
+    {
+      Ok(stream.boxed())
+    }
   }
 
   async fn fetch_strand(&self, strand: &Cid) -> Result<Strand, ResolutionError> {
@@ -247,7 +288,7 @@ impl BaseResolver for HttpStore {
   }
 
   async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Tixel, ResolutionError> {
-    let q : SingleQuery = (strand, tixel).into();
+    let q: SingleQuery = (strand, tixel).into();
     let path = format!("{}", q);
     let response = self.send(self.get(&path)).await?;
     let tixel = self.type_from_response(response).await?;
@@ -255,7 +296,7 @@ impl BaseResolver for HttpStore {
   }
 
   async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError> {
-    let q : SingleQuery = (strand, index).into();
+    let q: SingleQuery = (strand, index).into();
     let path = format!("{}", q);
     let response = self.send(self.get(&path)).await?;
     let tixel = self.type_from_response(response).await?;
@@ -270,7 +311,10 @@ impl BaseResolver for HttpStore {
     Ok(tixel)
   }
 
-  async fn range_stream(&self, range: AbsoluteRange) -> Result<TwineStream<'_, Tixel>, ResolutionError> {
+  async fn range_stream(
+    &self,
+    range: AbsoluteRange,
+  ) -> Result<TwineStream<'_, Tixel>, ResolutionError> {
     use futures::stream::StreamExt;
     let stream = futures::stream::iter(range.batches(self.batch_size))
       .map(move |range| {
@@ -288,9 +332,13 @@ impl BaseResolver for HttpStore {
         Ok(t)
       });
     #[cfg(target_arch = "wasm32")]
-    { Ok(stream.boxed_local()) }
+    {
+      Ok(stream.boxed_local())
+    }
     #[cfg(not(target_arch = "wasm32"))]
-    { Ok(stream.boxed()) }
+    {
+      Ok(stream.boxed())
+    }
   }
 }
 
@@ -298,7 +346,10 @@ impl BaseResolver for HttpStore {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl Resolver for HttpStore {
-  async fn resolve_latest<C: AsCid + MaybeSend>(&self, strand: C) -> Result<TwineResolution, ResolutionError> {
+  async fn resolve_latest<C: AsCid + MaybeSend>(
+    &self,
+    strand: C,
+  ) -> Result<TwineResolution, ResolutionError> {
     let q = SingleQuery::from(*strand.as_cid());
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
@@ -306,7 +357,11 @@ impl Resolver for HttpStore {
     TwineResolution::try_new(q, twine)
   }
 
-  async fn resolve_index<C: AsCid + MaybeSend>(&self, strand: C, index: u64) -> Result<TwineResolution, ResolutionError> {
+  async fn resolve_index<C: AsCid + MaybeSend>(
+    &self,
+    strand: C,
+    index: u64,
+  ) -> Result<TwineResolution, ResolutionError> {
     let q = SingleQuery::from((strand.as_cid(), index));
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
@@ -314,7 +369,11 @@ impl Resolver for HttpStore {
     TwineResolution::try_new(q, twine)
   }
 
-  async fn resolve_stitch<C: AsCid + MaybeSend>(&self, strand: C, tixel: C) -> Result<TwineResolution, ResolutionError> {
+  async fn resolve_stitch<C: AsCid + MaybeSend>(
+    &self,
+    strand: C,
+    tixel: C,
+  ) -> Result<TwineResolution, ResolutionError> {
     let q = SingleQuery::from((strand.as_cid(), tixel.as_cid()));
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
@@ -331,71 +390,91 @@ impl Store for HttpStore {
     self.save_many(vec![twine]).await
   }
 
-  async fn save_many<I: Into<AnyTwine> + MaybeSend, S: Iterator<Item = I> + MaybeSend, T: IntoIterator<Item = I, IntoIter = S> + MaybeSend>(&self, twines: T) -> Result<(), StoreError> {
-    use twine_core::car::to_car_stream;
+  async fn save_many<
+    I: Into<AnyTwine> + MaybeSend,
+    S: Iterator<Item = I> + MaybeSend,
+    T: IntoIterator<Item = I, IntoIter = S> + MaybeSend,
+  >(
+    &self,
+    twines: T,
+  ) -> Result<(), StoreError> {
     use futures::stream::StreamExt;
+    use twine_core::car::to_car_stream;
     let twines: Vec<AnyTwine> = twines.into_iter().map(|t| t.into()).collect();
-    let (strands, tixels): (Vec<_>, Vec<_>) = twines.into_iter().partition(|t| matches!(t, AnyTwine::Strand(_)));
+    let (strands, tixels): (Vec<_>, Vec<_>) = twines
+      .into_iter()
+      .partition(|t| matches!(t, AnyTwine::Strand(_)));
     if strands.len() > 0 {
-      let jobs = strands.into_iter().map(|strand| async {
-        let strand_cid = strand.cid();
-        let path = "".to_string();
-        let data = to_car_stream(futures::stream::iter(vec![strand]), vec![strand_cid]);
-        let items = data.collect::<Vec<_>>().await.concat();
-        let res = self.send(
-          self.put_car(&path).body(items)
-        ).await;
-        handle_save_result(res)
-      }).collect::<Vec<_>>();
+      let jobs = strands
+        .into_iter()
+        .map(|strand| async {
+          let strand_cid = strand.cid();
+          let path = "".to_string();
+          let data = to_car_stream(futures::stream::iter(vec![strand]), vec![strand_cid]);
+          let items = data.collect::<Vec<_>>().await.concat();
+          let res = self.send(self.put_car(&path).body(items)).await;
+          handle_save_result(res)
+        })
+        .collect::<Vec<_>>();
 
       futures::stream::iter(jobs)
         .buffered(self.concurency)
-        .try_for_each(|_| async { Ok(()) }).await?;
+        .try_for_each(|_| async { Ok(()) })
+        .await?;
     }
 
     if tixels.len() > 0 {
       use itertools::Itertools;
-      let groups_by_strand = tixels.iter()
+      let groups_by_strand = tixels
+        .iter()
         .map(|t| Tixel::try_from(t.to_owned()).unwrap())
         .chunk_by(|t| t.strand_cid().clone())
         .into_iter()
-        .map(|(cid, it)|
+        .map(|(cid, it)| {
           (
             cid,
             it.sorted_by(|a, b| a.index().cmp(&b.index()))
               .chunks(self.batch_size as usize)
               .into_iter()
               .map(|g| g.collect())
-              .collect::<Vec<Vec<_>>>()
+              .collect::<Vec<Vec<_>>>(),
           )
-        ).collect::<Vec<_>>();
-
-      let jobs = groups_by_strand.into_iter().map(|(strand_cid, group)| {
-        let strand_cid = strand_cid.clone();
-        group.into_iter().map(move |group| async move {
-          let path = format!("{}", strand_cid);
-          let roots = vec![group.first().unwrap().cid()];
-          let data = to_car_stream(futures::stream::iter(group), roots);
-          let items = data.collect::<Vec<_>>().await.concat();
-          let res = self.send(
-            self.put_car(&path).body(items)
-          ).await;
-          handle_save_result(res)
         })
-      }).flatten();
+        .collect::<Vec<_>>();
+
+      let jobs = groups_by_strand
+        .into_iter()
+        .map(|(strand_cid, group)| {
+          let strand_cid = strand_cid.clone();
+          group.into_iter().map(move |group| async move {
+            let path = format!("{}", strand_cid);
+            let roots = vec![group.first().unwrap().cid()];
+            let data = to_car_stream(futures::stream::iter(group), roots);
+            let items = data.collect::<Vec<_>>().await.concat();
+            let res = self.send(self.put_car(&path).body(items)).await;
+            handle_save_result(res)
+          })
+        })
+        .flatten();
 
       futures::stream::iter(jobs)
         .buffered(self.concurency)
-        .try_for_each(|_| async { Ok(()) }).await?;
+        .try_for_each(|_| async { Ok(()) })
+        .await?;
     }
     Ok(())
   }
 
-  async fn save_stream<I: Into<AnyTwine> + MaybeSend, T: Stream<Item = I> + MaybeSend + Unpin>(&self, twines: T) -> Result<(), StoreError> {
+  async fn save_stream<I: Into<AnyTwine> + MaybeSend, T: Stream<Item = I> + MaybeSend + Unpin>(
+    &self,
+    twines: T,
+  ) -> Result<(), StoreError> {
     use futures::stream::StreamExt;
-    twines.chunks(self.batch_size as usize)
+    twines
+      .chunks(self.batch_size as usize)
       .then(|chunk| self.save_many(chunk))
-      .try_for_each(|_| async { Ok(()) }).await?;
+      .try_for_each(|_| async { Ok(()) })
+      .await?;
     Ok(())
   }
 

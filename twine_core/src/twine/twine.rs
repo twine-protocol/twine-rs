@@ -1,8 +1,13 @@
-use std::{ops::Deref, fmt::Display};
 use crate::Cid;
 use semver::Version;
+use std::{fmt::Display, ops::Deref};
 
-use crate::{as_cid::AsCid, errors::VerificationError, specification::Subspec, twine::{Strand, Tixel}};
+use crate::{
+  as_cid::AsCid,
+  errors::VerificationError,
+  specification::Subspec,
+  twine::{Strand, Tixel},
+};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Twine {

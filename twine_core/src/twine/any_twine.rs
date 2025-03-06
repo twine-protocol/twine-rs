@@ -1,18 +1,17 @@
+use super::TwineBlock;
+use super::{Strand, Tixel, Twine};
+use crate::as_cid::AsCid;
+use crate::crypto::{assert_cid, get_hasher};
+use crate::errors::VerificationError;
+use crate::twine::Tagged;
+use crate::Cid;
 use core::str;
-/// Structs and traits common to both Chain's and Pulses
-
-use std::fmt::Display;
 use ipld_core::codec::Codec;
 use multihash_codetable::Code;
 use serde_ipld_dagjson::codec::DagJsonCodec;
-use crate::twine::Tagged;
-use crate::Cid;
-use crate::as_cid::AsCid;
-use crate::crypto::{assert_cid, get_hasher};
-use super::{Strand, Tixel, Twine};
-use super::TwineBlock;
-use crate::errors::VerificationError;
 use std::convert::TryFrom;
+/// Structs and traits common to both Chain's and Pulses
+use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum AnyTwine {
@@ -72,7 +71,9 @@ impl AnyTwine {
     assert_cid(expected, &self.cid())
   }
 
-  pub fn from_tagged_dag_json_array<S: AsRef<str>>(json: S) -> Result<Vec<Self>, VerificationError> {
+  pub fn from_tagged_dag_json_array<S: AsRef<str>>(
+    json: S,
+  ) -> Result<Vec<Self>, VerificationError> {
     let arr: Vec<Tagged<Self>> = DagJsonCodec::decode_from_slice(json.as_ref().as_bytes())?;
     Ok(arr.into_iter().map(|t| t.unpack()).collect())
   }
@@ -191,7 +192,11 @@ impl TwineBlock for AnyTwine {
     if strand.is_ok() {
       return Ok(Self::Strand(strand.unwrap().into()));
     }
-    let msg = format!("Undecodable structure:\n{}\n{}", tixel.err().unwrap(), strand.err().unwrap());
+    let msg = format!(
+      "Undecodable structure:\n{}\n{}",
+      tixel.err().unwrap(),
+      strand.err().unwrap()
+    );
     Err(VerificationError::InvalidTwineFormat(msg))
   }
 
@@ -205,7 +210,11 @@ impl TwineBlock for AnyTwine {
     if strand.is_ok() {
       return Ok(Self::Strand(strand.unwrap().into()));
     }
-    let msg = format!("Undecodable structure because:\n{}\n{}", tixel.err().unwrap(), strand.err().unwrap());
+    let msg = format!(
+      "Undecodable structure because:\n{}\n{}",
+      tixel.err().unwrap(),
+      strand.err().unwrap()
+    );
     Err(VerificationError::InvalidTwineFormat(msg))
   }
 

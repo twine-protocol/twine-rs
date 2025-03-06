@@ -1,9 +1,8 @@
-use twine_builder::{TwineBuilder, RingSigner};
+use twine_builder::{RingSigner, TwineBuilder};
 use twine_core::{ipld_core::ipld, multihash_codetable::Code, resolver::Resolver, store::Store};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
   // {
   //   let mysqlpool = sqlx::mysql::MySqlPool::connect("mysql://root:root@127.0.0.1:3306/testdb").await?;
   //   sqlx::migrate!("./schemas/mysql").run(&mysqlpool).await?;
@@ -16,7 +15,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   println!("tables created");
   let signer = RingSigner::generate_ed25519().unwrap();
   let builder = TwineBuilder::new(signer);
-  let strand = builder.build_strand()
+  let strand = builder
+    .build_strand()
     .hasher(Code::Sha3_256)
     .details(ipld!({
       "foo": "bar",
@@ -27,7 +27,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("saving strand");
     store.save(strand.clone()).await?;
 
-    let mut prev = builder.build_first(strand.clone())
+    let mut prev = builder
+      .build_first(strand.clone())
       .payload(ipld!({
         "baz": null,
       }))
@@ -38,7 +39,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let n = 10;
     for i in 1..n {
-      prev = builder.build_next(&prev)
+      prev = builder
+        .build_next(&prev)
         .payload(ipld!({
           "baz": "qux",
           "index": i,
@@ -48,14 +50,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       store.save(prev.clone()).await?;
     }
 
-    prev = builder.build_next(&prev)
+    prev = builder
+      .build_next(&prev)
       .payload(ipld!({
         "baz": "qux",
         "index": n,
       }))
       .done()?;
 
-    prev = builder.build_next(&prev)
+    prev = builder
+      .build_next(&prev)
       .payload(ipld!({
         "baz": "qux",
         "index": n + 1,

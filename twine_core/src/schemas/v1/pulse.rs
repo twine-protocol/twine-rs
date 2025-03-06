@@ -1,12 +1,12 @@
-use crate::{Cid, Ipld};
-use serde::{Serialize, Deserialize};
-use crate::{errors::VerificationError, verify::Verifiable};
 use super::Mixin;
 use crate::verify::is_all_unique;
+use crate::{errors::VerificationError, verify::Verifiable};
+use crate::{Cid, Ipld};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct PulseContentV1<P = Ipld>{
+pub struct PulseContentV1<P = Ipld> {
   pub chain: Cid,
   pub index: u32, // note: DAG-CBOR supports i64, but we don't
   pub source: String,
@@ -18,16 +18,22 @@ pub struct PulseContentV1<P = Ipld>{
 impl Verifiable for PulseContentV1 {
   fn verify(&self) -> Result<(), VerificationError> {
     if !is_all_unique(&self.mixins) {
-      return Err(VerificationError::InvalidTwineFormat("Contains mixins with duplicate chains".into()));
+      return Err(VerificationError::InvalidTwineFormat(
+        "Contains mixins with duplicate chains".into(),
+      ));
     }
 
     // can't have a mixin on own chain
     if self.mixins.iter().any(|mixin| mixin.chain == self.chain) {
-      return Err(VerificationError::InvalidTwineFormat("Contains mixin on own chain".into()));
+      return Err(VerificationError::InvalidTwineFormat(
+        "Contains mixin on own chain".into(),
+      ));
     }
 
     if self.links.len() == 0 && self.index != 0 {
-      return Err(VerificationError::InvalidTwineFormat("Non-starting pulse has zero links".into()));
+      return Err(VerificationError::InvalidTwineFormat(
+        "Non-starting pulse has zero links".into(),
+      ));
     }
 
     Ok(())

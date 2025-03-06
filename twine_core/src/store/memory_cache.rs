@@ -1,14 +1,14 @@
-use crate::resolver::{unchecked_base, AbsoluteRange, Resolver};
 use crate::errors::ResolutionError;
+use crate::resolver::{unchecked_base, AbsoluteRange, Resolver};
+use crate::twine::Strand;
 use crate::twine::Tixel;
 use crate::Cid;
-use crate::twine::Strand;
-use std::collections::HashMap;
-use std::ops::Deref;
-use std::sync::{Arc, RwLock};
 use async_trait::async_trait;
 use futures::stream::StreamExt;
 use quick_cache::sync::Cache;
+use std::collections::HashMap;
+use std::ops::Deref;
+use std::sync::{Arc, RwLock};
 
 type TixelCache = Cache<Cid, Tixel>;
 type StrandCache = HashMap<Cid, (Option<Strand>, Cache<u64, Cid>)>;
@@ -39,8 +39,12 @@ impl<T: Resolver> MemoryCache<T> {
   fn cache_tixel(&self, tixel: Tixel) -> Tixel {
     let strand_cid = tixel.strand_cid();
     let mut store = self.strands.write().unwrap();
-    let cache = store.entry(strand_cid).or_insert_with(|| (None, Cache::new(self.cache_size)));
-    let _ = cache.1.get_or_insert_with(&tixel.index(), || Ok::<_, ResolutionError>(tixel.cid()));
+    let cache = store
+      .entry(strand_cid)
+      .or_insert_with(|| (None, Cache::new(self.cache_size)));
+    let _ = cache
+      .1
+      .get_or_insert_with(&tixel.index(), || Ok::<_, ResolutionError>(tixel.cid()));
     self.tixels.insert(tixel.cid(), tixel.clone());
     tixel
   }
@@ -48,7 +52,9 @@ impl<T: Resolver> MemoryCache<T> {
   fn cache_strand(&self, strand: Strand) -> Strand {
     let strand_cid = strand.cid();
     let mut store = self.strands.write().unwrap();
-    let entry = store.entry(strand_cid).or_insert_with(|| (None, Cache::new(self.cache_size)));
+    let entry = store
+      .entry(strand_cid)
+      .or_insert_with(|| (None, Cache::new(self.cache_size)));
     if entry.0.is_none() {
       entry.0 = Some(strand.clone());
     }
@@ -59,7 +65,9 @@ impl<T: Resolver> MemoryCache<T> {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl<T: Resolver> unchecked_base::BaseResolver for MemoryCache<T> {
-  async fn fetch_strands(&self) -> Result<unchecked_base::TwineStream<'_, Strand>, ResolutionError> {
+  async fn fetch_strands(
+    &self,
+  ) -> Result<unchecked_base::TwineStream<'_, Strand>, ResolutionError> {
     self.resolver.strands().await.and_then(|stream| {
       let s = stream.map(|strand| {
         let strand = strand?;
@@ -68,26 +76,20 @@ impl<T: Resolver> unchecked_base::BaseResolver for MemoryCache<T> {
 
       #[cfg(target_arch = "wasm32")]
       {
-        Ok(
-          s.boxed_local()
-        )
+        Ok(s.boxed_local())
       }
       #[cfg(not(target_arch = "wasm32"))]
       {
-        Ok(
-          s.boxed()
-        )
+        Ok(s.boxed())
       }
     })
   }
 
-  async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError>{
+  async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
     let has = match self.strands.read().unwrap().get(strand) {
-      Some((_, cache)) => {
-        match cache.get(&index) {
-          Some(_) => true,
-          None => false,
-        }
+      Some((_, cache)) => match cache.get(&index) {
+        Some(_) => true,
+        None => false,
       },
       None => false,
     };
@@ -98,13 +100,11 @@ impl<T: Resolver> unchecked_base::BaseResolver for MemoryCache<T> {
     }
   }
 
-  async fn has_twine(&self, strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError>{
+  async fn has_twine(&self, strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
     let has = match self.strands.read().unwrap().get(strand) {
-      Some((_, _cache)) => {
-        match self.tixels.get(cid) {
-          Some(_) => true,
-          None => false,
-        }
+      Some((_, _cache)) => match self.tixels.get(cid) {
+        Some(_) => true,
+        None => false,
       },
       None => false,
     };
@@ -115,7 +115,7 @@ impl<T: Resolver> unchecked_base::BaseResolver for MemoryCache<T> {
     }
   }
 
-  async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError>{
+  async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError> {
     let has = self.strands.read().unwrap().contains_key(cid);
     if has {
       Ok(true)
@@ -124,14 +124,17 @@ impl<T: Resolver> unchecked_base::BaseResolver for MemoryCache<T> {
     }
   }
 
-  async fn fetch_latest(&self, strand: &Cid) -> Result<Tixel, ResolutionError>{
+  async fn fetch_latest(&self, strand: &Cid) -> Result<Tixel, ResolutionError> {
     // won't check cache
     let tixel = self.resolver.fetch_latest(strand).await?;
     Ok(self.cache_tixel(tixel.clone()))
   }
 
-  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError>{
-    let maybe_cid = self.strands.read().unwrap()
+  async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError> {
+    let maybe_cid = self
+      .strands
+      .read()
+      .unwrap()
       .get(strand)
       .map(|(_, cache)| cache.get(&index))
       .flatten();
@@ -143,7 +146,7 @@ impl<T: Resolver> unchecked_base::BaseResolver for MemoryCache<T> {
     }
   }
 
-  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Tixel, ResolutionError>{
+  async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Tixel, ResolutionError> {
     let maybe_tixel = self.tixels.get(tixel);
     if let Some(tixel) = maybe_tixel {
       Ok(tixel.clone())
@@ -153,8 +156,11 @@ impl<T: Resolver> unchecked_base::BaseResolver for MemoryCache<T> {
     }
   }
 
-  async fn fetch_strand(&self, strand: &Cid) -> Result<Strand, ResolutionError>{
-    let maybe_strand = self.strands.read().unwrap()
+  async fn fetch_strand(&self, strand: &Cid) -> Result<Strand, ResolutionError> {
+    let maybe_strand = self
+      .strands
+      .read()
+      .unwrap()
       .get(strand)
       .map(|(strand, _)| strand.clone())
       .flatten();
@@ -166,25 +172,23 @@ impl<T: Resolver> unchecked_base::BaseResolver for MemoryCache<T> {
     }
   }
 
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<unchecked_base::TwineStream<'a, Tixel>, ResolutionError> {
+  async fn range_stream<'a>(
+    &'a self,
+    range: AbsoluteRange,
+  ) -> Result<unchecked_base::TwineStream<'a, Tixel>, ResolutionError> {
     let stream = self.resolver.range_stream(range).await?;
-    let s = stream
-      .map(|tixel| {
-        let tixel = tixel?;
-        Ok(self.cache_tixel(tixel))
-      });
+    let s = stream.map(|tixel| {
+      let tixel = tixel?;
+      Ok(self.cache_tixel(tixel))
+    });
 
     #[cfg(target_arch = "wasm32")]
     {
-      Ok(
-        s.boxed_local()
-      )
+      Ok(s.boxed_local())
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-      Ok(
-        s.boxed()
-      )
+      Ok(s.boxed())
     }
   }
 }
@@ -212,7 +216,9 @@ mod test {
 
   #[async_trait]
   impl unchecked_base::BaseResolver for DummyResolver {
-    async fn fetch_strands<'a>(&'a self) -> Result<unchecked_base::TwineStream<'a, Strand>, ResolutionError> {
+    async fn fetch_strands<'a>(
+      &'a self,
+    ) -> Result<unchecked_base::TwineStream<'a, Strand>, ResolutionError> {
       let strand = Strand::from_tagged_dag_json(STRANDJSON)?;
       let s = vec![strand];
       let stream = futures::stream::iter(s.into_iter().map(Ok));
@@ -222,7 +228,12 @@ mod test {
     async fn has_index(&self, _strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
       let tixel = Tixel::from_tagged_dag_json(TIXELJSON)?;
       if tixel.index() == index {
-        *self.tixel_hits.write().unwrap().entry(tixel.cid()).or_insert(0) += 1;
+        *self
+          .tixel_hits
+          .write()
+          .unwrap()
+          .entry(tixel.cid())
+          .or_insert(0) += 1;
         Ok(true)
       } else {
         Ok(false)
@@ -232,7 +243,12 @@ mod test {
     async fn has_twine(&self, _strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
       let tixel = Tixel::from_tagged_dag_json(TIXELJSON)?;
       if tixel.cid() == *cid {
-        *self.tixel_hits.write().unwrap().entry(tixel.cid()).or_insert(0) += 1;
+        *self
+          .tixel_hits
+          .write()
+          .unwrap()
+          .entry(tixel.cid())
+          .or_insert(0) += 1;
         Ok(true)
       } else {
         Ok(false)
@@ -242,7 +258,12 @@ mod test {
     async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError> {
       let strand = Arc::new(Strand::from_tagged_dag_json(STRANDJSON)?);
       if strand.cid() == *cid {
-        *self.strand_hits.write().unwrap().entry(strand.cid()).or_insert(0) += 1;
+        *self
+          .strand_hits
+          .write()
+          .unwrap()
+          .entry(strand.cid())
+          .or_insert(0) += 1;
         Ok(true)
       } else {
         Ok(false)
@@ -259,7 +280,12 @@ mod test {
       if tixel.index() != index {
         return Err(ResolutionError::NotFound);
       }
-      *self.tixel_hits.write().unwrap().entry(tixel.cid()).or_insert(0) += 1;
+      *self
+        .tixel_hits
+        .write()
+        .unwrap()
+        .entry(tixel.cid())
+        .or_insert(0) += 1;
       Ok(tixel)
     }
 
@@ -268,7 +294,12 @@ mod test {
       if tix.cid() != *tixel {
         return Err(ResolutionError::NotFound);
       }
-      *self.tixel_hits.write().unwrap().entry(tixel.clone()).or_insert(0) += 1;
+      *self
+        .tixel_hits
+        .write()
+        .unwrap()
+        .entry(tixel.clone())
+        .or_insert(0) += 1;
       Ok(tix)
     }
 
@@ -277,11 +308,19 @@ mod test {
       if s.cid() != *strand {
         return Err(ResolutionError::NotFound);
       }
-      *self.strand_hits.write().unwrap().entry(*strand).or_insert(0) += 1;
+      *self
+        .strand_hits
+        .write()
+        .unwrap()
+        .entry(*strand)
+        .or_insert(0) += 1;
       Ok(s)
     }
 
-    async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<unchecked_base::TwineStream<'a, Tixel>, ResolutionError> {
+    async fn range_stream<'a>(
+      &'a self,
+      range: AbsoluteRange,
+    ) -> Result<unchecked_base::TwineStream<'a, Tixel>, ResolutionError> {
       let tixel = Tixel::from_tagged_dag_json(TIXELJSON)?;
       if *range.strand_cid() != tixel.strand_cid() {
         return Err(ResolutionError::NotFound);
@@ -306,24 +345,41 @@ mod test {
     let tixel_cid = tixel.cid();
 
     let _ = cache.resolve_strand(&strand_cid).await.unwrap().unpack();
-    let _ = cache.resolve_stitch(&strand_cid, &tixel_cid).await.unwrap().unpack();
+    let _ = cache
+      .resolve_stitch(&strand_cid, &tixel_cid)
+      .await
+      .unwrap()
+      .unpack();
 
     assert_eq!(cache.strand_hits.read().unwrap().get(&strand_cid), Some(&1));
     assert_eq!(cache.tixel_hits.read().unwrap().get(&tixel_cid), Some(&1));
 
     let _ = cache.resolve_strand(&strand_cid).await.unwrap().unpack();
-    let _ = cache.resolve_stitch(&strand_cid, &tixel_cid).await.unwrap().unpack();
+    let _ = cache
+      .resolve_stitch(&strand_cid, &tixel_cid)
+      .await
+      .unwrap()
+      .unpack();
 
     assert_eq!(cache.strand_hits.read().unwrap().get(&strand_cid), Some(&1));
     assert_eq!(cache.tixel_hits.read().unwrap().get(&tixel_cid), Some(&1));
 
     let _ = cache.resolve_strand(&strand_cid).await.unwrap().unpack();
-    let _ = cache.resolve_index(&strand_cid, tixel.index()).await.unwrap().unpack();
+    let _ = cache
+      .resolve_index(&strand_cid, tixel.index())
+      .await
+      .unwrap()
+      .unpack();
 
     assert_eq!(cache.strand_hits.read().unwrap().get(&strand_cid), Some(&1));
     assert_eq!(cache.tixel_hits.read().unwrap().get(&tixel_cid), Some(&1));
 
-    cache.resolve_range((strand_cid, 0..1)).await.unwrap().collect::<Vec<_>>().await;
+    cache
+      .resolve_range((strand_cid, 0..1))
+      .await
+      .unwrap()
+      .collect::<Vec<_>>()
+      .await;
 
     assert_eq!(cache.strand_hits.read().unwrap().get(&strand_cid), Some(&1));
     assert_eq!(cache.tixel_hits.read().unwrap().get(&tixel_cid), Some(&1));

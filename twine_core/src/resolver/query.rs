@@ -1,13 +1,13 @@
-use std::fmt::Display;
-use std::str::FromStr;
-use std::ops::RangeBounds;
-use futures::{stream::once, Stream, TryStreamExt};
-use crate::Cid;
-use crate::as_cid::AsCid;
-use crate::twine::{Stitch, Strand, Tixel, Twine};
-use crate::errors::{ConversionError, ResolutionError};
 use super::Resolver;
+use crate::as_cid::AsCid;
+use crate::errors::{ConversionError, ResolutionError};
+use crate::twine::{Stitch, Strand, Tixel, Twine};
+use crate::Cid;
+use futures::{stream::once, Stream, TryStreamExt};
+use std::fmt::Display;
 use std::ops::Bound;
+use std::ops::RangeBounds;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum SingleQuery {
@@ -41,18 +41,14 @@ impl SingleQuery {
   /// - For a latest query, the twine has the same strand cid
   pub fn matches(&self, twine: &Twine) -> bool {
     match self {
-      SingleQuery::Stitch(stitch) => {
-        twine == stitch
-      },
+      SingleQuery::Stitch(stitch) => twine == stitch,
       SingleQuery::Index(cid, index) => {
         if *index >= 0 && *index as u64 != twine.index() {
           return false;
         }
         twine.strand_cid() == *cid
-      },
-      SingleQuery::Latest(cid) => {
-        twine.strand_cid() == *cid
-      },
+      }
+      SingleQuery::Latest(cid) => twine.strand_cid() == *cid,
     }
   }
 }
@@ -75,13 +71,19 @@ impl From<Strand> for SingleQuery {
   }
 }
 
-impl<C> From<(C, u64)> for SingleQuery where C: AsCid {
+impl<C> From<(C, u64)> for SingleQuery
+where
+  C: AsCid,
+{
   fn from((strand, index): (C, u64)) -> Self {
     Self::Index(strand.as_cid().clone(), index as i64)
   }
 }
 
-impl<C> From<(C, i64)> for SingleQuery where C: AsCid {
+impl<C> From<(C, i64)> for SingleQuery
+where
+  C: AsCid,
+{
   fn from((strand, index): (C, i64)) -> Self {
     if index == -1 {
       Self::Latest(strand.as_cid().clone())
@@ -91,37 +93,55 @@ impl<C> From<(C, i64)> for SingleQuery where C: AsCid {
   }
 }
 
-impl<C> From<(C, i32)> for SingleQuery where C: AsCid {
+impl<C> From<(C, i32)> for SingleQuery
+where
+  C: AsCid,
+{
   fn from((strand, index): (C, i32)) -> Self {
     (strand, index as i64).into()
   }
 }
 
-impl<C> From<(C, u32)> for SingleQuery where C: AsCid {
+impl<C> From<(C, u32)> for SingleQuery
+where
+  C: AsCid,
+{
   fn from((strand, index): (C, u32)) -> Self {
     (strand, index as i64).into()
   }
 }
 
-impl<C> From<(C, usize)> for SingleQuery where C: AsCid {
+impl<C> From<(C, usize)> for SingleQuery
+where
+  C: AsCid,
+{
   fn from((strand, index): (C, usize)) -> Self {
     (strand, index as u64).into()
   }
 }
 
-impl<C> From<(C, i16)> for SingleQuery where C: AsCid {
+impl<C> From<(C, i16)> for SingleQuery
+where
+  C: AsCid,
+{
   fn from((strand, index): (C, i16)) -> Self {
     (strand, index as i64).into()
   }
 }
 
-impl<C> From<(C, u16)> for SingleQuery where C: AsCid {
+impl<C> From<(C, u16)> for SingleQuery
+where
+  C: AsCid,
+{
   fn from((strand, index): (C, u16)) -> Self {
     (strand, index as u64).into()
   }
 }
 
-impl<C> From<(C, C)> for SingleQuery where C: AsCid {
+impl<C> From<(C, C)> for SingleQuery
+where
+  C: AsCid,
+{
   fn from((strand, tixel): (C, C)) -> Self {
     Self::Stitch((strand.as_cid().clone(), tixel.as_cid().clone()).into())
   }
@@ -138,13 +158,15 @@ impl FromStr for SingleQuery {
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     let parts: Vec<&str> = s.split(':').collect();
-    let cid = parts.get(0).ok_or(ConversionError::InvalidFormat("Invalid Selector".into()))?;
+    let cid = parts
+      .get(0)
+      .ok_or(ConversionError::InvalidFormat("Invalid Selector".into()))?;
     let strand_cid = Cid::try_from(cid.to_string())?;
     match parts.len() {
       2 => {
         let arg = parts.get(1).unwrap();
         match *arg {
-          "latest"|""|"-1" => Ok(strand_cid.into()),
+          "latest" | "" | "-1" => Ok(strand_cid.into()),
           _ => {
             if let Ok(cid) = Cid::try_from(arg.to_string()) {
               Ok((strand_cid, cid).into())
@@ -154,7 +176,7 @@ impl FromStr for SingleQuery {
             }
           }
         }
-      },
+      }
       _ => Err(ConversionError::InvalidFormat("Invalid Selector".into())),
     }
   }
@@ -278,7 +300,11 @@ impl AbsoluteRangeIter {
   pub fn new(range: AbsoluteRange) -> Self {
     let decreasing = range.is_decreasing();
     let current = Some(range.start);
-    Self { current, range, decreasing }
+    Self {
+      current,
+      range,
+      decreasing,
+    }
   }
 }
 
@@ -383,7 +409,7 @@ impl RangeQuery {
   pub fn from_range_bounds<C: AsCid, T: RangeBounds<i64>>(strand: C, range: T) -> Self {
     let start = match range.start_bound() {
       Bound::Unbounded => Bound::Included(&0),
-      bound@_ => bound,
+      bound @ _ => bound,
     };
     let neg_start = match start {
       Bound::Included(s) => s < &0,
@@ -393,7 +419,7 @@ impl RangeQuery {
     let end = match range.end_bound() {
       Bound::Unbounded if neg_start => Bound::Included(&0),
       Bound::Unbounded => Bound::Included(&-1),
-      bound@_ => bound,
+      bound @ _ => bound,
     };
     let neg_end = match end {
       Bound::Included(e) => e < &0,
@@ -410,14 +436,42 @@ impl RangeQuery {
       // 1, 1 is empty
       // larger number is always exclusive
       let (start, end) = match (start, end) {
-        (Bound::Included(s), Bound::Included(e)) => if e > s { (*s, *e) } else { (*s, *e) },
-        (Bound::Included(s), Bound::Excluded(e)) => if e > s { (*s, e - 1) } else { (*s, e + 1) },
-        (Bound::Excluded(s), Bound::Included(e)) => if e > s { (s + 1, *e) } else { (s - 1, *e) },
-        (Bound::Excluded(s), Bound::Excluded(e)) => if e > s { (s + 1, e - 1) } else { (s - 1, e + 1) },
+        (Bound::Included(s), Bound::Included(e)) => {
+          if e > s {
+            (*s, *e)
+          } else {
+            (*s, *e)
+          }
+        }
+        (Bound::Included(s), Bound::Excluded(e)) => {
+          if e > s {
+            (*s, e - 1)
+          } else {
+            (*s, e + 1)
+          }
+        }
+        (Bound::Excluded(s), Bound::Included(e)) => {
+          if e > s {
+            (s + 1, *e)
+          } else {
+            (s - 1, *e)
+          }
+        }
+        (Bound::Excluded(s), Bound::Excluded(e)) => {
+          if e > s {
+            (s + 1, e - 1)
+          } else {
+            (s - 1, e + 1)
+          }
+        }
         _ => unreachable!(),
       };
 
-      Self::Absolute(AbsoluteRange::new(strand.as_cid().clone(), start as u64, end as u64))
+      Self::Absolute(AbsoluteRange::new(
+        strand.as_cid().clone(),
+        start as u64,
+        end as u64,
+      ))
     }
   }
 
@@ -427,13 +481,13 @@ impl RangeQuery {
       Self::Relative(cid, s, e) => {
         let dir = range_dir(
           match s {
-            Bound::Included(s)|Bound::Excluded(s) => s,
-            _ => unreachable!()
+            Bound::Included(s) | Bound::Excluded(s) => s,
+            _ => unreachable!(),
           },
           match e {
-            Bound::Included(e)|Bound::Excluded(e) => e,
-            _ => unreachable!()
-          }
+            Bound::Included(e) | Bound::Excluded(e) => e,
+            _ => unreachable!(),
+          },
         );
         let e = e.map(|e| if e < 0 { latest as i64 + e + 1 } else { e });
         let e = match e {
@@ -464,7 +518,10 @@ impl RangeQuery {
     }
   }
 
-  pub async fn try_to_absolute<R: Resolver>(self, resolver: &R) -> Result<Option<AbsoluteRange>, ResolutionError> {
+  pub async fn try_to_absolute<R: Resolver>(
+    self,
+    resolver: &R,
+  ) -> Result<Option<AbsoluteRange>, ResolutionError> {
     match self {
       Self::Absolute(range) => Ok(range.into()),
       Self::Relative(strand, _, _) => {
@@ -474,26 +531,32 @@ impl RangeQuery {
     }
   }
 
-  pub fn to_stream<'a, R: Resolver>(self, resolver: &'a R) -> impl Stream<Item = Result<SingleQuery, ResolutionError>> + 'a {
-    once(async move {
-      self.try_to_absolute(resolver).await
-    })
+  pub fn to_stream<'a, R: Resolver>(
+    self,
+    resolver: &'a R,
+  ) -> impl Stream<Item = Result<SingleQuery, ResolutionError>> + 'a {
+    once(async move { self.try_to_absolute(resolver).await })
       .try_filter_map(|res| async move { Ok(res) })
       .map_ok(|result| futures::stream::iter(result.into_iter().map(Ok)))
       .try_flatten()
   }
 
-  pub fn to_batch_stream<'a, R: Resolver>(self, resolver: &'a R, size: u64) -> impl Stream<Item = Result<AbsoluteRange, ResolutionError>> + 'a {
+  pub fn to_batch_stream<'a, R: Resolver>(
+    self,
+    resolver: &'a R,
+    size: u64,
+  ) -> impl Stream<Item = Result<AbsoluteRange, ResolutionError>> + 'a {
     use futures::stream::StreamExt;
     once(async move {
-      self.try_to_absolute(resolver).await
-        .map(|result|
-          match result {
-            Some(result) => futures::stream::iter(result.batches(size)).map(Ok),
-            None => futures::stream::iter(vec![].into_iter()).map(Ok),
-          }
-        )
-    }).try_flatten()
+      self
+        .try_to_absolute(resolver)
+        .await
+        .map(|result| match result {
+          Some(result) => futures::stream::iter(result.batches(size)).map(Ok),
+          None => futures::stream::iter(vec![].into_iter()).map(Ok),
+        })
+    })
+    .try_flatten()
   }
 
   pub fn is_absolute(&self) -> bool {
@@ -520,7 +583,11 @@ impl From<(Cid, i64, i64)> for RangeQuery {
   }
 }
 
-impl<C, R> From<(C, R)> for RangeQuery where R: RangeBounds<i64>, C: AsCid {
+impl<C, R> From<(C, R)> for RangeQuery
+where
+  R: RangeBounds<i64>,
+  C: AsCid,
+{
   fn from((strand, range): (C, R)) -> Self {
     Self::from_range_bounds(strand.as_cid(), range)
   }
@@ -540,7 +607,9 @@ impl FromStr for RangeQuery {
 
     let parts: Vec<&str> = s.split(':').collect();
     if parts.len() != 3 {
-      return Err(ConversionError::InvalidFormat("Invalid range query string".to_string()));
+      return Err(ConversionError::InvalidFormat(
+        "Invalid range query string".to_string(),
+      ));
     }
     let cid_str = parts.get(0).unwrap();
     let maybe_start = parts.get(1).unwrap();
@@ -551,7 +620,7 @@ impl FromStr for RangeQuery {
       (start, "") => {
         let start: i64 = index_from_str(start)?;
         Ok((cid, start..).into())
-      },
+      }
       ("", end) => {
         let parts = end.split('=').collect::<Vec<_>>();
         if parts.len() == 2 {
@@ -561,7 +630,7 @@ impl FromStr for RangeQuery {
           let end: i64 = index_from_str(end)?;
           Ok((cid, ..end).into())
         }
-      },
+      }
       (start, end) => {
         let start: i64 = index_from_str(start)?;
         let parts = end.split('=').collect::<Vec<_>>();
@@ -593,7 +662,7 @@ impl Display for RangeQuery {
           Bound::Excluded(e) => e.to_string(),
         };
         write!(f, "{}:{}:{}", strand, start, end)
-      },
+      }
     }
   }
 }
@@ -635,7 +704,7 @@ impl AnyQuery {
             return Self::One(SingleQuery::Index(range.strand, range.start as i64));
           }
         }
-      },
+      }
       _ => {}
     }
     self
@@ -662,16 +731,18 @@ impl FromStr for AnyQuery {
       1 => {
         let cid = Cid::try_from(s.to_string())?;
         Ok(Self::Strand(cid))
-      },
+      }
       2 => {
         let query = SingleQuery::from_str(s)?;
         Ok(Self::One(query))
-      },
+      }
       3 => {
         let query = RangeQuery::from_str(s)?;
         Ok(Self::Many(query).reduce())
-      },
-      _ => Err(ConversionError::InvalidFormat("Invalid query string".to_string())),
+      }
+      _ => Err(ConversionError::InvalidFormat(
+        "Invalid query string".to_string(),
+      )),
     }
   }
 }
@@ -731,19 +802,40 @@ mod test {
     let range = RangeQuery::from_range_bounds(&cid, 3..=0);
     assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 3, 0)));
     let range = RangeQuery::from_range_bounds(&cid, -1..);
-    assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(-1), Bound::Included(0)));
+    assert_eq!(
+      range,
+      RangeQuery::Relative(cid, Bound::Included(-1), Bound::Included(0))
+    );
     let range = RangeQuery::from_range_bounds(&cid, ..=-2);
-    assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(0), Bound::Included(-2)));
+    assert_eq!(
+      range,
+      RangeQuery::Relative(cid, Bound::Included(0), Bound::Included(-2))
+    );
     let range = RangeQuery::from_range_bounds(&cid, ..);
-    assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(0), Bound::Included(-1)));
+    assert_eq!(
+      range,
+      RangeQuery::Relative(cid, Bound::Included(0), Bound::Included(-1))
+    );
     let range = RangeQuery::from_range_bounds(&cid, 2..);
-    assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(2), Bound::Included(-1)));
+    assert_eq!(
+      range,
+      RangeQuery::Relative(cid, Bound::Included(2), Bound::Included(-1))
+    );
     let range = RangeQuery::from_range_bounds(&cid, -1..-1);
-    assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(-1), Bound::Excluded(-1)));
+    assert_eq!(
+      range,
+      RangeQuery::Relative(cid, Bound::Included(-1), Bound::Excluded(-1))
+    );
     let range = RangeQuery::from_range_bounds(&cid, -1..=-2);
-    assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(-1), Bound::Included(-2)));
+    assert_eq!(
+      range,
+      RangeQuery::Relative(cid, Bound::Included(-1), Bound::Included(-2))
+    );
     let range = RangeQuery::from_range_bounds(&cid, -3..-1);
-    assert_eq!(range, RangeQuery::Relative(cid, Bound::Included(-3), Bound::Excluded(-1)));
+    assert_eq!(
+      range,
+      RangeQuery::Relative(cid, Bound::Included(-3), Bound::Excluded(-1))
+    );
   }
 
   // -100..20 if latest is 100... would mean: 1..20
@@ -768,7 +860,7 @@ mod test {
   }
 
   #[test]
-  fn test_iter(){
+  fn test_iter() {
     let range = AbsoluteRange::new(Cid::default(), 0, 100);
     let queries = range.into_iter().collect::<Vec<_>>();
     assert_eq!(queries.len(), 101);
@@ -783,7 +875,7 @@ mod test {
   }
 
   #[test]
-  fn test_batches(){
+  fn test_batches() {
     let range = AbsoluteRange::new(Cid::default(), 99, 0);
     let batches = range.batches(100);
     let cid = Cid::default();
@@ -826,7 +918,7 @@ mod test {
   }
 
   #[test]
-  fn test_to_absolute(){
+  fn test_to_absolute() {
     let range: RangeQuery = (Cid::default(), -1..=2).into();
     let absolute = range.to_absolute(10).unwrap();
     assert_eq!(absolute.start, 10);
@@ -880,7 +972,7 @@ mod test {
   }
 
   #[test]
-  fn test_to_absolute_empty(){
+  fn test_to_absolute_empty() {
     let range: RangeQuery = (Cid::default(), 2..).into();
     let absolute = range.to_absolute(0);
     assert!(absolute.is_none());
@@ -895,7 +987,7 @@ mod test {
   }
 
   #[test]
-  fn test_to_string_roundtrip_latest(){
+  fn test_to_string_roundtrip_latest() {
     let cid = Cid::default().to_string();
     let output = cid.clone() + ":-1";
     let inputs = [
@@ -910,7 +1002,7 @@ mod test {
   }
 
   #[test]
-  fn test_to_string_roundtrip_range(){
+  fn test_to_string_roundtrip_range() {
     let cid = Cid::default().to_string();
     let output = cid.clone() + ":0:=-1";
     let inputs = [
@@ -940,7 +1032,7 @@ mod test {
   }
 
   #[test]
-  fn test_to_from_string(){
+  fn test_to_from_string() {
     let s = "bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune:0:=99";
     let range: RangeQuery = s.parse().unwrap();
     assert_eq!(range.to_absolute(0).unwrap().len(), 100);
@@ -957,7 +1049,7 @@ mod test {
   }
 
   #[test]
-  fn test_any_query(){
+  fn test_any_query() {
     let s = "bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune:0:=99";
     let query: AnyQuery = s.parse().unwrap();
     assert_eq!(query.to_string(), s);

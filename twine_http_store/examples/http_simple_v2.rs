@@ -1,7 +1,7 @@
 use futures::{StreamExt, TryStreamExt};
+use twine_core::resolver::*;
 use twine_core::twine::Strand;
 use twine_http_store::*;
-use twine_core::resolver::*;
 // use twine_core::store::MemoryCache;
 // use twine_core::store::Store;
 // use futures_time::prelude::*;
@@ -10,22 +10,25 @@ use twine_core::resolver::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-  let resolver = v2::HttpStore::new(reqwest::Client::new())
-    .with_url("http://localhost:8787/");
+  let resolver = v2::HttpStore::new(reqwest::Client::new()).with_url("http://localhost:8787/");
   // let store = twine_core::store::MemoryStore::new();
 
   println!("strands:");
-  let strands: Vec<Strand> = resolver.strands().await?
-  .inspect_ok(|strand| {
-    println!("> cid: {}\n> description: {:?}",
-      strand.cid(),
-      strand.details().get("description").unwrap()
-    );
-  })
-  .inspect_err(|err| {
-    eprintln!("error: {}", err);
-  })
-  .try_collect().await?;
+  let strands: Vec<Strand> = resolver
+    .strands()
+    .await?
+    .inspect_ok(|strand| {
+      println!(
+        "> cid: {}\n> description: {:?}",
+        strand.cid(),
+        strand.details().get("description").unwrap()
+      );
+    })
+    .inspect_err(|err| {
+      eprintln!("error: {}", err);
+    })
+    .try_collect()
+    .await?;
 
   let cid = strands[0].cid().clone();
   let twine = resolver.resolve_strand(cid).await?.unpack();
@@ -38,13 +41,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   println!("latest: {}", latest.cid());
 
   // resolve 1000
-  resolver.resolve_range((&twine, 0..=1000)).await?
+  resolver
+    .resolve_range((&twine, 0..=1000))
+    .await?
     .inspect_ok(|twine| println!("index: {}, cid: {}", twine.index(), twine.cid()))
     .inspect_err(|err| eprintln!("error: {}", err))
-    .filter_map(|twine| async {
-      twine.ok()
-    })
-    .for_each(|_| async { })
+    .filter_map(|twine| async { twine.ok() })
+    .for_each(|_| async {})
     .await;
 
   // store.save(twine.clone()).await?;

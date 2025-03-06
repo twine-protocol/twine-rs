@@ -14,5 +14,5 @@ pub use biscuit_signer::BiscuitSigner;
 mod ring_signer;
 pub use ring_signer::RingSigner;
 
-pub use ring;
 pub use pkcs8;
+pub use ring;

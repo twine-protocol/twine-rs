@@ -1,22 +1,23 @@
 use futures::{StreamExt, TryStreamExt};
 use twine_builder::RingSigner;
-use twine_core::twine::Twine;
-use twine_sled_store::*;
+use twine_builder::TwineBuilder;
 use twine_core::resolver::*;
 use twine_core::store::Store;
-use twine_builder::TwineBuilder;
+use twine_core::twine::Twine;
+use twine_sled_store::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let tmp_dir = tempfile::tempdir()?;
-  let db = sled::Config::new().temporary(true).path(tmp_dir.path()).open()?;
+  let db = sled::Config::new()
+    .temporary(true)
+    .path(tmp_dir.path())
+    .open()?;
   let store = SledStore::new(db, SledStoreOptions::default());
 
   let signer = RingSigner::generate_ed25519().unwrap();
   let builder = TwineBuilder::new(signer);
-  let strand = builder.build_strand()
-    .radix(2)
-    .done()?;
+  let strand = builder.build_strand().radix(2).done()?;
 
   let first = builder.build_first(strand.clone()).done()?;
   let next = builder.build_next(&first).done()?;
@@ -28,14 +29,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   store.save(first.clone()).await?;
   store.save(next.clone()).await?;
 
-  store.strands().await?
+  store
+    .strands()
+    .await?
     .inspect_ok(|strand| {
       println!("strand: {}", strand.cid());
     })
     .inspect_err(|err| {
       println!("Error: {:?}", err);
     })
-    .try_collect::<Vec<_>>().await?;
+    .try_collect::<Vec<_>>()
+    .await?;
 
   let s = store.resolve_strand(&strand).await?;
   assert_eq!(*s, strand);
@@ -44,11 +48,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   assert_eq!(latest, next.clone());
 
   let count = 1000;
-  let next_n: Vec<Twine> = (latest.index()..count).into_iter().scan(latest, |prev, _| {
-    let next = builder.build_next(&prev).done().unwrap();
-    *prev = next.clone();
-    Some(next)
-  }).collect();
+  let next_n: Vec<Twine> = (latest.index()..count)
+    .into_iter()
+    .scan(latest, |prev, _| {
+      let next = builder.build_next(&prev).done().unwrap();
+      *prev = next.clone();
+      Some(next)
+    })
+    .collect();
 
   println!("next_n");
   next_n.iter().for_each(|twine| {
@@ -76,8 +83,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   //   }
   // });
 
-
-  println!("Resolved {} twines in {}ms", count, start_time.elapsed().as_millis());
+  println!(
+    "Resolved {} twines in {}ms",
+    count,
+    start_time.elapsed().as_millis()
+  );
 
   // try just using resolve_index
   // let start_time = std::time::Instant::now();

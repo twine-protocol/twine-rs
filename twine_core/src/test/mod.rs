@@ -1,4 +1,4 @@
-pub (crate) const STRANDJSON: &'static str = r#"
+pub(crate) const STRANDJSON: &'static str = r#"
   {
     "cid": {
       "/": "bafyriqe3zxf5g4ifgqhea5zozxpdcfi5qcpkfpogtxzbizmmuxdjuzuq44a2cifbr7xplo4kcfsdz2c5pxfxektavrqxxb3nvbmclxz7qiz6e"
@@ -27,7 +27,7 @@ pub (crate) const STRANDJSON: &'static str = r#"
     }
   }"#;
 
-pub (crate) const TIXELJSON: &'static str = r#"
+pub(crate) const TIXELJSON: &'static str = r#"
   {
     "cid": {
       "/": "bafyriqgafbhhudahpnzrdvuzjjczro43i4mnv7637vq4oh6m6lfdccpazmmurfu4vluy7iddrhwbbfvjs62uo2wrzx4axaxx5lv7pfmqveqt2"
@@ -83,7 +83,7 @@ pub (crate) const TIXELJSON: &'static str = r#"
   }
 "#;
 
-pub (crate) const BADSTRANDJSON: &'static str = r#"
+pub(crate) const BADSTRANDJSON: &'static str = r#"
   {
     "cid": {
       "/": "bafyriqe3zxf5g4ifgqhea5zozxpdcfi5qcpkfpogtxzbizmmuxdjuzuq44a2cifbr7xplo4kcfsdz2c5pxfxektavrqxxb3nvbmclxz7qiz6e"
@@ -112,7 +112,7 @@ pub (crate) const BADSTRANDJSON: &'static str = r#"
     }
   }"#;
 
-pub (crate) const INVALID_TIXELJSON: &'static str = r#"
+pub(crate) const INVALID_TIXELJSON: &'static str = r#"
   {
     "cid": {
       "/": "bafyriqgafbhhudahpnzrdvuzjjczro43i4mnv7637vq4oh6m6lfdccpazmmurfu4vluy7iddrhwbbfvjs62uo2wrzx4axaxx5lv7pfmqveqt2"
@@ -168,7 +168,7 @@ pub (crate) const INVALID_TIXELJSON: &'static str = r#"
   }
 "#;
 
-pub (crate) const INVALID_SIGNATURE_TIXELJSON: &'static str = r#"
+pub(crate) const INVALID_SIGNATURE_TIXELJSON: &'static str = r#"
   {
     "cid": {
       "/": "bafyriqhmhtplcjfixyodttbtstfayqeytew27iykigpoi7vhkpxxfg6mx57jieoeu2qzouljopni3t25yp2a3vggzybciu7ftpy2tyuwbx2po"
@@ -207,7 +207,7 @@ pub (crate) const INVALID_SIGNATURE_TIXELJSON: &'static str = r#"
   }
 "#;
 
-pub (crate) const STRAND_V2_JSON: &'static str = r#"
+pub(crate) const STRAND_V2_JSON: &'static str = r#"
 {
   "cid": {
     "/": "bafyrmieej3j3sprtnbfziv6vhixzr3xxrcabnma43ajb5grhsixdvxzdvu"
@@ -239,7 +239,7 @@ pub (crate) const STRAND_V2_JSON: &'static str = r#"
   }
 }"#;
 
-pub (crate) const TIXEL_V2_JSON: &'static str = r#"
+pub(crate) const TIXEL_V2_JSON: &'static str = r#"
 {
   "cid": {
     "/": "bafyrmibrw2iojkmsnyaffhaqwujqriumkk6whnd3bc6rdob7le7zquslp4"

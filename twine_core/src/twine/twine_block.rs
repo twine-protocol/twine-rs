@@ -1,9 +1,15 @@
-use crate::{crypto::{assert_cid, get_hasher}, Cid};
-use std::{fmt::Display, sync::Arc};
 use crate::errors::VerificationError;
+use crate::{
+  crypto::{assert_cid, get_hasher},
+  Cid,
+};
 use multihash_codetable::Code;
+use std::{fmt::Display, sync::Arc};
 
-pub trait TwineBlock where Self: Sized {
+pub trait TwineBlock
+where
+  Self: Sized,
+{
   fn cid(&self) -> &Cid;
   /// Decode from DAG-JSON
   ///

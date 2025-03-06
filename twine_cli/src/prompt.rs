@@ -1,7 +1,9 @@
 use anyhow::Result;
 use inquire::{validator::Validation, Confirm, Text};
 
-pub fn not_empty(text: &str) -> std::result::Result<Validation, Box<dyn std::error::Error + Send + Sync>> {
+pub fn not_empty(
+  text: &str,
+) -> std::result::Result<Validation, Box<dyn std::error::Error + Send + Sync>> {
   if text.is_empty() {
     Ok(Validation::Invalid("This field cannot be empty".into()))
   } else {
@@ -10,11 +12,18 @@ pub fn not_empty(text: &str) -> std::result::Result<Validation, Box<dyn std::err
 }
 
 #[allow(dead_code)]
-pub fn only_simple_chars(text: &str) -> std::result::Result<Validation, Box<dyn std::error::Error + Send + Sync>> {
-  if text.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+pub fn only_simple_chars(
+  text: &str,
+) -> std::result::Result<Validation, Box<dyn std::error::Error + Send + Sync>> {
+  if text
+    .chars()
+    .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+  {
     Ok(Validation::Valid)
   } else {
-    Ok(Validation::Invalid("Only alphanumeric characters, dashes, and underscores are allowed".into()))
+    Ok(Validation::Invalid(
+      "Only alphanumeric characters, dashes, and underscores are allowed".into(),
+    ))
   }
 }
 

@@ -1,9 +1,17 @@
-use clap::Parser;
+use crate::{
+  selector::{parse_selector, Selector},
+  stores::resolver_from_args,
+};
 use anyhow::Result;
-use twine_core::{errors::ResolutionError, resolver::{SingleQuery, RangeQuery, Resolver}, twine::{Strand, Twine}, Cid, Ipld};
+use clap::Parser;
 use futures::stream::{Stream, StreamExt, TryStreamExt};
-use num_format::{ToFormattedString, SystemLocale};
-use crate::{selector::{parse_selector, Selector}, stores::resolver_from_args};
+use num_format::{SystemLocale, ToFormattedString};
+use twine_core::{
+  errors::ResolutionError,
+  resolver::{RangeQuery, Resolver, SingleQuery},
+  twine::{Strand, Twine},
+  Cid, Ipld,
+};
 
 #[derive(Debug, Parser)]
 pub struct ListCommand {
@@ -26,28 +34,23 @@ pub struct ListCommand {
 
 fn format_ipld(thing: &Ipld, depth: u8, locale: &SystemLocale) -> String {
   match thing {
-    Ipld::String(s) => {
-      s.to_string()
-    },
-    Ipld::Bool(b) => {
-      b.to_string()
-    },
-    Ipld::Integer(i) => {
-      i.to_formatted_string(locale)
-    },
+    Ipld::String(s) => s.to_string(),
+    Ipld::Bool(b) => b.to_string(),
+    Ipld::Integer(i) => i.to_formatted_string(locale),
     Ipld::Float(f) => {
       format!("{:e}", f)
-    },
-    Ipld::Link(l) => {
-      l.to_string()
-    },
+    }
+    Ipld::Link(l) => l.to_string(),
     Ipld::Bytes(b) => {
       // format Vec<u8> as hex string
-      format!("{}", b.iter().fold(String::new(), |mut acc, byte| {
-        acc.push_str(&format!("{:02x}", byte));
-        acc
-      }))
-    },
+      format!(
+        "{}",
+        b.iter().fold(String::new(), |mut acc, byte| {
+          acc.push_str(&format!("{:02x}", byte));
+          acc
+        })
+      )
+    }
     Ipld::List(items) => {
       if depth == 0 {
         "List(...)".to_string()
@@ -59,7 +62,7 @@ fn format_ipld(thing: &Ipld, depth: u8, locale: &SystemLocale) -> String {
         }
         indent::indent_all_by(2, string)
       }
-    },
+    }
     Ipld::Map(items) => {
       if depth == 0 {
         "Map(...)".to_string()
@@ -71,10 +74,8 @@ fn format_ipld(thing: &Ipld, depth: u8, locale: &SystemLocale) -> String {
         }
         indent::indent_all_by(2, string)
       }
-    },
-    Ipld::Null => {
-      "null".to_string()
-    },
+    }
+    Ipld::Null => "null".to_string(),
   }
 }
 
@@ -101,19 +102,18 @@ impl ListCommand {
   async fn list_strand<R: Resolver>(&self, cid: &Cid, resolver: &R) -> Result<()> {
     log::trace!("Resolving cid {}", cid);
     let strand = resolver.resolve_strand(cid).await?.unpack();
-    self.print_strand_stream(
-      futures::stream::once(async { Ok(strand) }),
-      resolver
-    ).await?;
+    self
+      .print_strand_stream(futures::stream::once(async { Ok(strand) }), resolver)
+      .await?;
     Ok(())
   }
 
   async fn list_query<R: Resolver>(&self, query: SingleQuery, resolver: &R) -> Result<()> {
     log::trace!("Resolving query {}", query);
     let twine = resolver.resolve(query).await?.unpack();
-    self.print_twine_stream(
-      futures::stream::once(async { Ok(twine) })
-    ).await?;
+    self
+      .print_twine_stream(futures::stream::once(async { Ok(twine) }))
+      .await?;
     Ok(())
   }
 
@@ -124,7 +124,10 @@ impl ListCommand {
     Ok(())
   }
 
-  async fn print_twine_stream<S: Stream<Item = Result<Twine, ResolutionError>>>(&self, stream: S) -> Result<()> {
+  async fn print_twine_stream<S: Stream<Item = Result<Twine, ResolutionError>>>(
+    &self,
+    stream: S,
+  ) -> Result<()> {
     if self.json {
       stream
         .inspect_err(|err| {
@@ -134,7 +137,8 @@ impl ListCommand {
           let twine = twine;
           println!("{}", twine);
           Ok(())
-        }).await?;
+        })
+        .await?;
       return Ok(());
     }
 
@@ -160,7 +164,8 @@ impl ListCommand {
           println!("({}) {}:{}", index, strand_cid, cid);
         }
         Ok(())
-      }).await?;
+      })
+      .await?;
     Ok(())
   }
 
@@ -171,7 +176,11 @@ impl ListCommand {
     Ok(())
   }
 
-  async fn print_strand_stream<S: Stream<Item = Result<Strand, ResolutionError>>, R: Resolver>(&self, strands: S, resolver: &R) -> Result<()> {
+  async fn print_strand_stream<S: Stream<Item = Result<Strand, ResolutionError>>, R: Resolver>(
+    &self,
+    strands: S,
+    resolver: &R,
+  ) -> Result<()> {
     if self.json {
       strands
         .inspect_err(|err| {
@@ -181,7 +190,8 @@ impl ListCommand {
           let twine = twine;
           println!("{}", twine);
           Ok(())
-        }).await?;
+        })
+        .await?;
       return Ok(());
     }
 
@@ -197,7 +207,7 @@ impl ListCommand {
           Err(ResolutionError::NotFound) => {
             log::debug!("No latest tixel for strand {}", strand.cid());
             Ok((strand, None))
-          },
+          }
           Err(err) => {
             log::error!("{}", err);
             Err(err)
@@ -207,11 +217,16 @@ impl ListCommand {
       .buffered(2)
       .try_for_each(|(strand, maybe_latest)| async move {
         let cid = strand.cid();
-        let latest_index = maybe_latest.as_ref().map(|l| l.index().to_formatted_string(locale));
+        let latest_index = maybe_latest
+          .as_ref()
+          .map(|l| l.index().to_formatted_string(locale));
         if self.inspect {
           let subspec = strand.subspec().map(|s| s.to_string()).unwrap_or_default();
           println!("{}", cid);
-          println!("  Latest: {}", latest_index.unwrap_or("unknown".to_string()));
+          println!(
+            "  Latest: {}",
+            latest_index.unwrap_or("unknown".to_string())
+          );
           if maybe_latest.is_some() {
             let latest = maybe_latest.unwrap();
             let byte_count = latest.bytes().len();
@@ -228,7 +243,8 @@ impl ListCommand {
           println!("{}", cid);
         }
         Ok(())
-      }).await?;
+      })
+      .await?;
     Ok(())
   }
 }

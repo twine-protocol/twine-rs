@@ -1,5 +1,5 @@
-use std::ops::Deref;
 use crate::errors::VerificationError;
+use std::ops::Deref;
 
 use super::*;
 
@@ -56,7 +56,6 @@ impl PartialEq<TwineResolution> for Twine {
   }
 }
 
-
 impl PartialEq<Tixel> for TwineResolution {
   fn eq(&self, other: &Tixel) -> bool {
     self.twine == *other
@@ -84,10 +83,13 @@ pub struct StrandResolution {
 impl StrandResolution {
   pub fn try_new(cid: Cid, strand: Strand) -> Result<Self, ResolutionError> {
     if cid != strand.cid() {
-      return Err(VerificationError::CidMismatch{
-        expected: cid.to_string(),
-        actual: strand.cid().to_string()
-      }.into());
+      return Err(
+        VerificationError::CidMismatch {
+          expected: cid.to_string(),
+          actual: strand.cid().to_string(),
+        }
+        .into(),
+      );
     }
     Ok(Self { cid, strand })
   }

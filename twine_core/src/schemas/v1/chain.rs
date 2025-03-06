@@ -1,11 +1,14 @@
 use crate::Ipld;
-use serde::{Serialize, Deserialize};
+use crate::{
+  errors::VerificationError,
+  verify::{is_all_unique, Verifiable},
+};
 use biscuit::jwk::{AlgorithmParameters, JWK};
-use crate::{errors::VerificationError, verify::{is_all_unique, Verifiable}};
+use serde::{Deserialize, Serialize};
 
-use super::{V1, Mixin};
+use super::{Mixin, V1};
 
-#[derive(Debug, Serialize, Deserialize, Clone,  PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ChainContentV1 {
   pub specification: V1,
@@ -19,25 +22,33 @@ pub struct ChainContentV1 {
 impl Verifiable for ChainContentV1 {
   fn verify(&self) -> Result<(), VerificationError> {
     if !is_all_unique(&self.mixins) {
-      return Err(VerificationError::InvalidTwineFormat("Contains mixins with duplicate chains".into()));
+      return Err(VerificationError::InvalidTwineFormat(
+        "Contains mixins with duplicate chains".into(),
+      ));
     }
 
     if self.links_radix == 1 {
-      return Err(VerificationError::InvalidTwineFormat("Chain radix must not equal 1".into()));
+      return Err(VerificationError::InvalidTwineFormat(
+        "Chain radix must not equal 1".into(),
+      ));
     }
 
     match self.key.algorithm {
       AlgorithmParameters::EllipticCurve(ref ec) => {
         if ec.d.is_some() {
-          return Err(VerificationError::InvalidTwineFormat("Can not use a private key".into()));
+          return Err(VerificationError::InvalidTwineFormat(
+            "Can not use a private key".into(),
+          ));
         }
-      },
+      }
       AlgorithmParameters::RSA(ref rsa) => {
         if rsa.d.is_some() {
-          return Err(VerificationError::InvalidTwineFormat("Can not use a private key".into()));
+          return Err(VerificationError::InvalidTwineFormat(
+            "Can not use a private key".into(),
+          ));
         }
-      },
-      AlgorithmParameters::OctetKey(_) => {},
+      }
+      AlgorithmParameters::OctetKey(_) => {}
       _ => return Err(VerificationError::UnsupportedKeyAlgorithm),
     }
 
@@ -48,22 +59,23 @@ impl Verifiable for ChainContentV1 {
 #[cfg(test)]
 mod test {
   use super::*;
-  use serde_json::json;
   use crate::Cid;
+  use serde_json::json;
 
   fn pub_key() -> JWK<()> {
-    serde_json::from_value(json!{
+    serde_json::from_value(json! {
       {
         "kty": "EC",
         "crv": "P-256",
         "x": "Nyf5aq1BaIfddcwuMzw9jgbc35aLYCRXlEmiuALvyJE",
         "y": "9jjHUc9ofm_5ooDhG3A2WF5gyjK7Rpw-V5mKKJ4IYKY"
       }
-    }).unwrap()
+    })
+    .unwrap()
   }
 
   fn private_key() -> JWK<()> {
-    serde_json::from_value(json!{
+    serde_json::from_value(json! {
       {
         "crv": "P-256",
         "d": "2LeOeNTRS9XiMGOOG7iCzV9tMRK46H9TswZuThIhy78",
@@ -75,7 +87,8 @@ mod test {
         "x": "9xMGxDMhQCSyVOQKttgkeUThPpS6HrtP6FVt5295UOA",
         "y": "J9xTVYrw8eXwBHej41mbpZeZl3eyYD5lpjP_WSGyArE"
       }
-    }).unwrap()
+    })
+    .unwrap()
   }
 
   #[test]

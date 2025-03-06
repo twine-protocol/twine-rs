@@ -1,13 +1,13 @@
-use std::{ops::Deref, str::FromStr};
-use std::fmt::Display;
+use anyhow::{anyhow, Result};
 use futures::executor;
+use std::fmt::Display;
+use std::{ops::Deref, str::FromStr};
+use twine_car_store::CarStore;
 use twine_core::resolver::ResolverSetSeries;
 use twine_core::{errors::StoreError, resolver::unchecked_base, store::Store};
-use anyhow::{Result, anyhow};
-use twine_car_store::CarStore;
-use twine_sled_store::{SledStore, SledStoreOptions};
-use twine_pickledb_store::PickleDbStore;
 use twine_http_store::reqwest;
+use twine_pickledb_store::PickleDbStore;
+use twine_sled_store::{SledStore, SledStoreOptions};
 
 use crate::config::Config;
 
@@ -54,7 +54,6 @@ impl TryFrom<StoreUri> for AnyStore {
   }
 }
 
-
 impl Deref for AnyStore {
   type Target = dyn unchecked_base::BaseResolver;
 
@@ -83,7 +82,10 @@ impl AsRef<dyn unchecked_base::BaseResolver> for AnyStore {
 
 #[allow(dead_code)]
 impl AnyStore {
-  pub async fn save<T: Into<twine_core::twine::AnyTwine> + Send>(&self, twine: T) -> std::result::Result<(), StoreError> {
+  pub async fn save<T: Into<twine_core::twine::AnyTwine> + Send>(
+    &self,
+    twine: T,
+  ) -> std::result::Result<(), StoreError> {
     match self {
       Self::Sled(s) => s.save(twine).await,
       Self::Car(s) => s.save(twine).await,
@@ -93,7 +95,14 @@ impl AnyStore {
     }
   }
 
-  pub async fn save_many<I: Into<twine_core::twine::AnyTwine> + Send, S: Iterator<Item = I> + Send, T: IntoIterator<Item = I, IntoIter = S> + Send>(&self, twines: T) -> std::result::Result<(), StoreError> {
+  pub async fn save_many<
+    I: Into<twine_core::twine::AnyTwine> + Send,
+    S: Iterator<Item = I> + Send,
+    T: IntoIterator<Item = I, IntoIter = S> + Send,
+  >(
+    &self,
+    twines: T,
+  ) -> std::result::Result<(), StoreError> {
     match self {
       Self::Sled(s) => s.save_many(twines).await,
       Self::Car(s) => s.save_many(twines).await,
@@ -103,7 +112,13 @@ impl AnyStore {
     }
   }
 
-  pub async fn save_stream<I: Into<twine_core::twine::AnyTwine> + Send, T: futures::stream::Stream<Item = I> + Send + Unpin>(&self, twines: T) -> std::result::Result<(), StoreError> {
+  pub async fn save_stream<
+    I: Into<twine_core::twine::AnyTwine> + Send,
+    T: futures::stream::Stream<Item = I> + Send + Unpin,
+  >(
+    &self,
+    twines: T,
+  ) -> std::result::Result<(), StoreError> {
     match self {
       Self::Sled(s) => s.save_stream(twines).await,
       Self::Car(s) => s.save_stream(twines).await,
@@ -113,7 +128,10 @@ impl AnyStore {
     }
   }
 
-  pub async fn delete<C: twine_core::as_cid::AsCid + Send>(&self, cid: C) -> std::result::Result<(), StoreError> {
+  pub async fn delete<C: twine_core::as_cid::AsCid + Send>(
+    &self,
+    cid: C,
+  ) -> std::result::Result<(), StoreError> {
     match self {
       Self::Sled(s) => s.delete(cid).await,
       Self::Car(s) => s.delete(cid).await,
@@ -129,31 +147,29 @@ pub fn parse_store(uri: &str) -> Result<AnyStore> {
     [scheme, path] => match *scheme {
       "sled" => {
         let db = twine_sled_store::sled::Config::new().path(path).open()?;
-        Ok(AnyStore::Sled(SledStore::new(db, SledStoreOptions::default())))
-      },
-      "car" => {
-        Ok(AnyStore::Car(CarStore::new(path)?))
-      },
-      "pickle" => {
-        Ok(AnyStore::Pickle(PickleDbStore::new(path)?))
-      },
+        Ok(AnyStore::Sled(SledStore::new(
+          db,
+          SledStoreOptions::default(),
+        )))
+      }
+      "car" => Ok(AnyStore::Car(CarStore::new(path)?)),
+      "pickle" => Ok(AnyStore::Pickle(PickleDbStore::new(path)?)),
       "http" | "https" => {
         match executor::block_on(twine_http_store::determine_version(&uri)).unwrap_or(1) {
           1 => {
             let cfg = twine_http_store::v1::HttpStoreOptions::default()
-                .concurency(20)
-                .url(&uri);
+              .concurency(20)
+              .url(&uri);
             let r = twine_http_store::v1::HttpStore::new(reqwest::Client::new(), cfg);
             Ok(AnyStore::HttpV1(r))
-          },
+          }
           2 => {
-            let r = twine_http_store::v2::HttpStore::new(reqwest::Client::new())
-              .with_url(&uri);
+            let r = twine_http_store::v2::HttpStore::new(reqwest::Client::new()).with_url(&uri);
             Ok(AnyStore::HttpV2(r))
-          },
+          }
           _ => Err(anyhow!("Invalid HTTP store version: {}", uri)),
         }
-      },
+      }
       _ => Err(anyhow!("Invalid store specifier: {}", uri)),
     },
     [path] => {
@@ -161,35 +177,42 @@ pub fn parse_store(uri: &str) -> Result<AnyStore> {
       if path.ends_with(".car") {
         Ok(AnyStore::Car(CarStore::new(path)?))
       } else if path.ends_with(".sled") {
-        Ok(AnyStore::Sled(SledStore::new(twine_sled_store::sled::Config::new().path(path).open()?, SledStoreOptions::default())))
+        Ok(AnyStore::Sled(SledStore::new(
+          twine_sled_store::sled::Config::new().path(path).open()?,
+          SledStoreOptions::default(),
+        )))
       } else if path.ends_with(".pickle") {
         Ok(AnyStore::Pickle(PickleDbStore::new(path)?))
       } else {
         Err(anyhow!("Could not determine type of store: {}", uri))
       }
-    },
+    }
     _ => Err(anyhow!("Invalid store specifier: {}", uri)),
   }
 }
 
-pub fn resolver_from_args(arg: &Option<String>, config: &Option<Config>) -> Result<ResolverSetSeries<AnyStore>> {
+pub fn resolver_from_args(
+  arg: &Option<String>,
+  config: &Option<Config>,
+) -> Result<ResolverSetSeries<AnyStore>> {
   // Can be either the arg as a store uri (precedence)
   // or the name of the store in the config
   // or default to all stores in config
   if let Some(arg) = arg {
     let store = match parse_store(&arg) {
       Ok(s) => s,
-      Err(_) => {
-        config.as_ref()
-          .ok_or_else(|| anyhow!("Could not parse resolver uri and no config present"))?
-          .get_named_resolver(&arg)
-          .ok_or_else(|| anyhow!("No resolver named: {}", arg))??
-      }
+      Err(_) => config
+        .as_ref()
+        .ok_or_else(|| anyhow!("Could not parse resolver uri and no config present"))?
+        .get_named_resolver(&arg)
+        .ok_or_else(|| anyhow!("No resolver named: {}", arg))??,
     };
     Ok(ResolverSetSeries::new(vec![store]))
   } else if let Some(config) = config {
     config.all_resolvers()
   } else {
-    Err(anyhow!("Must specify a resolver in arguments or in config file"))
+    Err(anyhow!(
+      "Must specify a resolver in arguments or in config file"
+    ))
   }
 }

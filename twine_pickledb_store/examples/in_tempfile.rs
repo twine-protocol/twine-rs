@@ -1,8 +1,8 @@
 use futures::TryStreamExt;
-use twine_builder::{TwineBuilder, RingSigner};
-use twine_pickledb_store::PickleDbStore;
-use twine_core::{ipld_core::ipld, multihash_codetable::Code, store::Store, resolver::Resolver};
 use tempfile::TempDir;
+use twine_builder::{RingSigner, TwineBuilder};
+use twine_core::{ipld_core::ipld, multihash_codetable::Code, resolver::Resolver, store::Store};
+use twine_pickledb_store::PickleDbStore;
 
 #[tokio::main]
 async fn main() {
@@ -12,7 +12,8 @@ async fn main() {
 
   let signer = RingSigner::generate_ed25519().unwrap();
   let builder = TwineBuilder::new(signer);
-  let strand = builder.build_strand()
+  let strand = builder
+    .build_strand()
     .hasher(Code::Sha3_256)
     .details(ipld!({
       "foo": "bar",
@@ -24,7 +25,8 @@ async fn main() {
     let store = PickleDbStore::new(&filename).unwrap();
     store.save(strand.clone()).await.unwrap();
 
-    let mut prev = builder.build_first(strand.clone())
+    let mut prev = builder
+      .build_first(strand.clone())
       .payload(ipld!({
         "baz": null,
       }))
@@ -35,7 +37,8 @@ async fn main() {
 
     let n = 1000;
     for i in 1..n {
-      prev = builder.build_next(&prev)
+      prev = builder
+        .build_next(&prev)
         .payload(ipld!({
           "baz": "qux",
           "index": i,

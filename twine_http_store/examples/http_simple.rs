@@ -2,24 +2,23 @@ use std::time::Duration;
 
 use futures::{StreamExt, TryStreamExt};
 use tokio::pin;
-use twine_http_store::*;
 use twine_core::resolver::*;
-use twine_core::Cid;
 use twine_core::store::MemoryCache;
 use twine_core::store::Store;
+use twine_core::Cid;
+use twine_http_store::*;
 // use futures_time::prelude::*;
 // use futures_time::time::Duration;
 // use futures_time::stream;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-  let cfg = v1::HttpStoreOptions::default()
-    .url("https://random.colorado.edu/api");
+  let cfg = v1::HttpStoreOptions::default().url("https://random.colorado.edu/api");
   let resolver = v1::HttpStore::new(
     reqwest::Client::builder()
       .timeout(Duration::from_secs(10))
       .build()?,
-    cfg
+    cfg,
   );
   let resolver = MemoryCache::new(resolver);
   // let store = HttpStore::new(
@@ -30,16 +29,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   println!("strands:");
   let strands = resolver.strands().await?;
-  strands.inspect_ok(|strand| {
-    println!("> cid: {}\n> description: {:?}",
-      strand.cid(),
-      strand.details().get("description").unwrap()
-    );
-  })
-  .inspect_err(|err| {
-    eprintln!("error: {}", err);
-  })
-  .for_each(|_| async {}).await;
+  strands
+    .inspect_ok(|strand| {
+      println!(
+        "> cid: {}\n> description: {:?}",
+        strand.cid(),
+        strand.details().get("description").unwrap()
+      );
+    })
+    .inspect_err(|err| {
+      eprintln!("error: {}", err);
+    })
+    .for_each(|_| async {})
+    .await;
 
   let cid = Cid::try_from("bafyriqa5k2d3t3r774geicueaed2wc2fosjwqeexfhwbptfgq7rcn5mwucnhfeuxu2nxbrch3rl6yqjlozhuswo5ln3xwjm35iftt3tpqlcgs").unwrap();
   let twine = resolver.resolve_strand(cid).await?.unpack();
@@ -51,12 +53,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let latest = resolver.resolve_latest(&twine).await?;
   println!("latest: {}", latest.cid());
 
-  let twine_stream = resolver.resolve_range((&twine, 100..=0)).await?
+  let twine_stream = resolver
+    .resolve_range((&twine, 100..=0))
+    .await?
     .inspect_ok(|twine| println!("index: {}, cid: {}", twine.index(), twine.cid()))
     .inspect_err(|err| eprintln!("error: {}", err))
-    .filter_map(|twine| async {
-      twine.ok()
-    });
+    .filter_map(|twine| async { twine.ok() });
 
   pin!(twine_stream);
 

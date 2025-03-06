@@ -1,11 +1,17 @@
-use std::time::Duration;
-use indicatif::{ProgressBar, ProgressStyle};
-use clap::Parser;
+use crate::{
+  selector::{parse_selector, Selector},
+  stores::{parse_store, resolver_from_args, AnyStore},
+};
 use anyhow::Result;
-use twine_core::{errors::ResolutionError, resolver::{AbsoluteRange, SingleQuery, RangeQuery, Resolver}};
+use clap::Parser;
 use futures::{stream::StreamExt, TryStreamExt};
-use crate::{selector::{parse_selector, Selector}, stores::{parse_store, resolver_from_args, AnyStore}};
+use indicatif::{ProgressBar, ProgressStyle};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use twine_core::{
+  errors::ResolutionError,
+  resolver::{AbsoluteRange, RangeQuery, Resolver, SingleQuery},
+};
 
 fn last_chars(s: &str, n: usize) -> &str {
   let start = s.len().saturating_sub(n);
@@ -45,11 +51,13 @@ impl SyncCommand {
         self.pull_one(&store, &resolver, *query).await?;
         log::info!("Finished syncing strand: {}", query.strand_cid());
         return Ok(());
-      },
+      }
       Selector::Strand(cid) => vec![(cid, ..).into()],
       Selector::RangeQuery(range) => vec![*range],
       Selector::All => {
-        resolver.strands().await?
+        resolver
+          .strands()
+          .await?
           .map_ok(|strand| RangeQuery::from((strand.cid(), ..)))
           .try_collect()
           .await?
@@ -60,7 +68,8 @@ impl SyncCommand {
       let mut ctrlc = CTRLC.lock().unwrap();
       log::warn!("Ctrl-C detected, stopping...");
       *ctrlc = true;
-    }).expect("Error setting Ctrl-C handler");
+    })
+    .expect("Error setting Ctrl-C handler");
 
     let bar = ProgressBar::new(ranges.len() as u64);
 
@@ -134,9 +143,9 @@ impl SyncCommand {
 
     let bar = ctx.multi_progress.add(bar);
     bar.set_style(
-      ProgressStyle::with_template( "{spinner} {msg} {pos:>7} of {len:7}")
+      ProgressStyle::with_template("{spinner} {msg} {pos:>7} of {len:7}")
         .unwrap()
-        .progress_chars("=> ")
+        .progress_chars("=> "),
     );
     bar.enable_steady_tick(Duration::from_millis(100));
     bar.set_message("Pulling...");
@@ -144,11 +153,20 @@ impl SyncCommand {
     let results: Vec<_> = iter(tasks)
       .map(|(r, pb)| self.pull(&store, &resolver, r, pb))
       .buffer_unordered(self.parallel)
-      .inspect_err(|e| { ctx.multi_progress.println(format!("Error: {}", e)).unwrap_or_else(|e| log::error!("{}", e)) })
+      .inspect_err(|e| {
+        ctx
+          .multi_progress
+          .println(format!("Error: {}", e))
+          .unwrap_or_else(|e| log::error!("{}", e))
+      })
       .inspect(|_| bar.inc(1))
-      .collect().await;
+      .collect()
+      .await;
 
-    let errors = results.into_iter().filter_map(Result::err).collect::<Vec<_>>();
+    let errors = results
+      .into_iter()
+      .filter_map(Result::err)
+      .collect::<Vec<_>>();
     if !errors.is_empty() {
       log::warn!("Errors occurred while syncing strands");
       for e in errors {
@@ -162,7 +180,13 @@ impl SyncCommand {
     Ok(())
   }
 
-  async fn pull<R: Resolver>(&self, store: &AnyStore, resolver: &R, range: AbsoluteRange, pb: ProgressBar) -> Result<()> {
+  async fn pull<R: Resolver>(
+    &self,
+    store: &AnyStore,
+    resolver: &R,
+    range: AbsoluteRange,
+    pb: ProgressBar,
+  ) -> Result<()> {
     log::debug!("Pulling twines from strand: {}", range.strand_cid());
     let strand = resolver.resolve_strand(range.strand_cid()).await?.unpack();
     log::debug!("Saving strand: {}", strand.cid());
@@ -172,11 +196,16 @@ impl SyncCommand {
     pb.reset_elapsed();
     pb.reset_eta();
     pb.enable_steady_tick(Duration::from_millis(300));
-    pb.set_message(format!("syncing (...{})", last_chars(&range.strand_cid().to_string(), 5)));
+    pb.set_message(format!(
+      "syncing (...{})",
+      last_chars(&range.strand_cid().to_string(), 5)
+    ));
 
     use futures::future::ready;
     let mut error = None;
-    let stream = resolver.resolve_range(range).await?
+    let stream = resolver
+      .resolve_range(range)
+      .await?
       .take_while(|res| {
         if CTRLC.lock().unwrap().clone() {
           return ready(false);
@@ -199,7 +228,11 @@ impl SyncCommand {
       Ok(_) => {
         if let Some(err) = error {
           pb.abandon_with_message("Error!");
-          Err(anyhow::anyhow!("While syncing {}: {}", range.strand_cid(), err))
+          Err(anyhow::anyhow!(
+            "While syncing {}: {}",
+            range.strand_cid(),
+            err
+          ))
         } else {
           if CTRLC.lock().unwrap().clone() {
             pb.abandon_with_message("Aborted!");
@@ -209,7 +242,7 @@ impl SyncCommand {
             Ok(())
           }
         }
-      },
+      }
       Err(e) => {
         pb.abandon_with_message(format!("While syncing {}: {}", range.strand_cid(), e));
         Err(e.into())
@@ -217,7 +250,12 @@ impl SyncCommand {
     }
   }
 
-  async fn pull_one<R: Resolver>(&self, store: &AnyStore, resolver: &R, query: SingleQuery) -> Result<()> {
+  async fn pull_one<R: Resolver>(
+    &self,
+    store: &AnyStore,
+    resolver: &R,
+    query: SingleQuery,
+  ) -> Result<()> {
     let twine = resolver.resolve(query).await?.unpack();
     log::debug!("Saving strand: {}", twine.strand_cid());
     store.save(twine.strand().clone()).await?;

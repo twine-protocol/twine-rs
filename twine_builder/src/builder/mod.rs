@@ -1,10 +1,9 @@
-use twine_core::{
-  crypto::PublicKey, errors::{SpecificationError, VerificationError}, twine::{
-    Strand,
-    Twine
-  }
-};
 use crate::{signer::SigningError, Signer};
+use twine_core::{
+  crypto::PublicKey,
+  errors::{SpecificationError, VerificationError},
+  twine::{Strand, Twine},
+};
 
 #[cfg(feature = "v1")]
 use biscuit::jwk::JWK;
@@ -27,14 +26,12 @@ pub enum BuildError {
 }
 
 pub struct TwineBuilder<const V: u8, S: Signer> {
-  signer: S
+  signer: S,
 }
 
 impl<const V: u8, S: Signer> TwineBuilder<V, S> {
   pub fn new(signer: S) -> Self {
-    Self {
-      signer
-    }
+    Self { signer }
   }
 }
 
@@ -71,9 +68,9 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
 #[allow(deprecated)]
 #[cfg(test)]
 mod testv1 {
-  use std::sync::Arc;
-  use biscuit::jws::Secret;
   use crate::BiscuitSigner;
+  use biscuit::jws::Secret;
+  use std::sync::Arc;
   use twine_core::ipld_core::ipld;
 
   use super::*;
@@ -91,7 +88,8 @@ mod testv1 {
     let secret = Secret::EcdsaKeyPair(Arc::new(key));
     let signer = BiscuitSigner::new(secret, "ES256".to_string());
     let builder = TwineBuilder::new(signer);
-    let strand = builder.build_strand()
+    let strand = builder
+      .build_strand()
       .details(ipld!({
         "foo": "bar",
       }))
@@ -106,7 +104,8 @@ mod testv1 {
     let secret = Secret::EcdsaKeyPair(Arc::new(key));
     let signer = BiscuitSigner::new(secret, "ES384".to_string());
     let builder = TwineBuilder::new(signer);
-    let strand = builder.build_strand()
+    let strand = builder
+      .build_strand()
       .details(ipld!({
         "foo": "bar",
       }))
@@ -168,7 +167,8 @@ mod testv1 {
     let secret = Secret::EcdsaKeyPair(Arc::new(key));
     let signer = BiscuitSigner::new(secret, "ES256".to_string());
     let builder = TwineBuilder::new(signer);
-    let strand = builder.build_strand()
+    let strand = builder
+      .build_strand()
       .details(ipld!({
         "foo": "bar",
       }))
@@ -176,7 +176,8 @@ mod testv1 {
       .done()
       .unwrap();
 
-    let mut prev = builder.build_first(strand.clone())
+    let mut prev = builder
+      .build_first(strand.clone())
       .payload(ipld!({
         "baz": "qux",
       }))
@@ -184,7 +185,8 @@ mod testv1 {
       .unwrap();
 
     for i in 1..10 {
-      prev = builder.build_next(&prev)
+      prev = builder
+        .build_next(&prev)
         .payload(ipld!({
           "baz": "qux",
           "index": i,
@@ -196,7 +198,7 @@ mod testv1 {
 
   #[test]
   fn test_struct_payload() {
-    use serde::{Serialize, Deserialize};
+    use serde::{Deserialize, Serialize};
     #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
     struct Timestamped {
       timestamp: String,
@@ -206,7 +208,8 @@ mod testv1 {
     let secret = Secret::EcdsaKeyPair(Arc::new(key));
     let signer = BiscuitSigner::new(secret, "ES256".to_string());
     let builder = TwineBuilder::new(signer);
-    let strand = builder.build_strand()
+    let strand = builder
+      .build_strand()
       .details(ipld!({
         "foo": "bar",
       }))
@@ -217,7 +220,8 @@ mod testv1 {
       timestamp: "2023-10-26T21:25:56.936Z".to_string(),
     };
 
-    let tixel = builder.build_first(strand)
+    let tixel = builder
+      .build_first(strand)
       .payload(my_struct)
       .done()
       .unwrap();
@@ -232,29 +236,36 @@ mod testv1 {
     let secret = Secret::EcdsaKeyPair(Arc::new(key));
     let signer = BiscuitSigner::new(secret, "ES256".to_string());
     let builder = TwineBuilder::new(signer);
-    let strand = builder.build_strand()
+    let strand = builder
+      .build_strand()
       .details(ipld!({
         "foo": "bar",
       }))
       .done()
       .unwrap();
 
-    let tixel = builder.build_first(strand)
-      .build_payload_then_done(|_strand, _| {
-        Ok("payload".to_string())
-      })
+    let tixel = builder
+      .build_first(strand)
+      .build_payload_then_done(|_strand, _| Ok("payload".to_string()))
       .unwrap();
 
-    assert_eq!(tixel.extract_payload::<String>().unwrap(), "payload".to_string());
+    assert_eq!(
+      tixel.extract_payload::<String>().unwrap(),
+      "payload".to_string()
+    );
   }
 }
 
 #[allow(deprecated)]
 #[cfg(test)]
 mod testv2 {
-  use ring::signature::Ed25519KeyPair;
-  use twine_core::{ipld_core::ipld, store::MemoryStore, twine::{CrossStitches, Twine, TwineBlock}};
   use super::*;
+  use ring::signature::Ed25519KeyPair;
+  use twine_core::{
+    ipld_core::ipld,
+    store::MemoryStore,
+    twine::{CrossStitches, Twine, TwineBlock},
+  };
 
   #[test]
   fn test_v2() {
@@ -262,7 +273,8 @@ mod testv2 {
     let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
     let builder = TwineBuilder::new(key);
-    let strand = builder.build_strand()
+    let strand = builder
+      .build_strand()
       .details(ipld!({
         "foo": "bar",
       }))
@@ -271,7 +283,8 @@ mod testv2 {
 
     println!("{}", &strand.tagged_dag_json());
 
-    let mut prev = builder.build_first(strand.clone())
+    let mut prev = builder
+      .build_first(strand.clone())
       .payload(ipld!({
         "baz": "qux",
       }))
@@ -281,7 +294,8 @@ mod testv2 {
     println!("{}", &prev);
 
     for i in 1..10 {
-      prev = builder.build_next(&prev)
+      prev = builder
+        .build_next(&prev)
         .payload(ipld!({
           "baz": "qux",
           "index": i,
@@ -294,15 +308,17 @@ mod testv2 {
   }
 
   #[tokio::test]
-  async fn test_entwining(){
-    fn make_strand(builder: &TwineBuilder<2, Ed25519KeyPair>, store: MemoryStore) -> (Strand, Twine) {
-      let strand = builder.build_strand()
-        .done()
-        .unwrap();
+  async fn test_entwining() {
+    fn make_strand(
+      builder: &TwineBuilder<2, Ed25519KeyPair>,
+      store: MemoryStore,
+    ) -> (Strand, Twine) {
+      let strand = builder.build_strand().done().unwrap();
 
       store.save_sync(strand.clone().into()).unwrap();
 
-      let mut prev = builder.build_first(strand.clone())
+      let mut prev = builder
+        .build_first(strand.clone())
         .payload(ipld!({
           "index": 0,
         }))
@@ -310,7 +326,8 @@ mod testv2 {
         .unwrap();
 
       for i in 1..10 {
-        let tixel = builder.build_next(&prev)
+        let tixel = builder
+          .build_next(&prev)
           .payload(ipld!({
             "index": i,
           }))
@@ -334,11 +351,18 @@ mod testv2 {
     let second = make_strand(&builder, store.clone());
     let third = make_strand(&builder, store.clone());
 
-    let cross_stitches = third.1.cross_stitches()
-      .add_or_refresh(&first.0, &store).await.unwrap()
-      .add_or_refresh(&second.0, &store).await.unwrap();
+    let cross_stitches = third
+      .1
+      .cross_stitches()
+      .add_or_refresh(&first.0, &store)
+      .await
+      .unwrap()
+      .add_or_refresh(&second.0, &store)
+      .await
+      .unwrap();
 
-    let tixel = builder.build_next(&third.1)
+    let tixel = builder
+      .build_next(&third.1)
       .cross_stitches(cross_stitches)
       .payload(ipld!({
         "index": 10,
@@ -356,24 +380,26 @@ mod testv2 {
     let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
     let builder = TwineBuilder::new(key);
-    let strand = builder.build_strand()
+    let strand = builder
+      .build_strand()
       .details(ipld!({
         "foo": "bar",
       }))
       .done()
       .unwrap();
 
-    let build_payload = |message: String| {
-      move |_strand: &Strand, _prev: Option<&Twine>| {
-        Ok(ipld!(message))
-      }
-    };
+    let build_payload =
+      |message: String| move |_strand: &Strand, _prev: Option<&Twine>| Ok(ipld!(message));
 
-    let tixel = builder.build_first(strand)
+    let tixel = builder
+      .build_first(strand)
       .build_payload_then_done(build_payload("payload".to_string()))
       .unwrap();
 
-    assert_eq!(tixel.extract_payload::<String>().unwrap(), "payload".to_string());
+    assert_eq!(
+      tixel.extract_payload::<String>().unwrap(),
+      "payload".to_string()
+    );
   }
 
   #[test]
@@ -382,17 +408,20 @@ mod testv2 {
     let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
     let builder = TwineBuilder::new(key);
-    let strand = builder.build_strand()
+    let strand = builder
+      .build_strand()
       .details("a".to_string())
       .done()
       .unwrap();
 
-    let t_a1 = builder.build_first(strand.clone())
+    let t_a1 = builder
+      .build_first(strand.clone())
       .payload("a1".to_string())
       .done()
       .unwrap();
 
-    let res = builder.build_next(&t_a1)
+    let res = builder
+      .build_next(&t_a1)
       .payload("a2".to_string())
       .cross_stitches(CrossStitches::new(vec![t_a1.clone().into()]))
       .done();
@@ -406,38 +435,48 @@ mod testv2 {
     let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
     let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
     let builder = TwineBuilder::new(key);
-    let strand_a = builder.build_strand()
+    let strand_a = builder
+      .build_strand()
       .details("a".to_string())
       .done()
       .unwrap();
 
-    let t_a1 = builder.build_first(strand_a.clone())
+    let t_a1 = builder
+      .build_first(strand_a.clone())
       .payload("a1".to_string())
       .done()
       .unwrap();
 
-    let strand_b = builder.build_strand()
+    let strand_b = builder
+      .build_strand()
       .details("b".to_string())
       .done()
       .unwrap();
 
-    let t_b1 = builder.build_first(strand_b.clone())
+    let t_b1 = builder
+      .build_first(strand_b.clone())
       .payload("b1".to_string())
       .done()
       .unwrap();
 
-    let strand_c = builder.build_strand()
+    let strand_c = builder
+      .build_strand()
       .details("c".to_string())
       .done()
       .unwrap();
 
-    let t_c1 = builder.build_first(strand_c.clone())
+    let t_c1 = builder
+      .build_first(strand_c.clone())
       .payload("c1".to_string())
-      .cross_stitches(CrossStitches::new(vec![t_a1.clone().into(), t_b1.clone().into()]))
+      .cross_stitches(CrossStitches::new(vec![
+        t_a1.clone().into(),
+        t_b1.clone().into(),
+      ]))
       .done()
       .unwrap();
 
-    let t_c2 = builder.build_next(&t_c1)
+    let t_c2 = builder
+      .build_next(&t_c1)
       .payload("c2".to_string())
       .cross_stitches(CrossStitches::new(vec![t_a1.clone().into()]))
       .done()

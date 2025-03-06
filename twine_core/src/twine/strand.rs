@@ -1,14 +1,20 @@
-use std::{fmt::Display, sync::Arc};
-use crate::{as_cid::AsCid, crypto::{get_hasher, PublicKey}, schemas::StrandSchemaVersion, specification::Subspec, verify::Verified};
+use super::{Tagged, Tixel, TwineBlock};
+use crate::errors::VerificationError;
+use crate::Ipld;
+use crate::{
+  as_cid::AsCid,
+  crypto::{get_hasher, PublicKey},
+  schemas::StrandSchemaVersion,
+  specification::Subspec,
+  verify::Verified,
+};
+use ipld_core::{cid::Cid, codec::Codec, serde::from_ipld};
 use multihash_codetable::Code;
 use semver::Version;
 use serde::de::DeserializeOwned;
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use serde_ipld_dagjson::codec::DagJsonCodec;
-use crate::Ipld;
-use ipld_core::{cid::Cid, codec::Codec, serde::from_ipld};
-use super::{Tagged, Tixel, TwineBlock};
-use crate::errors::VerificationError;
+use std::{fmt::Display, sync::Arc};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Strand(pub(crate) Arc<Verified<StrandSchemaVersion>>);
@@ -17,7 +23,7 @@ impl Strand {
   pub fn try_new<C>(container: C) -> Result<Self, VerificationError>
   where
     C: TryInto<StrandSchemaVersion>,
-    VerificationError: From<<C as TryInto<StrandSchemaVersion>>::Error>
+    VerificationError: From<<C as TryInto<StrandSchemaVersion>>::Error>,
   {
     let container = container.try_into()?;
     Ok(Self(Arc::new(Verified::try_new(container)?)))
@@ -116,7 +122,10 @@ impl TwineBlock for Strand {
   }
 
   fn bytes(&self) -> Arc<[u8]> {
-    DagCborCodec::encode_to_vec(&self.0).unwrap().as_slice().into()
+    DagCborCodec::encode_to_vec(&self.0)
+      .unwrap()
+      .as_slice()
+      .into()
   }
 
   fn content_bytes(&self) -> Arc<[u8]> {

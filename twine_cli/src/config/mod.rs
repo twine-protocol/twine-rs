@@ -1,16 +1,16 @@
-use std::{collections::HashMap, path::{Path, PathBuf}};
-use serde::{Deserialize, Serialize};
-use anyhow::Result;
-use serde_with::{serde_as, DisplayFromStr};
-use twine_core::resolver::ResolverSetSeries;
 use crate::stores::{AnyStore, StoreUri};
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, DisplayFromStr};
+use std::{
+  collections::HashMap,
+  path::{Path, PathBuf},
+};
+use twine_core::resolver::ResolverSetSeries;
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct StoreUriString(
-  #[serde_as(as = "DisplayFromStr")]
-  pub StoreUri
-);
+pub(crate) struct StoreUriString(#[serde_as(as = "DisplayFromStr")] pub StoreUri);
 
 impl From<StoreUri> for StoreUriString {
   fn from(uri: StoreUri) -> Self {
@@ -22,7 +22,7 @@ impl From<StoreUri> for StoreUriString {
 #[serde(default)]
 pub(crate) struct Config {
   #[serde(skip)]
-  pub path : Option<PathBuf>,
+  pub path: Option<PathBuf>,
   pub resolvers: HashMap<String, StoreUriString>,
   pub store: Option<StoreUriString>,
 }
@@ -40,13 +40,17 @@ impl Default for Config {
 #[allow(dead_code)]
 impl Config {
   pub fn get_named_resolver(&self, name: &str) -> Option<Result<AnyStore>> {
-    self.resolvers.get(name)
+    self
+      .resolvers
+      .get(name)
       .map(|uri| uri.0.clone())
       .map(|uri| AnyStore::try_from(uri))
   }
 
   pub fn all_resolvers(&self) -> Result<ResolverSetSeries<AnyStore>> {
-    let mut stores = self.resolvers.values()
+    let mut stores = self
+      .resolvers
+      .values()
       .map(|uri| uri.0.clone())
       .map(|uri| AnyStore::try_from(uri))
       .collect::<Result<Vec<_>>>()?;

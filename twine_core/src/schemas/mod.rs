@@ -1,11 +1,17 @@
 use std::sync::Arc;
 
+use crate::{
+  crypto::{get_hasher, PublicKey, Signature},
+  errors::VerificationError,
+  specification::Subspec,
+  twine::{BackStitches, CrossStitches, Tixel, TwineBlock},
+  verify::Verifiable,
+};
 use ipld_core::{cid::Cid, codec::Codec, ipld::Ipld};
 use multihash_codetable::Code;
 use semver::Version;
-use serde_ipld_dagcbor::codec::DagCborCodec;
-use crate::{crypto::{get_hasher, PublicKey, Signature}, errors::VerificationError, specification::Subspec, twine::{BackStitches, CrossStitches, Tixel, TwineBlock}, verify::Verifiable};
 use serde::{Deserialize, Serialize};
+use serde_ipld_dagcbor::codec::DagCborCodec;
 
 pub mod v1;
 pub mod v2;
@@ -31,7 +37,7 @@ impl StrandSchemaVersion {
     match self {
       StrandSchemaVersion::V1(v) => {
         v.compute_cid(hasher);
-      },
+      }
       StrandSchemaVersion::V2(_) => unimplemented!(),
     }
   }
@@ -99,14 +105,21 @@ impl StrandSchemaVersion {
     }
     // tixel must have same major version as strand
     if tixel.version().major != self.version().major {
-      return Err(VerificationError::InvalidTwineFormat("Tixel version does not match Strand version".into()));
+      return Err(VerificationError::InvalidTwineFormat(
+        "Tixel version does not match Strand version".into(),
+      ));
     }
     match self {
       Self::V1(v) => {
-        v.verify_signature(String::from_utf8(tixel.signature().into()).unwrap(), tixel.content_hash())?;
-      },
+        v.verify_signature(
+          String::from_utf8(tixel.signature().into()).unwrap(),
+          tixel.content_hash(),
+        )?;
+      }
       Self::V2(_) => {
-        self.key().verify(tixel.signature(), tixel.content_bytes())?;
+        self
+          .key()
+          .verify(tixel.signature(), tixel.content_bytes())?;
       }
     };
     Ok(())
@@ -140,7 +153,6 @@ impl TryFrom<v2::StrandContainerV2> for StrandSchemaVersion {
     Ok(StrandSchemaVersion::V2(v))
   }
 }
-
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 #[serde(untagged)]
@@ -250,7 +262,7 @@ impl TixelSchemaVersion {
     match self {
       TixelSchemaVersion::V1(v) => {
         v.compute_cid(hasher);
-      },
+      }
       TixelSchemaVersion::V2(_) => unimplemented!(),
     }
   }

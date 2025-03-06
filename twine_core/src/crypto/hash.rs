@@ -1,10 +1,14 @@
+use crate::errors::VerificationError;
+use crate::Cid;
 use ipld_core::codec::Codec;
 use multihash_codetable::{Code, MultihashDigest};
-use crate::Cid;
-use crate::errors::VerificationError;
 
 pub fn get_hasher(cid: &Cid) -> Result<Code, VerificationError> {
-  cid.hash().code().try_into().map_err(|_| VerificationError::UnsupportedHashAlgorithm)
+  cid
+    .hash()
+    .code()
+    .try_into()
+    .map_err(|_| VerificationError::UnsupportedHashAlgorithm)
 }
 
 pub fn get_cid<D: AsRef<[u8]>>(hasher: Code, dat: D) -> Cid {

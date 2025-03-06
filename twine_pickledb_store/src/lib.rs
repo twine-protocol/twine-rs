@@ -1,17 +1,17 @@
-use std::sync::Arc;
 use async_trait::async_trait;
 use futures::stream::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use pickledb::PickleDbListIterator;
+use pickledb::{PickleDb, PickleDbDumpPolicy, SerializationMethod};
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::path::Path;
-use std::sync::Mutex;
 use std::pin::Pin;
-use twine_core::{twine::*, errors::*, as_cid::AsCid, store::Store, Cid};
-use twine_core::resolver::{AbsoluteRange, unchecked_base::BaseResolver, Resolver};
-use pickledb::{PickleDb, PickleDbDumpPolicy, SerializationMethod};
-use serde::{Serialize, Deserialize};
+use std::sync::Arc;
+use std::sync::Mutex;
+use twine_core::resolver::{unchecked_base::BaseResolver, AbsoluteRange, Resolver};
+use twine_core::{as_cid::AsCid, errors::*, store::Store, twine::*, Cid};
 
 pub use pickledb;
 
@@ -24,11 +24,19 @@ fn copy_policy(p: &PickleDbDumpPolicy) -> PickleDbDumpPolicy {
   }
 }
 
-fn push_list<'a, V: Serialize>(db: &'a mut PickleDb, key: &str, value: &V) -> Result<pickledb::PickleDbListExtender<'a>, StoreError> {
+fn push_list<'a, V: Serialize>(
+  db: &'a mut PickleDb,
+  key: &str,
+  value: &V,
+) -> Result<pickledb::PickleDbListExtender<'a>, StoreError> {
   if !db.lexists(key) {
-    db.lcreate(key).map_err(|e| StoreError::Saving(e.to_string()))?;
+    db.lcreate(key)
+      .map_err(|e| StoreError::Saving(e.to_string()))?;
   }
-  db.ladd(key, value).ok_or(StoreError::Saving(format!("Could not add list for key {}", key)))
+  db.ladd(key, value).ok_or(StoreError::Saving(format!(
+    "Could not add list for key {}",
+    key
+  )))
 }
 
 fn get_list_iter<'a>(db: &'a PickleDb, key: &str) -> Option<PickleDbListIterator<'a>> {
@@ -106,7 +114,10 @@ impl PickleDbStore {
     Self::new_with_policy(p, PickleDbDumpPolicy::DumpUponRequest)
   }
 
-  pub fn new_with_policy(p: impl AsRef<Path>, dump_policy: PickleDbDumpPolicy) -> pickledb::error::Result<Self> {
+  pub fn new_with_policy(
+    p: impl AsRef<Path>,
+    dump_policy: PickleDbDumpPolicy,
+  ) -> pickledb::error::Result<Self> {
     let path = p.as_ref();
     let pickle = match PickleDb::load(path, copy_policy(&dump_policy), SerializationMethod::Bin) {
       Ok(pl) => pl,
@@ -116,7 +127,7 @@ impl PickleDbStore {
         } else {
           return Err(e);
         }
-      },
+      }
     };
     Ok(Self {
       pickle: Arc::new(Mutex::new(pickle)),
@@ -134,7 +145,11 @@ impl PickleDbStore {
     let lock = self.pickle.lock().expect("Lock on pickle db");
     match get_list_iter(&lock, "strands") {
       Some(iter) => iter
-        .map(|v| v.get_item::<BlockRecord>().ok_or(ResolutionError::BadData("Could not deserialize from DB correctly".to_string())))
+        .map(|v| {
+          v.get_item::<BlockRecord>().ok_or(ResolutionError::BadData(
+            "Could not deserialize from DB correctly".to_string(),
+          ))
+        })
         .map(|v| v.and_then(|v| v.try_into().map_err(|e: VerificationError| e.into())))
         .collect(),
       None => Ok(vec![]),
@@ -142,33 +157,59 @@ impl PickleDbStore {
   }
 
   fn get_strand(&self, cid: &Cid) -> Result<Strand, ResolutionError> {
-    self.all_strands()?
+    self
+      .all_strands()?
       .into_iter()
       .find(|s| s.cid() == *cid)
       .ok_or(ResolutionError::NotFound)
   }
 
   fn get_tixel(&self, cid: &Cid) -> Result<Tixel, ResolutionError> {
-    let record: BlockRecord = self.pickle.lock().expect("Lock on pickle db").get(&format!("{}", cid)).ok_or(ResolutionError::NotFound)?;
+    let record: BlockRecord = self
+      .pickle
+      .lock()
+      .expect("Lock on pickle db")
+      .get(&format!("{}", cid))
+      .ok_or(ResolutionError::NotFound)?;
     record.try_into().map_err(|e: VerificationError| e.into())
   }
 
   fn has_tixel(&self, cid: &Cid) -> bool {
-    self.pickle.lock().expect("Lock on pickle db").exists(&format!("{}", cid))
+    self
+      .pickle
+      .lock()
+      .expect("Lock on pickle db")
+      .exists(&format!("{}", cid))
   }
 
   fn cid_for_index<S: AsCid>(&self, strand: S, index: u64) -> Option<Cid> {
-    self.pickle.lock().expect("Lock on pickle db").lget(&format!("tixels:{}", strand.as_cid()), index as usize)
+    self
+      .pickle
+      .lock()
+      .expect("Lock on pickle db")
+      .lget(&format!("tixels:{}", strand.as_cid()), index as usize)
   }
 
   // Inclusive range
-  fn cid_range<S: AsCid>(&self, strand: S, start: u64, end: u64) -> Result<Vec<Cid>, ResolutionError> {
-    get_list_iter(&self.pickle.lock().expect("Lock on pickle db"), &format!("tixels:{}", strand.as_cid()))
-      .ok_or(ResolutionError::NotFound)?
-      .skip(start as usize)
-      .take((end - start + 1) as usize)
-      .map(|v| v.get_item::<Cid>().ok_or(ResolutionError::BadData("Could not deserialize from DB correctly".to_string())))
-      .collect()
+  fn cid_range<S: AsCid>(
+    &self,
+    strand: S,
+    start: u64,
+    end: u64,
+  ) -> Result<Vec<Cid>, ResolutionError> {
+    get_list_iter(
+      &self.pickle.lock().expect("Lock on pickle db"),
+      &format!("tixels:{}", strand.as_cid()),
+    )
+    .ok_or(ResolutionError::NotFound)?
+    .skip(start as usize)
+    .take((end - start + 1) as usize)
+    .map(|v| {
+      v.get_item::<Cid>().ok_or(ResolutionError::BadData(
+        "Could not deserialize from DB correctly".to_string(),
+      ))
+    })
+    .collect()
   }
 
   fn latest_entry<S: AsCid>(&self, strand: S) -> Result<Tixel, ResolutionError> {
@@ -177,18 +218,22 @@ impl PickleDbStore {
       match get_list_iter(&lock, &format!("tixels:{}", strand.as_cid())) {
         Some(iter) => {
           let last = iter.last().ok_or(ResolutionError::NotFound)?;
-          last.get_item::<Cid>().ok_or(ResolutionError::BadData("Could not deserialize from DB correctly".to_string()))?
-        },
-        None => {
-          return Err(ResolutionError::NotFound)
-        },
+          last.get_item::<Cid>().ok_or(ResolutionError::BadData(
+            "Could not deserialize from DB correctly".to_string(),
+          ))?
+        }
+        None => return Err(ResolutionError::NotFound),
       }
     };
     self.get_tixel(&cid)
   }
 
   pub fn latest_index<S: AsCid>(&self, strand: S) -> Option<u64> {
-    let len = self.pickle.lock().expect("Lock on pickle db").llen(&format!("tixels:{}", strand.as_cid()));
+    let len = self
+      .pickle
+      .lock()
+      .expect("Lock on pickle db")
+      .llen(&format!("tixels:{}", strand.as_cid()));
     if len == 0 {
       return None;
     }
@@ -198,15 +243,21 @@ impl PickleDbStore {
   fn save_tixel(&self, tixel: Tixel) -> Result<(), StoreError> {
     // ensure we have the strand
     if self.get_strand(&tixel.strand_cid()).is_err() {
-      return Err(StoreError::Saving("Strand must be saved before tixels".to_string()));
+      return Err(StoreError::Saving(
+        "Strand must be saved before tixels".to_string(),
+      ));
     }
     if tixel.index() != 0 && !self.has_tixel(&tixel.previous().unwrap().tixel) {
-      return Err(StoreError::Saving("Previous tixel must be saved before this one".to_string()));
+      return Err(StoreError::Saving(
+        "Previous tixel must be saved before this one".to_string(),
+      ));
     }
     let tixel_cid = tixel.cid();
     let strand_cid = tixel.strand_cid();
     let mut lock = self.pickle.lock().expect("Lock on pickle db");
-    lock.set(&format!("{}", tixel_cid), &BlockRecord::from(tixel)).map_err(|e| StoreError::Saving(e.to_string()))?;
+    lock
+      .set(&format!("{}", tixel_cid), &BlockRecord::from(tixel))
+      .map_err(|e| StoreError::Saving(e.to_string()))?;
     push_list(&mut lock, &format!("tixels:{}", strand_cid), &tixel_cid)?;
     self.flush()?;
     Ok(())
@@ -224,33 +275,55 @@ impl PickleDbStore {
       Err(_) => return Ok(()),
     };
     let mut lock = self.pickle.lock().expect("Lock on pickle db");
-    let _ : () = self.pickle.lock().expect("Lock on pickle db").liter(&format!("tixels:{}", cid))
+    let _: () = self
+      .pickle
+      .lock()
+      .expect("Lock on pickle db")
+      .liter(&format!("tixels:{}", cid))
       .map(|v| {
-        let block = v.get_item::<BlockRecord>().ok_or(ResolutionError::BadData("Could not deserialize from DB correctly".to_string()))?;
-        lock.rem(&format!("{}", block.cid)).map_err(|e| StoreError::Saving(e.to_string()))?;
+        let block = v.get_item::<BlockRecord>().ok_or(ResolutionError::BadData(
+          "Could not deserialize from DB correctly".to_string(),
+        ))?;
+        lock
+          .rem(&format!("{}", block.cid))
+          .map_err(|e| StoreError::Saving(e.to_string()))?;
         Ok::<_, StoreError>(())
       })
       .collect::<Result<_, _>>()?;
-    lock.lrem_value("strands", &BlockRecord::from(strand)).map_err(|e| StoreError::Saving(e.to_string()))?;
+    lock
+      .lrem_value("strands", &BlockRecord::from(strand))
+      .map_err(|e| StoreError::Saving(e.to_string()))?;
     Ok(())
   }
 
   pub fn flush(&self) -> Result<(), StoreError> {
-    self.pickle.lock().expect("Lock on pickle db").dump().map_err(|e| StoreError::Saving(e.to_string()))?;
+    self
+      .pickle
+      .lock()
+      .expect("Lock on pickle db")
+      .dump()
+      .map_err(|e| StoreError::Saving(e.to_string()))?;
     Ok(())
   }
 }
 
 #[async_trait]
 impl BaseResolver for PickleDbStore {
-
-  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Strand, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn fetch_strands(
+    &self,
+  ) -> Result<
+    Pin<Box<dyn Stream<Item = Result<Strand, ResolutionError>> + Send + '_>>,
+    ResolutionError,
+  > {
     let strands = self.all_strands()?;
     Ok(Box::pin(futures::stream::iter(strands.into_iter().map(Ok))))
   }
 
   async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError> {
-    self.get_strand(cid).map(|_| true).or_else(|_| Ok(self.has_tixel(cid)))
+    self
+      .get_strand(cid)
+      .map(|_| true)
+      .or_else(|_| Ok(self.has_tixel(cid)))
   }
 
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
@@ -270,7 +343,9 @@ impl BaseResolver for PickleDbStore {
   }
 
   async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError> {
-    let cid = self.cid_for_index(strand, index).ok_or(ResolutionError::NotFound)?;
+    let cid = self
+      .cid_for_index(strand, index)
+      .ok_or(ResolutionError::NotFound)?;
     self.get_tixel(&cid)
   }
 
@@ -278,9 +353,17 @@ impl BaseResolver for PickleDbStore {
     self.latest_entry(strand)
   }
 
-  async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Tixel, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn range_stream(
+    &self,
+    range: AbsoluteRange,
+  ) -> Result<
+    Pin<Box<dyn Stream<Item = Result<Tixel, ResolutionError>> + Send + '_>>,
+    ResolutionError,
+  > {
     let cids = self.cid_range(range.strand, range.start, range.end)?;
-    Ok(Box::pin(futures::stream::iter(cids.into_iter().map(|cid| self.get_tixel(&cid)))))
+    Ok(Box::pin(futures::stream::iter(
+      cids.into_iter().map(|cid| self.get_tixel(&cid)),
+    )))
   }
 }
 
@@ -295,14 +378,24 @@ impl Store for PickleDbStore {
     }
   }
 
-  async fn save_many<I: Into<AnyTwine> + Send, S: Iterator<Item = I> + Send, T: IntoIterator<Item = I, IntoIter = S> + Send>(&self, twines: T) -> Result<(), StoreError> {
+  async fn save_many<
+    I: Into<AnyTwine> + Send,
+    S: Iterator<Item = I> + Send,
+    T: IntoIterator<Item = I, IntoIter = S> + Send,
+  >(
+    &self,
+    twines: T,
+  ) -> Result<(), StoreError> {
     for twine in twines {
       self.save(twine).await?;
     }
     Ok(())
   }
 
-  async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send + Unpin>(&self, twines: T) -> Result<(), StoreError> {
+  async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send + Unpin>(
+    &self,
+    twines: T,
+  ) -> Result<(), StoreError> {
     twines
       .chunks(100)
       .then(|chunk| self.save_many(chunk))

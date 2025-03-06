@@ -1,8 +1,8 @@
-use std::{fmt::Display, str::FromStr};
+use super::Signature;
+use crate::{errors::VerificationError, Bytes};
 use biscuit::jwk::JWK;
 use serde::{Deserialize, Serialize};
-use crate::{errors::VerificationError, Bytes};
-use super::Signature;
+use std::{fmt::Display, str::FromStr};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[non_exhaustive]
@@ -63,7 +63,6 @@ impl FromStr for SignatureAlgorithm {
       _ => Err(()),
     }
   }
-
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -80,18 +79,20 @@ impl PublicKey {
     Self { alg, key }
   }
 
-  pub fn verify<D: AsRef<[u8]>>(&self, signature: Signature, message: D) -> Result<(), VerificationError> {
+  pub fn verify<D: AsRef<[u8]>>(
+    &self,
+    signature: Signature,
+    message: D,
+  ) -> Result<(), VerificationError> {
     // Verify the signature
     match self.alg {
-      SignatureAlgorithm::Sha256Rsa(_) | SignatureAlgorithm::Sha384Rsa(_) | SignatureAlgorithm::Sha512Rsa(_) => {
-        self.verify_rsa(&signature, message.as_ref())
-      },
+      SignatureAlgorithm::Sha256Rsa(_)
+      | SignatureAlgorithm::Sha384Rsa(_)
+      | SignatureAlgorithm::Sha512Rsa(_) => self.verify_rsa(&signature, message.as_ref()),
       SignatureAlgorithm::EcdsaP256 | SignatureAlgorithm::EcdsaP384 => {
         self.verify_ecdsa(&signature, message.as_ref())
-      },
-      SignatureAlgorithm::Ed25519 => {
-        self.verify_ed25519(&signature, message.as_ref())
-      },
+      }
+      SignatureAlgorithm::Ed25519 => self.verify_ed25519(&signature, message.as_ref()),
     }
   }
 
@@ -115,7 +116,9 @@ impl PublicKey {
     };
 
     let public_key = ring::signature::UnparsedPublicKey::new(alg, &self.key);
-    public_key.verify(message, signature).map_err(|e| VerificationError::BadSignature(e.to_string()))?;
+    public_key
+      .verify(message, signature)
+      .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
 
     Ok(())
   }
@@ -128,14 +131,18 @@ impl PublicKey {
     };
 
     let public_key = ring::signature::UnparsedPublicKey::new(alg, &self.key);
-    public_key.verify(message, signature).map_err(|e| VerificationError::BadSignature(e.to_string()))?;
+    public_key
+      .verify(message, signature)
+      .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
 
     Ok(())
   }
 
   fn verify_ed25519(&self, signature: &Signature, message: &[u8]) -> Result<(), VerificationError> {
     let public_key = ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, &self.key);
-    public_key.verify(message, signature).map_err(|e| VerificationError::BadSignature(e.to_string()))?;
+    public_key
+      .verify(message, signature)
+      .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
 
     Ok(())
   }
@@ -165,9 +172,13 @@ impl From<JWK<()>> for PublicKey {
     let key = match &jwk.algorithm {
       biscuit::jwk::AlgorithmParameters::RSA(rsa) => {
         use rsa::pkcs1::EncodeRsaPublicKey;
-        let pk = rsa::RsaPublicKey::new(rsa::BigUint::from_bytes_be(&rsa.n.to_bytes_be()), rsa::BigUint::from_bytes_be(&rsa.e.to_bytes_be())).unwrap();
+        let pk = rsa::RsaPublicKey::new(
+          rsa::BigUint::from_bytes_be(&rsa.n.to_bytes_be()),
+          rsa::BigUint::from_bytes_be(&rsa.e.to_bytes_be()),
+        )
+        .unwrap();
         pk.to_pkcs1_der().unwrap()
-      },
+      }
       biscuit::jwk::AlgorithmParameters::EllipticCurve(ec) => {
         use elliptic_curve::pkcs8::EncodePublicKey;
         let sec1 = match ec.jws_public_key_secret() {
@@ -175,19 +186,24 @@ impl From<JWK<()>> for PublicKey {
           _ => unimplemented!(),
         };
         match alg {
-          SignatureAlgorithm::EcdsaP256 => {
-            p256::PublicKey::from_sec1_bytes(&sec1).unwrap().to_public_key_der().unwrap()
-          },
-          SignatureAlgorithm::EcdsaP384 => {
-            p384::PublicKey::from_sec1_bytes(&sec1).unwrap().to_public_key_der().unwrap()
-          },
+          SignatureAlgorithm::EcdsaP256 => p256::PublicKey::from_sec1_bytes(&sec1)
+            .unwrap()
+            .to_public_key_der()
+            .unwrap(),
+          SignatureAlgorithm::EcdsaP384 => p384::PublicKey::from_sec1_bytes(&sec1)
+            .unwrap()
+            .to_public_key_der()
+            .unwrap(),
           _ => unimplemented!(),
         }
-      },
+      }
       _ => unimplemented!(),
     };
 
-    Self { alg, key: key.as_bytes().into() }
+    Self {
+      alg,
+      key: key.as_bytes().into(),
+    }
   }
 }
 
@@ -208,7 +224,10 @@ mod test {
     let sig = key_pair.sign(MESSAGE);
     let sig_bytes = sig.as_ref().into();
 
-    let pk = PublicKey::new(SignatureAlgorithm::Ed25519, Bytes::from(key_pair.public_key().as_ref()));
+    let pk = PublicKey::new(
+      SignatureAlgorithm::Ed25519,
+      Bytes::from(key_pair.public_key().as_ref()),
+    );
     pk.verify(sig_bytes, MESSAGE).unwrap();
   }
 }

@@ -1,15 +1,18 @@
+use super::{to_resolution_error, to_storage_error, Block};
 use async_trait::async_trait;
 use futures::stream::{unfold, Stream};
 use futures::stream::{StreamExt, TryStreamExt};
-use twine_core::as_cid::AsCid;
-use twine_core::twine::{AnyTwine, TwineBlock};
 use std::pin::Pin;
+use twine_core::as_cid::AsCid;
 use twine_core::errors::{ResolutionError, StoreError};
-use twine_core::{twine::{Strand, Tixel}, Cid};
+use twine_core::resolver::AbsoluteRange;
 use twine_core::resolver::{unchecked_base, Resolver};
 use twine_core::store::Store;
-use twine_core::resolver::AbsoluteRange;
-use super::{Block, to_resolution_error, to_storage_error};
+use twine_core::twine::{AnyTwine, TwineBlock};
+use twine_core::{
+  twine::{Strand, Tixel},
+  Cid,
+};
 
 #[derive(Debug, Clone)]
 pub struct MysqlStore {
@@ -26,32 +29,35 @@ impl MysqlStore {
     Ok(Self::new(pool))
   }
 
-  async fn all_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Strand, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn all_strands(
+    &self,
+  ) -> Result<
+    Pin<Box<dyn Stream<Item = Result<Strand, ResolutionError>> + Send + '_>>,
+    ResolutionError,
+  > {
     let query = "SELECT cid, data FROM Strands LIMIT 10 OFFSET ?";
 
-    let stream = unfold(0, move |offset| {
-      async move {
-        let mut conn = match self.pool.acquire().await.map_err(to_resolution_error) {
-          Ok(conn) => conn,
-          Err(e) => return Some((Err(e), offset)),
-        };
-        let strands: Result<Vec<_>, ResolutionError> = sqlx::query_as::<_, Block>(query)
-          .bind(offset)
-          .fetch(&mut *conn)
-          .map_err(to_resolution_error)
-          .map_ok(|(cid, data)| {
-            let cid = Cid::try_from(cid).map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-            Ok::<_, ResolutionError>(Strand::from_block(cid, data)?)
-          })
-          .try_collect()
-          .await;
-        if let Ok(strands) = &strands {
-          if strands.is_empty() {
-            return None;
-          }
+    let stream = unfold(0, move |offset| async move {
+      let mut conn = match self.pool.acquire().await.map_err(to_resolution_error) {
+        Ok(conn) => conn,
+        Err(e) => return Some((Err(e), offset)),
+      };
+      let strands: Result<Vec<_>, ResolutionError> = sqlx::query_as::<_, Block>(query)
+        .bind(offset)
+        .fetch(&mut *conn)
+        .map_err(to_resolution_error)
+        .map_ok(|(cid, data)| {
+          let cid = Cid::try_from(cid).map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+          Ok::<_, ResolutionError>(Strand::from_block(cid, data)?)
+        })
+        .try_collect()
+        .await;
+      if let Ok(strands) = &strands {
+        if strands.is_empty() {
+          return None;
         }
-        Some((strands, offset + 10))
       }
+      Some((strands, offset + 10))
     })
     .map_ok(|v| futures::stream::iter(v.into_iter()))
     .try_flatten()
@@ -104,7 +110,8 @@ impl MysqlStore {
   }
 
   async fn cid_for_index(&self, strand: &Cid, index: u64) -> Result<Cid, ResolutionError> {
-    let query = "SELECT t.cid FROM Tixels t JOIN Strands s ON t.strand = s.id WHERE s.cid = ? AND t.idx = ?";
+    let query =
+      "SELECT t.cid FROM Tixels t JOIN Strands s ON t.strand = s.id WHERE s.cid = ? AND t.idx = ?";
 
     let mut conn = self.pool.acquire().await.map_err(to_resolution_error)?;
 
@@ -198,7 +205,9 @@ impl MysqlStore {
     };
 
     if !previous_exists {
-      return Err(StoreError::Saving("Previous tixel does not exist in store".to_string()));
+      return Err(StoreError::Saving(
+        "Previous tixel does not exist in store".to_string(),
+      ));
     }
 
     let query = "
@@ -274,8 +283,12 @@ impl MysqlStore {
 
 #[async_trait]
 impl unchecked_base::BaseResolver for MysqlStore {
-
-  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Strand, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn fetch_strands(
+    &self,
+  ) -> Result<
+    Pin<Box<dyn Stream<Item = Result<Strand, ResolutionError>> + Send + '_>>,
+    ResolutionError,
+  > {
     self.all_strands().await
   }
 
@@ -284,13 +297,17 @@ impl unchecked_base::BaseResolver for MysqlStore {
   }
 
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
-    self.cid_for_index(strand, index).await.map(|_| true).or_else(|e| {
-      if let ResolutionError::NotFound = e {
-        Ok(false)
-      } else {
-        Err(e)
-      }
-    })
+    self
+      .cid_for_index(strand, index)
+      .await
+      .map(|_| true)
+      .or_else(|e| {
+        if let ResolutionError::NotFound = e {
+          Ok(false)
+        } else {
+          Err(e)
+        }
+      })
   }
 
   async fn has_twine(&self, _strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
@@ -313,35 +330,42 @@ impl unchecked_base::BaseResolver for MysqlStore {
     self.latest_tixel(strand).await
   }
 
-  async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Tixel, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn range_stream(
+    &self,
+    range: AbsoluteRange,
+  ) -> Result<
+    Pin<Box<dyn Stream<Item = Result<Tixel, ResolutionError>> + Send + '_>>,
+    ResolutionError,
+  > {
     let batches = range.batches(100);
-    let stream = unfold(batches.into_iter(), move |mut batches| {
-      async move {
-        let batch = batches.next()?;
-        let mut conn = match self.pool.acquire().await.map_err(to_resolution_error) {
-          Ok(conn) => conn,
-          Err(e) => return Some((Err(e), batches)),
-        };
-        let dir = if range.is_increasing() { "ASC" } else { "DESC" };
-        let tixels: Result<Vec<_>, ResolutionError> = sqlx::query_as::<_, Block>(&format!("
+    let stream = unfold(batches.into_iter(), move |mut batches| async move {
+      let batch = batches.next()?;
+      let mut conn = match self.pool.acquire().await.map_err(to_resolution_error) {
+        Ok(conn) => conn,
+        Err(e) => return Some((Err(e), batches)),
+      };
+      let dir = if range.is_increasing() { "ASC" } else { "DESC" };
+      let tixels: Result<Vec<_>, ResolutionError> = sqlx::query_as::<_, Block>(&format!(
+        "
           SELECT t.cid, t.data
           FROM Tixels t JOIN Strands s ON t.strand = s.id
           WHERE s.cid = ? AND t.idx >= ? AND t.idx <= ?
           ORDER BY t.idx {}
-        ", dir))
-          .bind(range.strand.to_bytes())
-          .bind(batch.lower() as i64)
-          .bind(batch.upper() as i64)
-          .fetch(&mut *conn)
-          .map_err(to_resolution_error)
-          .map_ok(|(cid, data)| {
-            let cid = Cid::try_from(cid).map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-            Ok::<_, ResolutionError>(Tixel::from_block(cid, data)?)
-          })
-          .try_collect()
-          .await;
-        Some((tixels, batches))
-      }
+        ",
+        dir
+      ))
+      .bind(range.strand.to_bytes())
+      .bind(batch.lower() as i64)
+      .bind(batch.upper() as i64)
+      .fetch(&mut *conn)
+      .map_err(to_resolution_error)
+      .map_ok(|(cid, data)| {
+        let cid = Cid::try_from(cid).map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+        Ok::<_, ResolutionError>(Tixel::from_block(cid, data)?)
+      })
+      .try_collect()
+      .await;
+      Some((tixels, batches))
     })
     .map_ok(|v| futures::stream::iter(v.into_iter()))
     .try_flatten()
@@ -362,14 +386,24 @@ impl Store for MysqlStore {
     }
   }
 
-  async fn save_many<I: Into<AnyTwine> + Send, S: Iterator<Item = I> + Send, T: IntoIterator<Item = I, IntoIter = S> + Send>(&self, twines: T) -> Result<(), StoreError> {
+  async fn save_many<
+    I: Into<AnyTwine> + Send,
+    S: Iterator<Item = I> + Send,
+    T: IntoIterator<Item = I, IntoIter = S> + Send,
+  >(
+    &self,
+    twines: T,
+  ) -> Result<(), StoreError> {
     for twine in twines {
       self.save(twine).await?;
     }
     Ok(())
   }
 
-  async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send + Unpin>(&self, twines: T) -> Result<(), StoreError> {
+  async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send + Unpin>(
+    &self,
+    twines: T,
+  ) -> Result<(), StoreError> {
     twines
       .chunks(100)
       .then(|chunk| self.save_many(chunk))

@@ -1,24 +1,24 @@
 use std::fmt::Display;
 use std::sync::Arc;
 
+use super::Strand;
+use super::{BackStitches, CrossStitches, Stitch, Tagged, TwineBlock};
 use crate::as_cid::AsCid;
 use crate::crypto::get_hasher;
 use crate::crypto::Signature;
+use crate::errors::VerificationError;
 use crate::schemas::TixelSchemaVersion;
 use crate::specification::Subspec;
-use crate::errors::VerificationError;
 use crate::verify::Verified;
 use crate::Cid;
 use crate::Ipld;
+use ipld_core::codec::Codec;
 use ipld_core::serde::from_ipld;
 use multihash_codetable::Code;
 use semver::Version;
 use serde::de::DeserializeOwned;
-use ipld_core::codec::Codec;
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use serde_ipld_dagjson::codec::DagJsonCodec;
-use super::{BackStitches, CrossStitches, Stitch, Tagged, TwineBlock};
-use super::Strand;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Tixel(pub(crate) Arc<Verified<TixelSchemaVersion>>);
@@ -36,7 +36,7 @@ impl Tixel {
   pub fn try_new<C>(container: C) -> Result<Self, VerificationError>
   where
     C: TryInto<TixelSchemaVersion>,
-    VerificationError:From<<C as TryInto<TixelSchemaVersion>>::Error>
+    VerificationError: From<<C as TryInto<TixelSchemaVersion>>::Error>,
   {
     let container = container.try_into()?;
     Ok(Self(Arc::new(Verified::try_new(container)?)))
@@ -100,8 +100,7 @@ impl Tixel {
   }
 
   pub fn includes<C: AsCid>(&self, other: C) -> bool {
-    self.back_stitches().includes(other.as_cid())
-    || self.cross_stitches().includes(other.as_cid())
+    self.back_stitches().includes(other.as_cid()) || self.cross_stitches().includes(other.as_cid())
   }
 
   pub(crate) fn signature(&self) -> Signature {
@@ -135,7 +134,7 @@ impl TwineBlock for Tixel {
   }
 
   fn from_tagged_dag_json<S: Display>(json: S) -> Result<Self, VerificationError> {
-    let t : Tagged<Tixel> = DagJsonCodec::decode_from_slice(json.to_string().as_bytes())?;
+    let t: Tagged<Tixel> = DagJsonCodec::decode_from_slice(json.to_string().as_bytes())?;
     Ok(t.unpack())
   }
 
@@ -165,7 +164,10 @@ impl TwineBlock for Tixel {
   }
 
   fn bytes(&self) -> Arc<[u8]> {
-    DagCborCodec::encode_to_vec(&self.0).unwrap().as_slice().into()
+    DagCborCodec::encode_to_vec(&self.0)
+      .unwrap()
+      .as_slice()
+      .into()
   }
 
   fn content_bytes(&self) -> Arc<[u8]> {

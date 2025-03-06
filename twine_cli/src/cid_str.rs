@@ -1,15 +1,12 @@
 use std::{fmt::Display, ops::Deref, str::FromStr};
 
+use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use twine_core::{as_cid::AsCid, Cid};
-use serde::{Deserialize, Serialize};
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
-pub struct CidStr(
-  #[serde_as(as = "serde_with::DisplayFromStr")]
-  Cid
-);
+pub struct CidStr(#[serde_as(as = "serde_with::DisplayFromStr")] Cid);
 
 impl Display for CidStr {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

@@ -1,12 +1,18 @@
 use std::{fmt::Display, hash::Hash};
 
+use crate::{
+  crypto::{assert_cid, get_cid, get_hasher, verify_signature},
+  errors::VerificationError,
+  specification::Subspec,
+  twine::{BackStitches, CrossStitches, Stitch},
+  verify::{Verifiable, Verified},
+};
 use biscuit::jwk::JWK;
 use ipld_core::{cid::Cid, codec::Codec, ipld::Ipld};
 use multihash_codetable::Code;
 use semver::Version;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_ipld_dagcbor::codec::DagCborCodec;
-use crate::{crypto::{assert_cid, get_cid, get_hasher, verify_signature}, errors::VerificationError, specification::Subspec, twine::{BackStitches, CrossStitches, Stitch}, verify::{Verifiable, Verified}};
 
 mod chain;
 mod mixin;
@@ -20,8 +26,8 @@ impl Default for V1 {
   }
 }
 
-pub use mixin::*;
 pub use chain::*;
+pub use mixin::*;
 pub use pulse::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -34,7 +40,10 @@ pub struct ContainerV1<C: Clone + Verifiable + Send> {
   signature: String,
 }
 
-impl<C> PartialEq for ContainerV1<C> where C: Clone + Verifiable + Send {
+impl<C> PartialEq for ContainerV1<C>
+where
+  C: Clone + Verifiable + Send,
+{
   fn eq(&self, other: &Self) -> bool {
     self.cid == other.cid
   }
@@ -42,7 +51,10 @@ impl<C> PartialEq for ContainerV1<C> where C: Clone + Verifiable + Send {
 
 impl<C> Eq for ContainerV1<C> where C: Clone + Verifiable + Send {}
 
-impl<C> Hash for ContainerV1<C> where C: Clone + Verifiable + Send {
+impl<C> Hash for ContainerV1<C>
+where
+  C: Clone + Verifiable + Send,
+{
   fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
     Hash::hash(&self.cid, state);
   }
@@ -59,7 +71,10 @@ impl Verifiable for ContainerV1<ChainContentV1> {
   }
 }
 
-impl<C> ContainerV1<C> where C: Clone + Verifiable + Send + Serialize + for<'de> Deserialize<'de> {
+impl<C> ContainerV1<C>
+where
+  C: Clone + Verifiable + Send + Serialize + for<'de> Deserialize<'de>,
+{
   pub fn compute_cid(&mut self, hasher: Code) {
     let dat = DagCborCodec::encode_to_vec(self).unwrap();
     self.cid = get_cid(hasher, dat.as_slice());
@@ -79,9 +94,16 @@ impl<C> ContainerV1<C> where C: Clone + Verifiable + Send + Serialize + for<'de>
 }
 
 impl ContainerV1<ChainContentV1> {
-
-  pub fn new_from_parts(hasher: Code, content: Verified<ChainContentV1>, signature: String) -> Self {
-    let mut chain = Self { cid: Cid::default(), content, signature };
+  pub fn new_from_parts(
+    hasher: Code,
+    content: Verified<ChainContentV1>,
+    signature: String,
+  ) -> Self {
+    let mut chain = Self {
+      cid: Cid::default(),
+      content,
+      signature,
+    };
     chain.compute_cid(hasher);
     chain
   }
@@ -110,7 +132,11 @@ impl ContainerV1<ChainContentV1> {
     &self.content.meta
   }
 
-  pub fn verify_signature<T: Display>(&self, sig: T, content_hash: Vec<u8>) -> Result<(), VerificationError> {
+  pub fn verify_signature<T: Display>(
+    &self,
+    sig: T,
+    content_hash: Vec<u8>,
+  ) -> Result<(), VerificationError> {
     verify_signature(&self.key(), sig.to_string(), content_hash)
   }
 }
@@ -125,8 +151,16 @@ impl Verifiable for ContainerV1<PulseContentV1> {
 }
 
 impl ContainerV1<PulseContentV1> {
-  pub fn new_from_parts(hasher: Code, content: Verified<PulseContentV1>, signature: String) -> Self {
-    let mut pulse = Self { cid: Cid::default(), content, signature };
+  pub fn new_from_parts(
+    hasher: Code,
+    content: Verified<PulseContentV1>,
+    signature: String,
+  ) -> Self {
+    let mut pulse = Self {
+      cid: Cid::default(),
+      content,
+      signature,
+    };
     pulse.compute_cid(hasher);
     pulse
   }

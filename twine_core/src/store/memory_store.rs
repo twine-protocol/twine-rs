@@ -1,16 +1,16 @@
-use std::collections::BTreeMap;
-use std::{collections::HashMap, sync::Arc};
-use futures::Stream;
-use crate::resolver::{unchecked_base, MaybeSend};
-use crate::Cid;
-use crate::errors::{ResolutionError, StoreError};
-use crate::resolver::{AbsoluteRange, unchecked_base::BaseResolver, Resolver};
-use crate::twine::{Strand, Tixel};
 use super::Store;
 use crate::as_cid::AsCid;
+use crate::errors::{ResolutionError, StoreError};
+use crate::resolver::{unchecked_base, MaybeSend};
+use crate::resolver::{unchecked_base::BaseResolver, AbsoluteRange, Resolver};
 use crate::twine::AnyTwine;
+use crate::twine::{Strand, Tixel};
+use crate::Cid;
 use async_trait::async_trait;
+use futures::Stream;
+use std::collections::BTreeMap;
 use std::sync::RwLock;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug, Clone)]
 struct StrandMap {
@@ -44,8 +44,13 @@ impl MemoryStore {
   pub fn save_sync(&self, twine: AnyTwine) -> Result<(), StoreError> {
     match twine {
       AnyTwine::Strand(strand) => {
-        self.strands.write().unwrap().entry(strand.cid()).or_insert(StrandMap::new(strand));
-      },
+        self
+          .strands
+          .write()
+          .unwrap()
+          .entry(strand.cid())
+          .or_insert(StrandMap::new(strand));
+      }
       AnyTwine::Tixel(tixel) => {
         let mut tixels = self.tixels.write().unwrap();
         if let None = { tixels.get(&tixel.cid()) } {
@@ -57,7 +62,7 @@ impl MemoryStore {
             return Err(StoreError::Saving("Strand not found".into()));
           }
         }
-      },
+      }
     }
     Ok(())
   }
@@ -67,7 +72,14 @@ impl MemoryStore {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl BaseResolver for MemoryStore {
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
-    Ok(self.strands.read().unwrap().get(strand).map_or(false, |s| s.by_index.contains_key(&index)))
+    Ok(
+      self
+        .strands
+        .read()
+        .unwrap()
+        .get(strand)
+        .map_or(false, |s| s.by_index.contains_key(&index)),
+    )
   }
 
   async fn has_twine(&self, _strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
@@ -78,8 +90,13 @@ impl BaseResolver for MemoryStore {
     Ok(self.strands.read().unwrap().contains_key(cid))
   }
 
-  async fn fetch_strands<'a>(&'a self) -> Result<unchecked_base::TwineStream<'a, Strand>, ResolutionError> {
-    let iter = self.strands.read().unwrap()
+  async fn fetch_strands<'a>(
+    &'a self,
+  ) -> Result<unchecked_base::TwineStream<'a, Strand>, ResolutionError> {
+    let iter = self
+      .strands
+      .read()
+      .unwrap()
       .values()
       .map(|s| Ok(s.strand.clone()))
       .collect::<Vec<Result<Strand, ResolutionError>>>();
@@ -133,10 +150,14 @@ impl BaseResolver for MemoryStore {
     }
   }
 
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<unchecked_base::TwineStream<'a, Tixel>, ResolutionError> {
+  async fn range_stream<'a>(
+    &'a self,
+    range: AbsoluteRange,
+  ) -> Result<unchecked_base::TwineStream<'a, Tixel>, ResolutionError> {
     use futures::stream::StreamExt;
     if let Some(entry) = self.strands.read().unwrap().get(range.strand_cid()) {
-      let list = range.into_iter()
+      let list = range
+        .into_iter()
         .map(|q| entry.by_index.get(&(q.unwrap_index() as u64)).cloned())
         .map(|t| t.ok_or(ResolutionError::NotFound))
         .collect::<Vec<Result<Tixel, ResolutionError>>>();
@@ -157,11 +178,23 @@ impl Store for MemoryStore {
     self.save_sync(twine.into())
   }
 
-  async fn save_many<I: Into<AnyTwine> + MaybeSend, S: Iterator<Item = I> + MaybeSend, T: IntoIterator<Item = I, IntoIter = S> + MaybeSend>(&self, twines: T) -> Result<(), StoreError> {
-    self.save_stream(futures::stream::iter(twines.into_iter())).await
+  async fn save_many<
+    I: Into<AnyTwine> + MaybeSend,
+    S: Iterator<Item = I> + MaybeSend,
+    T: IntoIterator<Item = I, IntoIter = S> + MaybeSend,
+  >(
+    &self,
+    twines: T,
+  ) -> Result<(), StoreError> {
+    self
+      .save_stream(futures::stream::iter(twines.into_iter()))
+      .await
   }
 
-  async fn save_stream<I: Into<AnyTwine> + MaybeSend, T: Stream<Item = I> + MaybeSend>(&self, twines: T) -> Result<(), StoreError> {
+  async fn save_stream<I: Into<AnyTwine> + MaybeSend, T: Stream<Item = I> + MaybeSend>(
+    &self,
+    twines: T,
+  ) -> Result<(), StoreError> {
     use futures::stream::{StreamExt, TryStreamExt};
     twines
       .then(|twine| async {
@@ -188,13 +221,12 @@ impl Store for MemoryStore {
   }
 }
 
-
 #[cfg(test)]
 mod test {
   use super::*;
-  use crate::twine::*;
-  use crate::test::*;
   use crate::resolver::Resolver;
+  use crate::test::*;
+  use crate::twine::*;
 
   #[tokio::test]
   async fn test_memory_store() {
@@ -204,13 +236,19 @@ mod test {
     store.save(strand.clone()).await.unwrap();
     store.save(tixel.clone()).await.unwrap();
     let strand2 = store.fetch_strand(&strand.cid()).await.unwrap();
-    let tixel2 = store.fetch_tixel(&strand2.cid(), &tixel.cid()).await.unwrap();
+    let tixel2 = store
+      .fetch_tixel(&strand2.cid(), &tixel.cid())
+      .await
+      .unwrap();
     assert_eq!(strand, strand2);
     assert_eq!(tixel, tixel2);
     store.delete(strand.cid()).await.unwrap();
     store.delete(tixel.cid()).await.unwrap();
     assert!(store.fetch_strand(&strand.cid()).await.is_err());
-    assert!(store.fetch_tixel(&strand.cid(), &tixel.cid()).await.is_err());
+    assert!(store
+      .fetch_tixel(&strand.cid(), &tixel.cid())
+      .await
+      .is_err());
   }
 
   #[tokio::test]
@@ -221,13 +259,19 @@ mod test {
     let things: Vec<AnyTwine> = vec![strand.clone().into(), tixel.clone().into()];
     store.save_many(things).await.unwrap();
     let strand2 = store.fetch_strand(&strand.cid()).await.unwrap();
-    let tixel2 = store.fetch_tixel(&strand2.cid(), &tixel.cid()).await.unwrap();
+    let tixel2 = store
+      .fetch_tixel(&strand2.cid(), &tixel.cid())
+      .await
+      .unwrap();
     assert_eq!(strand, strand2);
     assert_eq!(tixel, tixel2);
     store.delete(strand.cid()).await.unwrap();
     store.delete(tixel.cid()).await.unwrap();
     assert!(store.fetch_strand(&strand.cid()).await.is_err());
-    assert!(store.fetch_tixel(&strand.cid(), &tixel.cid()).await.is_err());
+    assert!(store
+      .fetch_tixel(&strand.cid(), &tixel.cid())
+      .await
+      .is_err());
   }
 
   #[tokio::test]

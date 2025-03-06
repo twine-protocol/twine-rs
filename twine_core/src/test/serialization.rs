@@ -2,8 +2,8 @@ use ipld_core::{codec::Codec, ipld};
 use serde::Serialize;
 use serde_ipld_dagjson::codec::DagJsonCodec;
 
-use crate::twine::*;
 use super::*;
+use crate::twine::*;
 
 #[test]
 fn test_deserialize_tixel_json() {
@@ -11,7 +11,6 @@ fn test_deserialize_tixel_json() {
   dbg!(&res);
   assert!(res.is_ok(), "Failed to deserialize Tixel: {:?}", res.err());
 }
-
 
 #[test]
 fn test_invalid_signature_tixel_json() {
@@ -23,33 +22,45 @@ fn test_invalid_signature_tixel_json() {
 }
 
 #[test]
-fn test_deserialize_strand_json(){
+fn test_deserialize_strand_json() {
   let res = Strand::from_tagged_dag_json(STRANDJSON);
   dbg!(&res);
   assert!(res.is_ok(), "Failed to deserialize Strand: {:?}", res.err());
 }
 
 #[test]
-fn test_deserialize_tixel_bytes(){
+fn test_deserialize_tixel_bytes() {
   let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
   let bytes = tixel.bytes();
   let res = Tixel::from_block(tixel.cid(), bytes);
   dbg!(&res);
-  assert!(res.is_ok(), "Failed to deserialize Tixel from bytes: {:?}", res.err());
+  assert!(
+    res.is_ok(),
+    "Failed to deserialize Tixel from bytes: {:?}",
+    res.err()
+  );
 }
 
 #[test]
-fn test_deserialize_strand_bytes(){
+fn test_deserialize_strand_bytes() {
   let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
   let res = Strand::from_block(strand.cid(), strand.bytes());
   // dbg!(&res);
-  assert!(res.is_ok(), "Failed to deserialize Strand from bytes: {:?}", res.err());
+  assert!(
+    res.is_ok(),
+    "Failed to deserialize Strand from bytes: {:?}",
+    res.err()
+  );
 }
 
 #[test]
 fn test_deserialize_generic() {
   let twine = AnyTwine::from_tagged_dag_json(STRANDJSON);
-  assert!(twine.is_ok(), "Failed to deserialize Strand: {:?}", twine.err());
+  assert!(
+    twine.is_ok(),
+    "Failed to deserialize Strand: {:?}",
+    twine.err()
+  );
   assert!(twine.unwrap().is_strand(), "Twine is not a Strand");
 }
 
@@ -60,7 +71,7 @@ fn test_deserialize_generic_invalid() {
 }
 
 #[test]
-fn test_in_out_json(){
+fn test_in_out_json() {
   let twine = AnyTwine::from_tagged_dag_json(TIXELJSON).unwrap();
   let json = twine.tagged_dag_json();
   let twine2 = AnyTwine::from_tagged_dag_json(&json).unwrap();
@@ -69,7 +80,7 @@ fn test_in_out_json(){
 }
 
 #[test]
-fn test_signature_verification(){
+fn test_signature_verification() {
   let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
 
   let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
@@ -78,14 +89,14 @@ fn test_signature_verification(){
 }
 
 #[test]
-fn test_decoding_fail(){
+fn test_decoding_fail() {
   let res = Tixel::from_tagged_dag_json(INVALID_TIXELJSON);
   assert!(res.is_err(), "Decoding should have failed");
 }
 
 #[test]
-fn test_simple_payload_unpack(){
-  use serde::{Serialize, Deserialize};
+fn test_simple_payload_unpack() {
+  use serde::{Deserialize, Serialize};
   #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
   struct Timestamped {
     timestamp: String,
@@ -106,7 +117,7 @@ fn test_twine() {
 }
 
 #[test]
-fn test_null_payload(){
+fn test_null_payload() {
   let ipld = ipld!({
     "payload": {
       "baz": null
@@ -118,7 +129,7 @@ fn test_null_payload(){
 }
 
 #[test]
-fn test_roundtrip_null(){
+fn test_roundtrip_null() {
   let test = ipld!({
     "test": null
   });
@@ -128,7 +139,7 @@ fn test_roundtrip_null(){
 }
 
 #[test]
-fn test_bytes(){
+fn test_bytes() {
   #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
   struct MyStruct {
     foo: crate::Bytes,
@@ -145,7 +156,7 @@ fn test_bytes(){
 }
 
 #[test]
-fn test_deserialize_strand_v2(){
+fn test_deserialize_strand_v2() {
   let res = Strand::from_tagged_dag_json(STRAND_V2_JSON);
   assert!(res.is_ok(), "Failed to deserialize Strand: {:?}", res.err());
   println!("{}", res.unwrap().tagged_dag_json_pretty());

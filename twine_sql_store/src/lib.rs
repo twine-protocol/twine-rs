@@ -1,25 +1,28 @@
 use async_trait::async_trait;
 use futures::stream::Stream;
 use twine_core::as_cid::AsCid;
-use twine_core::twine::AnyTwine;
 use twine_core::errors::{ResolutionError, StoreError};
-use twine_core::{twine::{Strand, Tixel}, Cid};
+use twine_core::resolver::AbsoluteRange;
 use twine_core::resolver::{unchecked_base, Resolver};
 use twine_core::store::Store;
-use twine_core::resolver::AbsoluteRange;
+use twine_core::twine::AnyTwine;
+use twine_core::{
+  twine::{Strand, Tixel},
+  Cid,
+};
 
 pub use sqlx;
-#[cfg(feature = "sqlite")]
-pub mod sqlite;
 #[cfg(feature = "mysql")]
 pub mod mysql;
+#[cfg(feature = "sqlite")]
+pub mod sqlite;
 
 type Block = (Vec<u8>, Vec<u8>);
 
 fn to_resolution_error(err: sqlx::Error) -> ResolutionError {
   match err {
     sqlx::Error::RowNotFound => ResolutionError::NotFound,
-    _ => ResolutionError::Fetch(err.to_string())
+    _ => ResolutionError::Fetch(err.to_string()),
   }
 }
 
@@ -143,7 +146,10 @@ impl unchecked_base::BaseResolver for SqlStore {
     }
   }
 
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<unchecked_base::TwineStream<'a, Tixel>, ResolutionError> {
+  async fn range_stream<'a>(
+    &'a self,
+    range: AbsoluteRange,
+  ) -> Result<unchecked_base::TwineStream<'a, Tixel>, ResolutionError> {
     match self {
       #[cfg(feature = "sqlite")]
       SqlStore::Sqlite(store) => store.range_stream(range).await,
@@ -154,7 +160,9 @@ impl unchecked_base::BaseResolver for SqlStore {
     }
   }
 
-  async fn fetch_strands<'a>(&'a self) -> Result<unchecked_base::TwineStream<'a, Strand>, ResolutionError> {
+  async fn fetch_strands<'a>(
+    &'a self,
+  ) -> Result<unchecked_base::TwineStream<'a, Strand>, ResolutionError> {
     match self {
       #[cfg(feature = "sqlite")]
       SqlStore::Sqlite(store) => store.fetch_strands().await,
@@ -181,7 +189,14 @@ impl Store for SqlStore {
     }
   }
 
-  async fn save_many<I: Into<AnyTwine> + Send, S: Iterator<Item = I> + Send, T: IntoIterator<Item = I, IntoIter = S> + Send>(&self, twines: T) -> Result<(), StoreError> {
+  async fn save_many<
+    I: Into<AnyTwine> + Send,
+    S: Iterator<Item = I> + Send,
+    T: IntoIterator<Item = I, IntoIter = S> + Send,
+  >(
+    &self,
+    twines: T,
+  ) -> Result<(), StoreError> {
     match self {
       #[cfg(feature = "sqlite")]
       SqlStore::Sqlite(store) => store.save_many(twines).await,
@@ -192,7 +207,10 @@ impl Store for SqlStore {
     }
   }
 
-  async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send + Unpin>(&self, twines: T) -> Result<(), StoreError> {
+  async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send + Unpin>(
+    &self,
+    twines: T,
+  ) -> Result<(), StoreError> {
     match self {
       #[cfg(feature = "sqlite")]
       SqlStore::Sqlite(store) => store.save_stream(twines).await,

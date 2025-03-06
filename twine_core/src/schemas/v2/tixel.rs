@@ -13,7 +13,9 @@ impl TryFrom<Vec<(Cid, Cid)>> for EncodedCrossStitches {
 
   fn try_from(v: Vec<(Cid, Cid)>) -> Result<Self, Self::Error> {
     if v.windows(2).any(|w| w[0].0 >= w[1].0) {
-      return Err(VerificationError::InvalidTwineFormat("Cross-stitches are not ordered correctly".into()));
+      return Err(VerificationError::InvalidTwineFormat(
+        "Cross-stitches are not ordered correctly".into(),
+      ));
     }
 
     Ok(Self(v.into()))
@@ -22,7 +24,7 @@ impl TryFrom<Vec<(Cid, Cid)>> for EncodedCrossStitches {
 
 impl From<EncodedCrossStitches> for Vec<(Cid, Cid)> {
   fn from(v: EncodedCrossStitches) -> Self {
-    let mut vec : Vec<_> = v.0.into();
+    let mut vec: Vec<_> = v.0.into();
     vec.sort_by(|a: &(Cid, Cid), b: &(Cid, Cid)| a.0.cmp(&b.0));
     vec
   }
@@ -64,7 +66,9 @@ impl Verifiable for TixelFields {
   fn verify(&self) -> Result<(), VerificationError> {
     // must have at least one back-stitch if not the starting tixel
     if self.back_stitches.len() == 0 && self.index != 0 {
-      return Err(VerificationError::InvalidTwineFormat("Non-starting tixel has zero links".into()));
+      return Err(VerificationError::InvalidTwineFormat(
+        "Non-starting tixel has zero links".into(),
+      ));
     }
 
     // ensure back-stitches are valid condensed form
@@ -72,7 +76,9 @@ impl Verifiable for TixelFields {
 
     // cross-stitches can't contain own strand
     if self.cross_stitches.get(&self.strand).is_some() {
-      return Err(VerificationError::InvalidTwineFormat("Contains cross-stitch on own strand".into()));
+      return Err(VerificationError::InvalidTwineFormat(
+        "Contains cross-stitch on own strand".into(),
+      ));
     }
 
     Ok(())

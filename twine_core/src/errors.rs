@@ -1,8 +1,8 @@
-use serde_ipld_dagjson::error::CodecError as JsonCodecError;
-use serde_ipld_dagcbor::error::CodecError as CborCodecError;
-use thiserror::Error;
-use std::{convert::Infallible, fmt::Display};
 use crate::resolver::SingleQuery;
+use serde_ipld_dagcbor::error::CodecError as CborCodecError;
+use serde_ipld_dagjson::error::CodecError as JsonCodecError;
+use std::{convert::Infallible, fmt::Display};
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum VerificationError {
@@ -23,15 +23,9 @@ pub enum VerificationError {
   #[error("Unsupported hash algorithm")]
   UnsupportedHashAlgorithm,
   #[error("Cid mismatch: expected {expected}, got {actual}")]
-  CidMismatch {
-    expected: String,
-    actual: String,
-  },
+  CidMismatch { expected: String, actual: String },
   #[error("Twine has wrong type: expected {expected}, found {found}")]
-  WrongType {
-    expected: String,
-    found: String,
-  },
+  WrongType { expected: String, found: String },
   #[error("Bad Specification: {0}")]
   BadSpecification(#[from] SpecificationError),
   #[error("General error: {0}")]
@@ -45,7 +39,6 @@ impl From<Infallible> for VerificationError {
     unreachable!()
   }
 }
-
 
 #[derive(Error, Debug)]
 pub enum ResolutionError {

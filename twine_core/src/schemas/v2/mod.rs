@@ -1,25 +1,25 @@
-use std::hash::{Hash, Hasher};
-use std::ops::Deref;
+use crate::crypto::get_cid;
+use crate::crypto::{crypto_serialize, PublicKey, Signature};
+use crate::errors::VerificationError;
+use crate::twine::{BackStitches, CrossStitches};
+use crate::verify::{Verifiable, Verified};
+use crate::Ipld;
+use crate::{Bytes, Cid};
 use chrono::{DateTime, Utc};
 use multihash_codetable::Code;
 use semver::Version;
 use serde::Deserializer;
-use serde::{Serialize, Deserialize};
-use crate::crypto::{crypto_serialize, PublicKey, Signature};
-use crate::crypto::get_cid;
-use crate::errors::VerificationError;
-use crate::twine::{BackStitches, CrossStitches};
-use crate::{Bytes, Cid};
-use crate::Ipld;
-use crate::verify::{Verified, Verifiable};
+use serde::{Deserialize, Serialize};
+use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 
 mod content;
-mod tixel;
 mod strand;
+mod tixel;
 
 use content::*;
-pub use tixel::{TixelContentV2, TixelFields};
 pub use strand::{StrandContentV2, StrandFields};
+pub use tixel::{TixelContentV2, TixelFields};
 
 pub type V2 = crate::specification::Specification<2>;
 
@@ -42,7 +42,10 @@ impl Deref for HashCode {
 }
 
 impl HashCode {
-  pub fn get_cid<S: Serialize>(&self, input: S) -> Result<Cid, serde_ipld_dagcbor::EncodeError<std::collections::TryReserveError>> {
+  pub fn get_cid<S: Serialize>(
+    &self,
+    input: S,
+  ) -> Result<Cid, serde_ipld_dagcbor::EncodeError<std::collections::TryReserveError>> {
     let dat = crypto_serialize(input)?;
     Ok(get_cid(**self, dat))
   }
@@ -86,23 +89,23 @@ pub struct ContainerV2<C: Clone + Send + Verifiable> {
   fields: ContainerFields<C>,
 }
 
-impl<C> ContainerV2<C> where C: Clone + Send + Verifiable + Serialize {
+impl<C> ContainerV2<C>
+where
+  C: Clone + Send + Verifiable + Serialize,
+{
   pub fn new_from_parts(content: Verified<ContentV2<C>>, signature: Signature) -> Self {
-    let fields = ContainerFields {
-      content,
-      signature,
-    };
+    let fields = ContainerFields { content, signature };
 
     let cid = fields.content.code().get_cid(&fields).unwrap();
 
-    ContainerV2 {
-      cid,
-      fields,
-    }
+    ContainerV2 { cid, fields }
   }
 }
 
-impl<C> ContainerV2<C> where C: Clone + Send + Verifiable + Serialize {
+impl<C> ContainerV2<C>
+where
+  C: Clone + Send + Verifiable + Serialize,
+{
   pub fn cid(&self) -> &Cid {
     &self.cid
   }
@@ -130,7 +133,10 @@ impl<C> ContainerV2<C> where C: Clone + Send + Verifiable + Serialize {
   }
 }
 
-impl<C> PartialEq for ContainerV2<C> where C: Clone + Send + Verifiable {
+impl<C> PartialEq for ContainerV2<C>
+where
+  C: Clone + Send + Verifiable,
+{
   fn eq(&self, other: &Self) -> bool {
     self.cid == other.cid
   }
@@ -138,7 +144,10 @@ impl<C> PartialEq for ContainerV2<C> where C: Clone + Send + Verifiable {
 
 impl<C> Eq for ContainerV2<C> where C: Clone + Send + Verifiable {}
 
-impl<C> Deref for ContainerV2<C> where C: Clone + Send + Verifiable {
+impl<C> Deref for ContainerV2<C>
+where
+  C: Clone + Send + Verifiable,
+{
   type Target = ContainerFields<C>;
 
   fn deref(&self) -> &Self::Target {
@@ -146,27 +155,32 @@ impl<C> Deref for ContainerV2<C> where C: Clone + Send + Verifiable {
   }
 }
 
-impl<C> Hash for ContainerV2<C> where C: Clone + Send + Verifiable {
+impl<C> Hash for ContainerV2<C>
+where
+  C: Clone + Send + Verifiable,
+{
   fn hash<H: Hasher>(&self, state: &mut H) {
     Hash::hash(&self.cid, state);
   }
 }
 
-impl<'de, T> Deserialize<'de> for ContainerV2<T> where T: Clone + Send + Verifiable + Serialize + for<'a> Deserialize<'a> {
+impl<'de, T> Deserialize<'de> for ContainerV2<T>
+where
+  T: Clone + Send + Verifiable + Serialize + for<'a> Deserialize<'a>,
+{
   fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
   where
     D: Deserializer<'de>,
   {
     let fields = ContainerFields::<T>::deserialize(deserializer)?;
     // now use the content code to create the cid
-    let cid = fields.content.code().get_cid(&fields).map_err(
-      |e| serde::de::Error::custom(format!("Failed to create CID: {:?}", e))
-    )?;
+    let cid = fields
+      .content
+      .code()
+      .get_cid(&fields)
+      .map_err(|e| serde::de::Error::custom(format!("Failed to create CID: {:?}", e)))?;
 
-    Ok(ContainerV2 {
-      cid,
-      fields,
-    })
+    Ok(ContainerV2 { cid, fields })
   }
 }
 
@@ -193,7 +207,9 @@ impl StrandContainerV2 {
 
 impl Verifiable for StrandContainerV2 {
   fn verify(&self) -> Result<(), VerificationError> {
-    self.key().verify(self.signature(), &self.content_bytes()?)?;
+    self
+      .key()
+      .verify(self.signature(), &self.content_bytes()?)?;
     Ok(())
   }
 }
@@ -213,7 +229,11 @@ impl TixelContainerV2 {
 
   pub fn back_stitches(&self) -> crate::twine::BackStitches {
     // checked in verify method
-    BackStitches::try_new_from_condensed(*self.strand_cid(), self.fields.content.back_stitches.clone()).unwrap()
+    BackStitches::try_new_from_condensed(
+      *self.strand_cid(),
+      self.fields.content.back_stitches.clone(),
+    )
+    .unwrap()
   }
 
   pub fn drop_index(&self) -> u64 {

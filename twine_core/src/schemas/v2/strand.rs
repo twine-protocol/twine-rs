@@ -1,5 +1,5 @@
-use chrono::{Utc, DateTime};
 use crate::errors::VerificationError;
+use chrono::{DateTime, Utc};
 
 use super::*;
 
@@ -22,7 +22,9 @@ pub type StrandContentV2 = ContentV2<StrandFields>;
 impl Verifiable for StrandFields {
   fn verify(&self) -> Result<(), VerificationError> {
     if self.radix == 1 {
-      return Err(VerificationError::InvalidTwineFormat("Chain radix must not equal 1".into()));
+      return Err(VerificationError::InvalidTwineFormat(
+        "Chain radix must not equal 1".into(),
+      ));
     }
 
     Ok(())

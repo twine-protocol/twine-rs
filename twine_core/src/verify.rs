@@ -22,7 +22,10 @@ pub trait Verifiable {
 #[derive(Debug, Clone, Serialize)]
 pub struct Verified<T: Verifiable>(T);
 
-impl<T> PartialEq for Verified<T> where T: Verifiable + PartialEq {
+impl<T> PartialEq for Verified<T>
+where
+  T: Verifiable + PartialEq,
+{
   fn eq(&self, other: &Self) -> bool {
     self.as_inner() == other.as_inner()
   }
@@ -30,7 +33,10 @@ impl<T> PartialEq for Verified<T> where T: Verifiable + PartialEq {
 
 impl<T> Eq for Verified<T> where T: Verifiable + Eq {}
 
-impl<T> Hash for Verified<T> where T: Verifiable + Hash {
+impl<T> Hash for Verified<T>
+where
+  T: Verifiable + Hash,
+{
   fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
     self.as_inner().hash(state);
   }
@@ -89,7 +95,9 @@ mod test {
       if self.value == 42 {
         Ok(())
       } else {
-        Err(VerificationError::InvalidTwineFormat("Value is not 42".to_string()))
+        Err(VerificationError::InvalidTwineFormat(
+          "Value is not 42".to_string(),
+        ))
       }
     }
   }
@@ -105,7 +113,9 @@ mod test {
       if self.value == 42 {
         Ok(())
       } else {
-        Err(VerificationError::InvalidTwineFormat("Value is not 42".to_string()))
+        Err(VerificationError::InvalidTwineFormat(
+          "Value is not 42".to_string(),
+        ))
       }
     }
   }
@@ -120,7 +130,7 @@ mod test {
   }
 
   #[test]
-  fn test_nested_deserialize(){
+  fn test_nested_deserialize() {
     let data = r#"{"value": 42, "nested": {"value": 42}}"#;
     let res: Result<WithNested, _> = serde_json::from_str(data);
     assert!(res.is_ok());

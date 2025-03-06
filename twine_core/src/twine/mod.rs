@@ -1,18 +1,17 @@
-mod twine_block;
+mod any_twine;
 mod stitch;
 mod strand;
-mod tixel;
-mod any_twine;
-mod twine;
 mod tagged;
+mod tixel;
+mod twine;
+mod twine_block;
 // mod payload;
 
-pub use twine_block::*;
-pub use stitch::*;
-pub use tixel::*;
-pub use strand::*;
 pub use any_twine::AnyTwine;
-pub use twine::*;
+pub use stitch::*;
+pub use strand::*;
 pub use tagged::*;
+pub use tixel::*;
+pub use twine::*;
+pub use twine_block::*;
 // pub use payload::*;
-

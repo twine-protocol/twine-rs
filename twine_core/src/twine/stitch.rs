@@ -1,12 +1,12 @@
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::hash::Hash;
-use std::collections::HashMap;
 
+use super::{Tixel, Twine};
 use crate::as_cid::AsCid;
 use crate::errors::VerificationError;
 use crate::Cid;
 use crate::{errors::ResolutionError, resolver::Resolver};
-use super::{Tixel, Twine};
 
 #[derive(Clone, Copy, Debug, PartialEq, Hash, Eq)]
 pub struct Stitch {
@@ -20,7 +20,9 @@ impl Stitch {
     let (old, new) = join!(resolver.resolve(self), resolver.resolve_latest(self.strand));
     let (old, new) = (old?.unpack(), new?.unpack());
     if old.index() > new.index() {
-      return Err(ResolutionError::BadData("Latest tixel in resolver is behind recorded stitch".into()));
+      return Err(ResolutionError::BadData(
+        "Latest tixel in resolver is behind recorded stitch".into(),
+      ));
     }
     Ok(new.into())
   }
@@ -80,9 +82,10 @@ pub struct BackStitches(Vec<Stitch>);
 impl BackStitches {
   pub fn new(strand: Cid, cids: Vec<Cid>) -> Self {
     Self(
-      cids.into_iter()
+      cids
+        .into_iter()
         .map(|tixel| Stitch { strand, tixel })
-        .collect()
+        .collect(),
     )
   }
 
@@ -90,24 +93,27 @@ impl BackStitches {
   ///
   /// Condensed back stitches are a list of CIDs, where the last is mandatory.
   /// Any missing CIDs are implicitly the same as the later one.
-  pub fn try_new_from_condensed(strand: Cid, cids: Vec<Option<Cid>>) -> Result<Self, VerificationError> {
-    let rev_list = cids.into_iter()
+  pub fn try_new_from_condensed(
+    strand: Cid,
+    cids: Vec<Option<Cid>>,
+  ) -> Result<Self, VerificationError> {
+    let rev_list = cids
+      .into_iter()
       .rev()
       .scan(None, |prev, tixel| {
         let tixel = tixel.or(*prev);
         *prev = tixel;
-        Some(tixel
-          .ok_or(VerificationError::InvalidTwineFormat("Invalid back-stitches condensed format".into()))
-          .map(|tixel| Stitch { strand, tixel })
+        Some(
+          tixel
+            .ok_or(VerificationError::InvalidTwineFormat(
+              "Invalid back-stitches condensed format".into(),
+            ))
+            .map(|tixel| Stitch { strand, tixel }),
         )
       })
       .collect::<Result<Vec<Stitch>, _>>()?;
 
-    Ok(
-      Self(
-        rev_list.into_iter().rev().collect()
-      )
-    )
+    Ok(Self(rev_list.into_iter().rev().collect()))
   }
 
   pub fn len(&self) -> usize {
@@ -119,7 +125,9 @@ impl BackStitches {
   }
 
   pub fn into_condensed(self) -> Vec<Option<Cid>> {
-    let rev_list = self.0.into_iter()
+    let rev_list = self
+      .0
+      .into_iter()
       .rev()
       .scan(None, |prev, stitch| {
         let tixel = stitch.tixel;
@@ -189,25 +197,32 @@ impl CrossStitches {
     self.0.contains_key(strand.as_cid())
   }
 
-  pub async fn add_or_refresh<R: Resolver, C: AsCid>(mut self, strand: C, resolver: &R) -> Result<Self, ResolutionError> {
+  pub async fn add_or_refresh<R: Resolver, C: AsCid>(
+    mut self,
+    strand: C,
+    resolver: &R,
+  ) -> Result<Self, ResolutionError> {
     let latest = resolver.resolve_latest(strand.as_cid()).await?;
-    let stitch : Stitch = latest.unpack().into();
+    let stitch: Stitch = latest.unpack().into();
     self.0.insert(stitch.strand, stitch);
     Ok(self)
   }
 
   /// Refreshes as many stitches as possible, returning the new stitches and any errors.
-  pub async fn refresh_any<R: Resolver>(self, resolver: &R) -> (Self, Vec<(Stitch, ResolutionError)>) {
+  pub async fn refresh_any<R: Resolver>(
+    self,
+    resolver: &R,
+  ) -> (Self, Vec<(Stitch, ResolutionError)>) {
     let mut new_stitches = HashMap::new();
     let mut errors = Vec::new();
     for (strand, stitch) in self {
       match stitch.refresh(resolver).await {
         Ok(new) => {
           new_stitches.insert(strand, new);
-        },
+        }
         Err(err) => {
           errors.push((stitch, err));
-        },
+        }
       }
     }
     (Self(new_stitches), errors)
@@ -250,13 +265,22 @@ impl From<CrossStitches> for Vec<Stitch> {
 
 impl From<HashMap<Cid, Cid>> for CrossStitches {
   fn from(cross_stitches: HashMap<Cid, Cid>) -> Self {
-    Self(cross_stitches.into_iter().map(|(strand, tixel)| (strand, Stitch { strand, tixel })).collect())
+    Self(
+      cross_stitches
+        .into_iter()
+        .map(|(strand, tixel)| (strand, Stitch { strand, tixel }))
+        .collect(),
+    )
   }
 }
 
 impl From<CrossStitches> for HashMap<Cid, Cid> {
   fn from(cross_stitches: CrossStitches) -> Self {
-    cross_stitches.0.into_iter().map(|(strand, stitch)| (strand, stitch.tixel)).collect()
+    cross_stitches
+      .0
+      .into_iter()
+      .map(|(strand, stitch)| (strand, stitch.tixel))
+      .collect()
   }
 }
 
@@ -274,12 +298,21 @@ impl From<CrossStitches> for HashMap<Cid, Stitch> {
 
 impl From<Vec<(Cid, Cid)>> for CrossStitches {
   fn from(cross_stitches: Vec<(Cid, Cid)>) -> Self {
-    Self(cross_stitches.into_iter().map(|(strand, tixel)| (strand, Stitch { strand, tixel })).collect())
+    Self(
+      cross_stitches
+        .into_iter()
+        .map(|(strand, tixel)| (strand, Stitch { strand, tixel }))
+        .collect(),
+    )
   }
 }
 
 impl From<CrossStitches> for Vec<(Cid, Cid)> {
   fn from(cross_stitches: CrossStitches) -> Self {
-    cross_stitches.0.into_iter().map(|(strand, stitch)| (strand, stitch.tixel)).collect()
+    cross_stitches
+      .0
+      .into_iter()
+      .map(|(strand, stitch)| (strand, stitch.tixel))
+      .collect()
   }
 }

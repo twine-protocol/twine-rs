@@ -1,12 +1,15 @@
 use super::*;
 use twine_core::{
-  crypto::PublicKey, errors::{SpecificationError, VerificationError}, ipld_core::{codec::Codec, serde::to_ipld}, multihash_codetable::Code, semver::Version, skiplist::get_layer_pos, specification::Subspec, twine::{
-    CrossStitches,
-    Stitch,
-    Strand,
-    Tixel,
-    Twine
-  }, verify::Verified, Ipld
+  crypto::PublicKey,
+  errors::{SpecificationError, VerificationError},
+  ipld_core::{codec::Codec, serde::to_ipld},
+  multihash_codetable::Code,
+  semver::Version,
+  skiplist::get_layer_pos,
+  specification::Subspec,
+  twine::{CrossStitches, Stitch, Strand, Tixel, Twine},
+  verify::Verified,
+  Ipld,
 };
 
 pub struct TixelBuilder<'a, 'b, S: Signer<Key = PublicKey>> {
@@ -17,7 +20,7 @@ pub struct TixelBuilder<'a, 'b, S: Signer<Key = PublicKey>> {
   payload: Ipld,
 }
 
-impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
+impl<'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
   pub fn new_first(signer: &'a S, strand: Strand) -> Self {
     Self {
       signer,
@@ -43,7 +46,10 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
     self
   }
 
-  pub fn payload<P>(mut self, payload: P) -> Self where P: serde::ser::Serialize {
+  pub fn payload<P>(mut self, payload: P) -> Self
+  where
+    P: serde::ser::Serialize,
+  {
     self.payload = to_ipld(payload).unwrap();
     self
   }
@@ -64,10 +70,13 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
       };
       if stitches.len() != expected_len {
         // (`Previous links array has incorrect size. Expected: ${expected_len}, got: ${links.length}`)
-        return Err(BuildError::BadData(VerificationError::InvalidTwineFormat(format!(
-          "Previous links array has incorrect size. Expected: {}, got: {}",
-          expected_len, stitches.len()
-        ))));
+        return Err(BuildError::BadData(VerificationError::InvalidTwineFormat(
+          format!(
+            "Previous links array has incorrect size. Expected: {}, got: {}",
+            expected_len,
+            stitches.len()
+          ),
+        )));
       }
 
       if radix == 0 {
@@ -89,7 +98,7 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
   pub fn build_payload_then_done<F, P>(mut self, build_fn: F) -> Result<Twine, BuildError>
   where
     F: FnOnce(&Strand, Option<&Twine>) -> Result<P, BuildError>,
-    P: serde::ser::Serialize
+    P: serde::ser::Serialize,
   {
     let payload = build_fn(&self.strand, self.prev)?;
     self.payload = to_ipld(payload).unwrap();
@@ -99,10 +108,11 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
   pub fn done(self) -> Result<Twine, BuildError> {
     use twine_core::schemas::*;
 
-    let index = self.prev.as_ref().map(|p|
-      (p.index()).checked_add(1)
-        .ok_or(BuildError::IndexMaximum)
-    ).unwrap_or(Ok(0))?;
+    let index = self
+      .prev
+      .as_ref()
+      .map(|p| (p.index()).checked_add(1).ok_or(BuildError::IndexMaximum))
+      .unwrap_or(Ok(0))?;
 
     // The drop index becomes the current tixel index if
     // the specified cross-stitches are not a superset of the previous ones
@@ -115,7 +125,7 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
         } else {
           prev.drop_index()
         }
-      },
+      }
       None => 0,
     };
 
@@ -125,19 +135,26 @@ impl <'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
         specification: self.strand.spec_str().parse()?,
         fields: Verified::try_new(v2::TixelFields {
           index,
-          back_stitches: self.next_back_stitches()?.into_iter().map(|s| Some(s.tixel)).collect(),
+          back_stitches: self
+            .next_back_stitches()?
+            .into_iter()
+            .map(|s| Some(s.tixel))
+            .collect(),
           payload: self.payload,
           cross_stitches: self.stitches.into(),
           strand: self.strand.cid(),
           drop,
         })?,
       },
-      _ => return Err(BuildError::BadSpecification(
-        SpecificationError::new(format!("Unsupported version: {}", self.strand.version()))
-      )),
+      _ => {
+        return Err(BuildError::BadSpecification(SpecificationError::new(
+          format!("Unsupported version: {}", self.strand.version()),
+        )))
+      }
     };
 
-    let bytes = twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
+    let bytes =
+      twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
     let signature = self.signer.sign(&bytes)?;
 
     let container = v2::ContainerV2::new_from_parts(Verified::try_new(content)?, signature);
@@ -156,7 +173,7 @@ pub struct StrandBuilder<'a, S: Signer<Key = PublicKey>> {
   radix: u8,
 }
 
-impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
+impl<'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
   pub fn new(signer: &'a S) -> Self {
     Self {
       signer,
@@ -174,7 +191,10 @@ impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
     self
   }
 
-  pub fn details<P>(mut self, details: P) -> Self where P: serde::ser::Serialize {
+  pub fn details<P>(mut self, details: P) -> Self
+  where
+    P: serde::ser::Serialize,
+  {
     self.details = to_ipld(details).unwrap();
     self
   }
@@ -213,39 +233,43 @@ impl <'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
           expiry: None,
         })?,
       },
-      _ => return Err(BuildError::BadSpecification(
-        SpecificationError::new(format!("Unsupported version: {}", self.version))
-      )),
+      _ => {
+        return Err(BuildError::BadSpecification(SpecificationError::new(
+          format!("Unsupported version: {}", self.version),
+        )))
+      }
     };
 
-    let bytes = twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
+    let bytes =
+      twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
     let signature = self.signer.sign(&bytes)?;
     let container = v2::ContainerV2::new_from_parts(Verified::try_new(content)?, signature);
     Ok(Strand::try_new(container)?)
   }
 }
 
-
 #[cfg(feature = "rsa")]
 #[cfg(test)]
 mod test {
-  use crate::RingSigner;
   use super::*;
+  use crate::RingSigner;
 
   const TEST_KEY: &str = include_str!("../../test_data/test_rsa_key.pem");
 
   #[test]
-  fn test_rsa(){
+  fn test_rsa() {
     let signer = RingSigner::from_pem(TEST_KEY).unwrap();
     let strand = StrandBuilder::new(&signer)
       .hasher(Code::Sha3_512)
       .details("test")
       .radix(32)
-      .done().unwrap();
+      .done()
+      .unwrap();
 
     let tixel = TixelBuilder::new_first(&signer, strand)
       .payload("test")
-      .done().unwrap();
+      .done()
+      .unwrap();
 
     dbg!(tixel);
   }

@@ -1,15 +1,17 @@
 use super::*;
-use twine_core::{
-  errors::{SpecificationError, VerificationError}, ipld_core::{codec::Codec, serde::to_ipld}, multihash_codetable::{Code, MultihashDigest}, semver::Version, skiplist::get_layer_pos, specification::Subspec, twine::{
-    CrossStitches,
-    Stitch,
-    Strand,
-    Tixel,
-    Twine
-  }, verify::Verified, Ipld
-};
-use twine_core::schemas::v1::{ContainerV1, ChainContentV1, PulseContentV1};
 use biscuit::jwk::JWK;
+use twine_core::schemas::v1::{ChainContentV1, ContainerV1, PulseContentV1};
+use twine_core::{
+  errors::{SpecificationError, VerificationError},
+  ipld_core::{codec::Codec, serde::to_ipld},
+  multihash_codetable::{Code, MultihashDigest},
+  semver::Version,
+  skiplist::get_layer_pos,
+  specification::Subspec,
+  twine::{CrossStitches, Stitch, Strand, Tixel, Twine},
+  verify::Verified,
+  Ipld,
+};
 
 pub struct TixelBuilder<'a, 'b, S: Signer<Key = JWK<()>>> {
   signer: &'a S,
@@ -20,7 +22,7 @@ pub struct TixelBuilder<'a, 'b, S: Signer<Key = JWK<()>>> {
   source: String,
 }
 
-impl <'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
+impl<'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
   pub fn new_first(signer: &'a S, strand: Strand) -> Self {
     Self {
       signer,
@@ -48,7 +50,10 @@ impl <'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
     self
   }
 
-  pub fn payload<P>(mut self, payload: P) -> Self where P: serde::ser::Serialize {
+  pub fn payload<P>(mut self, payload: P) -> Self
+  where
+    P: serde::ser::Serialize,
+  {
     self.payload = to_ipld(payload).unwrap();
     self
   }
@@ -75,10 +80,13 @@ impl <'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
       };
       if stitches.len() != expected_len {
         // (`Previous links array has incorrect size. Expected: ${expected_len}, got: ${links.length}`)
-        return Err(BuildError::BadData(VerificationError::InvalidTwineFormat(format!(
-          "Previous links array has incorrect size. Expected: {}, got: {}",
-          expected_len, stitches.len()
-        ))));
+        return Err(BuildError::BadData(VerificationError::InvalidTwineFormat(
+          format!(
+            "Previous links array has incorrect size. Expected: {}, got: {}",
+            expected_len,
+            stitches.len()
+          ),
+        )));
       }
 
       if radix == 0 {
@@ -100,7 +108,7 @@ impl <'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
   pub fn build_payload_then_done<F, P>(mut self, build_fn: F) -> Result<Twine, BuildError>
   where
     F: FnOnce(&Strand, Option<&Twine>) -> Result<P, BuildError>,
-    P: serde::ser::Serialize
+    P: serde::ser::Serialize,
   {
     let payload = build_fn(&self.strand, self.prev)?;
     self.payload = to_ipld(payload).unwrap();
@@ -115,39 +123,54 @@ impl <'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
     if let Some(prev) = &self.prev {
       let prev_stitches = prev.cross_stitches();
       // ensure all previous cross stitches are present
-      let all_present = prev_stitches.into_iter()
+      let all_present = prev_stitches
+        .into_iter()
         .all(|s| cross_stitches.strand_is_stitched(s.1.strand));
 
       if !all_present {
         return Err(BuildError::BadData(VerificationError::InvalidTwineFormat(
-          "Cross stitches must contain all cross stitches from previous tixel".into()
+          "Cross stitches must contain all cross stitches from previous tixel".into(),
         )));
       }
     }
 
     let content: PulseContentV1 = match self.strand.version().major {
       1 => v1::PulseContentV1 {
-        index: self.prev.as_ref().map(|p|
-          (p.index() as u32).checked_add(1)
-            .ok_or(BuildError::IndexMaximum)
-        ).unwrap_or(Ok(0))?,
-        links: self.next_back_stitches()?.into_iter().map(|s| s.tixel).collect(),
+        index: self
+          .prev
+          .as_ref()
+          .map(|p| {
+            (p.index() as u32)
+              .checked_add(1)
+              .ok_or(BuildError::IndexMaximum)
+          })
+          .unwrap_or(Ok(0))?,
+        links: self
+          .next_back_stitches()?
+          .into_iter()
+          .map(|s| s.tixel)
+          .collect(),
         payload: self.payload,
         mixins: self.stitches.stitches().into_iter().collect(),
         chain: self.strand.cid(),
         source: self.source,
-      }.into(),
-      _ => return Err(BuildError::BadSpecification(
-        SpecificationError::new(format!("Unsupported version: {}", self.strand.version()))
-      )),
+      }
+      .into(),
+      _ => {
+        return Err(BuildError::BadSpecification(SpecificationError::new(
+          format!("Unsupported version: {}", self.strand.version()),
+        )))
+      }
     };
 
     let hasher = self.strand.hasher();
-    let bytes = twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
+    let bytes =
+      twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
     let dat = hasher.digest(&bytes).to_bytes();
     let signature = String::from_utf8(self.signer.sign(&dat)?.into()).unwrap();
 
-    let container = ContainerV1::<PulseContentV1>::new_from_parts(hasher, Verified::try_new(content)?, signature);
+    let container =
+      ContainerV1::<PulseContentV1>::new_from_parts(hasher, Verified::try_new(content)?, signature);
     let tixel = Tixel::try_new(container)?;
     Ok(Twine::try_new(self.strand, tixel)?)
   }
@@ -164,7 +187,7 @@ pub struct StrandBuilder<'a, S: Signer<Key = JWK<()>>> {
   source: String,
 }
 
-impl <'a, S: Signer<Key = JWK<()>>> StrandBuilder<'a, S> {
+impl<'a, S: Signer<Key = JWK<()>>> StrandBuilder<'a, S> {
   pub fn new(signer: &'a S) -> Self {
     Self {
       signer,
@@ -183,7 +206,10 @@ impl <'a, S: Signer<Key = JWK<()>>> StrandBuilder<'a, S> {
     self
   }
 
-  pub fn details<P>(mut self, details: P) -> Self where P: serde::ser::Serialize {
+  pub fn details<P>(mut self, details: P) -> Self
+  where
+    P: serde::ser::Serialize,
+  {
     self.details = to_ipld(details).unwrap();
     self
   }
@@ -223,16 +249,24 @@ impl <'a, S: Signer<Key = JWK<()>>> StrandBuilder<'a, S> {
           None => format!("twine/{}", self.version).try_into()?,
         },
         source: self.source,
-      }.into(),
-      _ => return Err(BuildError::BadSpecification(
-        SpecificationError::new(format!("Unsupported version: {}", self.version))
-      )),
+      }
+      .into(),
+      _ => {
+        return Err(BuildError::BadSpecification(SpecificationError::new(
+          format!("Unsupported version: {}", self.version),
+        )))
+      }
     };
 
-    let bytes = twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
+    let bytes =
+      twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
     let dat = self.hasher.digest(&bytes).to_bytes();
     let signature = String::from_utf8(self.signer.sign(&dat)?.into()).unwrap();
-    let container = ContainerV1::<ChainContentV1>::new_from_parts(self.hasher, Verified::try_new(content)?, signature);
+    let container = ContainerV1::<ChainContentV1>::new_from_parts(
+      self.hasher,
+      Verified::try_new(content)?,
+      signature,
+    );
     Ok(Strand::try_new(container)?)
   }
 }

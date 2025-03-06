@@ -6,10 +6,7 @@
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, ::serde::Serialize, ::serde::Deserialize)]
 #[serde(transparent)]
-pub struct Bytes(
-  #[serde(with = "serde_bytes")]
-  pub Vec<u8>
-);
+pub struct Bytes(#[serde(with = "serde_bytes")] pub Vec<u8>);
 
 impl Bytes {
   pub fn to_vec(&self) -> Vec<u8> {
@@ -49,18 +46,18 @@ impl AsRef<[u8]> for Bytes {
   }
 }
 
-pub mod errors;
-pub mod crypto;
 pub mod as_cid;
+pub mod car;
+pub mod crypto;
+pub mod errors;
+pub mod resolver;
+pub mod schemas;
+pub mod serde;
+pub mod skiplist;
+pub mod specification;
+pub mod store;
 pub mod twine;
 pub mod verify;
-pub mod specification;
-pub mod schemas;
-pub mod resolver;
-pub mod store;
-pub mod car;
-pub mod skiplist;
-pub mod serde;
 
 use std::ops::Deref;
 
@@ -68,10 +65,9 @@ pub use semver;
 
 pub use ipld_core::cid::{self, Cid};
 pub use ipld_core::{self, ipld::Ipld};
+pub use multihash_codetable;
 pub use serde_ipld_dagcbor;
 pub use serde_ipld_dagjson;
-pub use multihash_codetable;
 
 #[cfg(test)]
 mod test;
-

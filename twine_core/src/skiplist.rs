@@ -1,4 +1,3 @@
-
 /// Get the highest layer for which this (pulse) index
 /// is an anchor for.
 /// For example: in base 10, for the following indicies...
@@ -31,7 +30,6 @@ pub fn get_layer_pos(radix: u8, index: u64) -> usize {
 
   return result - 1;
 }
-
 
 /// Get an iterator of indices that can be used to skip through the chain.
 /// This can either provide the pulse indices themselves or a list of
@@ -141,7 +139,7 @@ impl Iterator for SkipListIter {
 
   fn next(&mut self) -> Option<Self::Item> {
     if self.to_index >= self.from_index {
-      return None
+      return None;
     }
 
     if let Some(starter) = self.starter {

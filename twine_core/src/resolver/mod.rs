@@ -1,11 +1,11 @@
-use std::collections::HashSet;
-use futures::{Stream, StreamExt, TryStreamExt};
-use async_trait::async_trait;
-use crate::Cid;
-use std::pin::Pin;
 use crate::as_cid::AsCid;
-use crate::twine::{Strand, Tixel, Twine};
 use crate::errors::ResolutionError;
+use crate::twine::{Strand, Tixel, Twine};
+use crate::Cid;
+use async_trait::async_trait;
+use futures::{Stream, StreamExt, TryStreamExt};
+use std::collections::HashSet;
+use std::pin::Pin;
 
 mod query;
 pub use query::*;
@@ -17,7 +17,7 @@ pub mod unchecked_base;
 use unchecked_base::*;
 
 #[cfg(target_arch = "wasm32")]
-pub trait MaybeSend: {}
+pub trait MaybeSend {}
 #[cfg(not(target_arch = "wasm32"))]
 pub trait MaybeSend: Send {}
 
@@ -30,22 +30,21 @@ impl<T> MaybeSend for T where T: Send {}
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait Resolver: BaseResolver {
-  async fn resolve<Q: Into<SingleQuery> + MaybeSend>(&self, query: Q) -> Result<TwineResolution, ResolutionError> {
+  async fn resolve<Q: Into<SingleQuery> + MaybeSend>(
+    &self,
+    query: Q,
+  ) -> Result<TwineResolution, ResolutionError> {
     let query = query.into();
     match query {
-      SingleQuery::Stitch(stitch) => {
-        self.resolve_stitch(stitch.strand, stitch.tixel).await
-      },
-      SingleQuery::Index(strand, index) if index == -1 => {
-        self.resolve_latest(strand).await
-      },
+      SingleQuery::Stitch(stitch) => self.resolve_stitch(stitch.strand, stitch.tixel).await,
+      SingleQuery::Index(strand, index) if index == -1 => self.resolve_latest(strand).await,
       SingleQuery::Index(strand, index) => {
         let index = match index {
           i if i < 0 => self.fetch_latest(strand.as_cid()).await?.index() as i64 + i + 1,
-          i => i
+          i => i,
         } as u64;
         self.resolve_index(strand, index).await
-      },
+      }
       SingleQuery::Latest(strand) => self.resolve_latest(strand).await,
     }
   }
@@ -54,22 +53,24 @@ pub trait Resolver: BaseResolver {
     let query = query.into();
     match query {
       SingleQuery::Stitch(stitch) => {
-        self.has_twine(stitch.strand.as_cid(), stitch.tixel.as_cid()).await
-      },
+        self
+          .has_twine(stitch.strand.as_cid(), stitch.tixel.as_cid())
+          .await
+      }
       SingleQuery::Index(strand, index) if index == -1 => {
         match self.fetch_latest(strand.as_cid()).await {
           Ok(_) => Ok(true),
           Err(ResolutionError::NotFound) => Ok(false),
           Err(e) => Err(e),
         }
-      },
+      }
       SingleQuery::Index(strand, index) => {
         let index = match index {
           i if i < 0 => self.fetch_latest(strand.as_cid()).await?.index() as i64 + i + 1,
-          i => i
+          i => i,
         } as u64;
         self.has_index(strand.as_cid(), index).await
-      },
+      }
       SingleQuery::Latest(strand) => match self.fetch_latest(strand.as_cid()).await {
         Ok(_) => Ok(true),
         Err(ResolutionError::NotFound) => Ok(false),
@@ -78,46 +79,66 @@ pub trait Resolver: BaseResolver {
     }
   }
 
-  async fn resolve_latest<C: AsCid + MaybeSend>(&self, strand: C) -> Result<TwineResolution, ResolutionError> {
+  async fn resolve_latest<C: AsCid + MaybeSend>(
+    &self,
+    strand: C,
+  ) -> Result<TwineResolution, ResolutionError> {
     use futures::join;
     let strand_cid = strand.as_cid();
     let (strand, tixel) = join!(self.fetch_strand(strand_cid), self.fetch_latest(strand_cid));
     TwineResolution::try_new(
       SingleQuery::Latest(*strand_cid),
-      Twine::try_new(strand?, tixel?)?
+      Twine::try_new(strand?, tixel?)?,
     )
   }
 
-  async fn resolve_index<C: AsCid + MaybeSend>(&self, strand: C, index: u64) -> Result<TwineResolution, ResolutionError> {
+  async fn resolve_index<C: AsCid + MaybeSend>(
+    &self,
+    strand: C,
+    index: u64,
+  ) -> Result<TwineResolution, ResolutionError> {
     use futures::join;
     let strand_cid = strand.as_cid();
-    let (strand, tixel) = join!(self.fetch_strand(strand_cid), self.fetch_index(strand_cid, index));
+    let (strand, tixel) = join!(
+      self.fetch_strand(strand_cid),
+      self.fetch_index(strand_cid, index)
+    );
     TwineResolution::try_new(
       SingleQuery::Index(*strand_cid, index as i64),
-      Twine::try_new(strand?, tixel?)?
+      Twine::try_new(strand?, tixel?)?,
     )
   }
 
-  async fn resolve_stitch<C: AsCid + MaybeSend>(&self, strand: C, tixel: C) -> Result<TwineResolution, ResolutionError> {
+  async fn resolve_stitch<C: AsCid + MaybeSend>(
+    &self,
+    strand: C,
+    tixel: C,
+  ) -> Result<TwineResolution, ResolutionError> {
     use futures::join;
     let strand_cid = strand.as_cid();
     let tixel_cid = tixel.as_cid();
-    let (strand, tixel) = join!(self.fetch_strand(strand_cid), self.fetch_tixel(strand_cid, tixel_cid));
+    let (strand, tixel) = join!(
+      self.fetch_strand(strand_cid),
+      self.fetch_tixel(strand_cid, tixel_cid)
+    );
     TwineResolution::try_new(
       SingleQuery::Stitch((*strand_cid, *tixel_cid).into()),
-      Twine::try_new(strand?, tixel?)?
+      Twine::try_new(strand?, tixel?)?,
     )
   }
 
-  async fn resolve_strand<C: AsCid + MaybeSend>(&self, strand: C) -> Result<StrandResolution, ResolutionError> {
+  async fn resolve_strand<C: AsCid + MaybeSend>(
+    &self,
+    strand: C,
+  ) -> Result<StrandResolution, ResolutionError> {
     let strand_cid = strand.as_cid();
-    StrandResolution::try_new(
-      *strand_cid,
-      self.fetch_strand(strand_cid).await?
-    )
+    StrandResolution::try_new(*strand_cid, self.fetch_strand(strand_cid).await?)
   }
 
-  async fn resolve_range<'a, R: Into<RangeQuery> + MaybeSend>(&'a self, range: R) -> Result<TwineStream<'a, Twine>, ResolutionError> {
+  async fn resolve_range<'a, R: Into<RangeQuery> + MaybeSend>(
+    &'a self,
+    range: R,
+  ) -> Result<TwineStream<'a, Twine>, ResolutionError> {
     let range = range.into();
     let latest = self.resolve_latest(range.strand_cid()).await?.unpack();
     let range = range.to_absolute(latest.index());
@@ -125,15 +146,11 @@ pub trait Resolver: BaseResolver {
       let s = futures::stream::empty().boxed();
       #[cfg(target_arch = "wasm32")]
       {
-        return Ok(
-          s.boxed_local()
-        )
+        return Ok(s.boxed_local());
       }
       #[cfg(not(target_arch = "wasm32"))]
       {
-        return Ok(
-          s.boxed()
-        )
+        return Ok(s.boxed());
       }
     }
     let range = range.unwrap();
@@ -143,46 +160,47 @@ pub trait Resolver: BaseResolver {
         async move {
           let tixel = self.fetch_index(&strand_cid, range.start).await?;
           if tixel.index() != range.start {
-            return Err(ResolutionError::Fetch(format!("index mismatch (expected: {}, got: {})", tixel.index(), range.start)));
+            return Err(ResolutionError::Fetch(format!(
+              "index mismatch (expected: {}, got: {})",
+              tixel.index(),
+              range.start
+            )));
           }
           Twine::try_new(latest.strand().clone(), tixel).map_err(|e| e.into())
         }
       });
       #[cfg(target_arch = "wasm32")]
       {
-        return Ok(
-          s.boxed_local()
-        )
+        return Ok(s.boxed_local());
       }
       #[cfg(not(target_arch = "wasm32"))]
       {
-        return Ok(
-          s.boxed()
-        )
+        return Ok(s.boxed());
       }
     }
     let expected = range.clone().iter();
-    let s = self.range_stream(range).await?
+    let s = self
+      .range_stream(range)
+      .await?
       .zip(futures::stream::iter(expected))
       .map(move |(tixel, q)| {
         let tixel = tixel?;
         if tixel.index() != q.unwrap_index() as u64 {
-          return Err(ResolutionError::Fetch(format!("index mismatch (expected: {}, got: {})", q.unwrap_index(), tixel.index())));
+          return Err(ResolutionError::Fetch(format!(
+            "index mismatch (expected: {}, got: {})",
+            q.unwrap_index(),
+            tixel.index()
+          )));
         }
-        Twine::try_new(latest.strand().clone(), tixel)
-          .map_err(|e| e.into())
+        Twine::try_new(latest.strand().clone(), tixel).map_err(|e| e.into())
       });
     #[cfg(target_arch = "wasm32")]
     {
-      Ok(
-        s.boxed_local()
-      )
+      Ok(s.boxed_local())
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-      Ok(
-        s.boxed()
-      )
+      Ok(s.boxed())
     }
   }
 
@@ -197,7 +215,10 @@ pub trait Resolver: BaseResolver {
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-impl<T> BaseResolver for T where T: AsRef<dyn BaseResolver> + BaseResolverBounds {
+impl<T> BaseResolver for T
+where
+  T: AsRef<dyn BaseResolver> + BaseResolverBounds,
+{
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
     self.as_ref().has_index(strand, index).await
   }
@@ -226,7 +247,10 @@ impl<T> BaseResolver for T where T: AsRef<dyn BaseResolver> + BaseResolverBounds
     self.as_ref().fetch_strand(strand).await
   }
 
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<TwineStream<'a, Tixel>, ResolutionError> {
+  async fn range_stream<'a>(
+    &'a self,
+    range: AbsoluteRange,
+  ) -> Result<TwineStream<'a, Tixel>, ResolutionError> {
     self.as_ref().range_stream(range).await
   }
 
@@ -238,9 +262,14 @@ impl<T> BaseResolver for T where T: AsRef<dyn BaseResolver> + BaseResolverBounds
 impl<T> Resolver for T where T: AsRef<dyn BaseResolver> + BaseResolverBounds {}
 
 #[derive(Clone)]
-pub struct ResolverSetSeries<T>(Vec<T>) where T: BaseResolver;
+pub struct ResolverSetSeries<T>(Vec<T>)
+where
+  T: BaseResolver;
 
-impl<T> ResolverSetSeries<T> where T: BaseResolver {
+impl<T> ResolverSetSeries<T>
+where
+  T: BaseResolver,
+{
   pub fn new(resolvers: Vec<T>) -> Self {
     Self(resolvers)
   }
@@ -252,7 +281,12 @@ impl<T> ResolverSetSeries<T> where T: BaseResolver {
 
 impl ResolverSetSeries<Box<dyn BaseResolver>> {
   pub fn new_boxed<T: BaseResolver + 'static>(resolvers: Vec<T>) -> Self {
-    Self(resolvers.into_iter().map(|r| Box::new(r) as Box<dyn BaseResolver>).collect())
+    Self(
+      resolvers
+        .into_iter()
+        .map(|r| Box::new(r) as Box<dyn BaseResolver>)
+        .collect(),
+    )
   }
 
   pub fn add_boxed<T: BaseResolver + 'static>(&mut self, resolver: T) {
@@ -260,13 +294,19 @@ impl ResolverSetSeries<Box<dyn BaseResolver>> {
   }
 }
 
-impl<T> Default for ResolverSetSeries<T> where T: BaseResolver {
+impl<T> Default for ResolverSetSeries<T>
+where
+  T: BaseResolver,
+{
   fn default() -> Self {
     Self(Vec::new())
   }
 }
 
-impl<T> std::ops::Deref for ResolverSetSeries<T> where T: BaseResolver {
+impl<T> std::ops::Deref for ResolverSetSeries<T>
+where
+  T: BaseResolver,
+{
   type Target = Vec<T>;
 
   fn deref(&self) -> &Self::Target {
@@ -278,18 +318,19 @@ impl<T> std::ops::Deref for ResolverSetSeries<T> where T: BaseResolver {
 // for a different reason the result will still be NotFound
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
+impl<T> BaseResolver for ResolverSetSeries<T>
+where
+  T: BaseResolver,
+{
   async fn has_index(&self, strand: &Cid, index: u64) -> Result<bool, ResolutionError> {
     let res = futures::stream::iter(self.iter())
       .then(|r| r.has_index(strand, index))
-      .any(|res| {
-        match res {
-          Ok(true) => futures::future::ready(true),
-          Ok(false) => futures::future::ready(false),
-          Err(e) => {
-            log::debug!("error from resolver while executing has_index: {}", e);
-            futures::future::ready(false)
-          },
+      .any(|res| match res {
+        Ok(true) => futures::future::ready(true),
+        Ok(false) => futures::future::ready(false),
+        Err(e) => {
+          log::debug!("error from resolver while executing has_index: {}", e);
+          futures::future::ready(false)
         }
       })
       .await;
@@ -299,14 +340,12 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
   async fn has_twine(&self, strand: &Cid, cid: &Cid) -> Result<bool, ResolutionError> {
     let res = futures::stream::iter(self.iter())
       .then(|r| r.has_twine(strand, cid))
-      .any(|res| {
-        match res {
-          Ok(true) => futures::future::ready(true),
-          Ok(false) => futures::future::ready(false),
-          Err(e) => {
-            log::debug!("error from resolver while executing has_twine: {}", e);
-            futures::future::ready(false)
-          },
+      .any(|res| match res {
+        Ok(true) => futures::future::ready(true),
+        Ok(false) => futures::future::ready(false),
+        Err(e) => {
+          log::debug!("error from resolver while executing has_twine: {}", e);
+          futures::future::ready(false)
         }
       })
       .await;
@@ -316,14 +355,12 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
   async fn has_strand(&self, cid: &Cid) -> Result<bool, ResolutionError> {
     let res = futures::stream::iter(self.iter())
       .then(|r| r.has_strand(cid))
-      .any(|res| {
-        match res {
-          Ok(true) => futures::future::ready(true),
-          Ok(false) => futures::future::ready(false),
-          Err(e) => {
-            log::debug!("error from resolver while executing has_strand: {}", e);
-            futures::future::ready(false)
-          },
+      .any(|res| match res {
+        Ok(true) => futures::future::ready(true),
+        Ok(false) => futures::future::ready(false),
+        Err(e) => {
+          log::debug!("error from resolver while executing has_strand: {}", e);
+          futures::future::ready(false)
         }
       })
       .await;
@@ -331,9 +368,13 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
   }
 
   async fn fetch_latest(&self, strand: &Cid) -> Result<Tixel, ResolutionError> {
-    let tasks = self.iter().map(|r| r.fetch_latest(strand))
+    let tasks = self
+      .iter()
+      .map(|r| r.fetch_latest(strand))
       .collect::<Vec<_>>();
-    let results = futures::future::join_all(tasks).await.into_iter()
+    let results = futures::future::join_all(tasks)
+      .await
+      .into_iter()
       .filter_map(|res| match res {
         Ok(t) => Some(t),
         Err(_) => None,
@@ -372,7 +413,10 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
     Err(ResolutionError::NotFound)
   }
 
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<TwineStream<'a, Tixel>, ResolutionError> {
+  async fn range_stream<'a>(
+    &'a self,
+    range: AbsoluteRange,
+  ) -> Result<TwineStream<'a, Tixel>, ResolutionError> {
     for resolver in self.iter() {
       // TODO: should find a way to merge streams
       if resolver.has_index(range.strand_cid(), range.start).await? {
@@ -408,21 +452,17 @@ impl<T> BaseResolver for ResolverSetSeries<T> where T: BaseResolver {
           Err(e) => {
             log::debug!("error from resolver while executing strands(): {}", e);
             None
-          },
+          }
         }
       });
 
     #[cfg(target_arch = "wasm32")]
     {
-      Ok(
-        s.boxed_local()
-      )
+      Ok(s.boxed_local())
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-      Ok(
-        s.boxed()
-      )
+      Ok(s.boxed())
     }
   }
 }
@@ -431,11 +471,14 @@ impl<T> Resolver for ResolverSetSeries<T> where T: BaseResolver {}
 
 #[cfg(test)]
 mod test {
-  use crate::{store::{MemoryCache, MemoryStore}, twine::TwineBlock};
   use super::*;
+  use crate::{
+    store::{MemoryCache, MemoryStore},
+    twine::TwineBlock,
+  };
 
   #[tokio::test]
-  async fn test_resolver_set_series(){
+  async fn test_resolver_set_series() {
     let mut resolver = ResolverSetSeries::default();
     let r1 = MemoryCache::new(MemoryStore::default());
     let r2 = MemoryStore::default();

@@ -2,13 +2,13 @@ use async_trait::async_trait;
 use futures::stream::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
-use twine_core::resolver::RangeQuery;
-use twine_core::store::MemoryStore;
 use std::path::Path;
 use std::path::PathBuf;
 use std::pin::Pin;
-use twine_core::{twine::*, errors::*, as_cid::AsCid, store::Store, Cid};
-use twine_core::resolver::{AbsoluteRange, unchecked_base::BaseResolver, Resolver};
+use twine_core::resolver::RangeQuery;
+use twine_core::resolver::{unchecked_base::BaseResolver, AbsoluteRange, Resolver};
+use twine_core::store::MemoryStore;
+use twine_core::{as_cid::AsCid, errors::*, store::Store, twine::*, Cid};
 
 #[derive(Debug, Clone)]
 pub struct CarStore {
@@ -46,9 +46,11 @@ impl CarStore {
       return Ok(());
     }
 
-    let file = std::fs::File::open(&self.filename).map_err(|e| StoreError::Fetching(ResolutionError::Fetch(e.to_string())))?;
+    let file = std::fs::File::open(&self.filename)
+      .map_err(|e| StoreError::Fetching(ResolutionError::Fetch(e.to_string())))?;
     let mut reader = std::io::BufReader::new(file);
-    let twines = twine_core::car::from_car_bytes(&mut reader).map_err(|e| StoreError::Fetching(ResolutionError::BadData(e.to_string())))?;
+    let twines = twine_core::car::from_car_bytes(&mut reader)
+      .map_err(|e| StoreError::Fetching(ResolutionError::BadData(e.to_string())))?;
 
     for twine in twines {
       self.memstore.save_sync(twine.into())?;
@@ -73,11 +75,18 @@ impl CarStore {
         }
       })
       .try_collect().await?;
-    let roots = strands.iter().map(|s| s.cid()).chain(latests.iter().map(|t| t.cid())).collect::<Vec<_>>();
+    let roots = strands
+      .iter()
+      .map(|s| s.cid())
+      .chain(latests.iter().map(|t| t.cid()))
+      .collect::<Vec<_>>();
 
     let all_tixels = futures::stream::iter(strands.iter())
       .filter_map(|strand| async {
-        let q = match RangeQuery::from((strand.cid(), ..)).try_to_absolute(&self.memstore).await {
+        let q = match RangeQuery::from((strand.cid(), ..))
+          .try_to_absolute(&self.memstore)
+          .await
+        {
           Ok(q) => q,
           Err(e) => return Some(Err(e)),
         };
@@ -109,8 +118,12 @@ impl CarStore {
 
 #[async_trait]
 impl BaseResolver for CarStore {
-
-  async fn fetch_strands(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Strand, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn fetch_strands(
+    &self,
+  ) -> Result<
+    Pin<Box<dyn Stream<Item = Result<Strand, ResolutionError>> + Send + '_>>,
+    ResolutionError,
+  > {
     self.memstore.fetch_strands().await
   }
 
@@ -142,7 +155,13 @@ impl BaseResolver for CarStore {
     self.memstore.fetch_latest(strand).await
   }
 
-  async fn range_stream(&self, range: AbsoluteRange) -> Result<Pin<Box<dyn Stream<Item = Result<Tixel, ResolutionError>> + Send + '_>>, ResolutionError> {
+  async fn range_stream(
+    &self,
+    range: AbsoluteRange,
+  ) -> Result<
+    Pin<Box<dyn Stream<Item = Result<Tixel, ResolutionError>> + Send + '_>>,
+    ResolutionError,
+  > {
     self.memstore.range_stream(range).await
   }
 }
@@ -157,19 +176,31 @@ impl Store for CarStore {
     Ok(())
   }
 
-  async fn save_many<I: Into<AnyTwine> + Send, S: Iterator<Item = I> + Send, T: IntoIterator<Item = I, IntoIter = S> + Send>(&self, twines: T) -> Result<(), StoreError> {
+  async fn save_many<
+    I: Into<AnyTwine> + Send,
+    S: Iterator<Item = I> + Send,
+    T: IntoIterator<Item = I, IntoIter = S> + Send,
+  >(
+    &self,
+    twines: T,
+  ) -> Result<(), StoreError> {
     self.memstore.save_many(twines).await?;
     self.flush().await?;
     Ok(())
   }
 
-  async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send + Unpin>(&self, twines: T) -> Result<(), StoreError> {
-    twines.chunks(100)
+  async fn save_stream<I: Into<AnyTwine> + Send, T: Stream<Item = I> + Send + Unpin>(
+    &self,
+    twines: T,
+  ) -> Result<(), StoreError> {
+    twines
+      .chunks(100)
       .then(|chunk| async {
         self.memstore.save_many(chunk).await?;
         Ok::<_, StoreError>(())
       })
-      .try_collect::<Vec<_>>().await?;
+      .try_collect::<Vec<_>>()
+      .await?;
     Ok(())
   }
 

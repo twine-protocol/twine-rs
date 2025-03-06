@@ -28,6 +28,9 @@ pub trait BaseResolver: BaseResolverBounds {
   async fn fetch_index(&self, strand: &Cid, index: u64) -> Result<Tixel, ResolutionError>;
   async fn fetch_tixel(&self, strand: &Cid, tixel: &Cid) -> Result<Tixel, ResolutionError>;
   async fn fetch_strand(&self, strand: &Cid) -> Result<Strand, ResolutionError>;
-  async fn range_stream<'a>(&'a self, range: AbsoluteRange) -> Result<TwineStream<'a, Tixel>, ResolutionError>;
+  async fn range_stream<'a>(
+    &'a self,
+    range: AbsoluteRange,
+  ) -> Result<TwineStream<'a, Tixel>, ResolutionError>;
   async fn fetch_strands<'a>(&'a self) -> Result<TwineStream<'a, Strand>, ResolutionError>;
 }
