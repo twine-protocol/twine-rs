@@ -42,9 +42,11 @@ rsa = ["twine_builder/rsa"]
 twine_core = { path = "./twine_core" }
 twine_builder = { path = "./twine_builder", optional = true }
 twine_http_store = { path = "./twine_http_store", optional = true }
+futures = "0.3"
 
 [dev-dependencies]
 twine_builder = { path = "./twine_builder" }
 twine_http_store = { path = "./twine_http_store" }
 serde = "1.0.216"
 rand = "0.8.5"
+tokio = { version = "1.44", features = ["macros", "rt-multi-thread"] }
