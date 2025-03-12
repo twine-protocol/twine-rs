@@ -1,8 +1,12 @@
 [package]
 name = "twine_core"
 version = "0.0.1"
-edition = "2021"
-rust-version = "1.78"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
@@ -15,39 +19,39 @@ blake2b = ["multihash-codetable/blake2b"]
 # v2
 
 [dependencies]
-log = "0.4"
-serde = { version = "1.0.152", features = ["rc"] }
+log.workspace = true
+serde = { workspace = true, features = ["rc"] }
 # josekit = "0.8.2"
 biscuit = "0.7.0"
 serde_ipld_dagcbor = { version = ">=0.6.1" }
 serde_ipld_dagjson = "0.2.0"
-serde_bytes = "0.11"
+serde_bytes.workspace = true
 multihash = "0.19"
 multihash-codetable = { version = "0.1", features = ["sha2"] }
 multihash-derive = "0.9"
-serde_json = "1.0"
-thiserror = "2.0.6"
+serde_json.workspace = true
+thiserror.workspace = true
 base64 = "0.22.0"
 ipld-core = "0.4"
 semver = "1.0"
 anyhow = "1.0"
-futures = "0.3"
-async-trait = "0.1"
+futures.workspace = true
+async-trait.workspace = true
 quick_cache = "0.6"
 rs-car-sync = "0.4"
-chrono = { version = "0.4", features = ["serde"] }
-rsa = { version = "0.9" }
+chrono.workspace = true
+rsa = { workspace = true }
 elliptic-curve = { version = "0.13", features = ["alloc", "jwk", "pkcs8"] }
 p256 = { version = "0.13" }
 p384 = { version = "0.13" }
-either = { version = "1.13", features = ["serde"] }
-ring = { version = "0.17" }
+either = { workspace = true, features = ["serde"] }
+ring.workspace = true
 
 [target.'wasm32-unknown-unknown'.dependencies.ring]
-version = "0.17"
+workspace = true
 features = ["wasm32_unknown_unknown_js"]
 
 [dev-dependencies]
-tokio = { version = "1.0", features = ["macros", "rt"] }
+tokio.workspace = true
 rs-car = "0.4"
 # twine_builder = { path = "../twine_builder" }

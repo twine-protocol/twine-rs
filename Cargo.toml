@@ -1,7 +1,7 @@
 [package]
 name = "twine"
 version = "0.0.1"
-authors = ["Twine protocol developers"]
+authors = ["Jasper Palfree <jasper.palfree@colordo.edu>"]
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/twine-protocol/twine-rs"
@@ -27,6 +27,38 @@ members = [
   "./twine_sql_store",
 ]
 
+[workspace.package]
+authors = ["Jasper Palfree <jasper.palfree@colordo.edu>"]
+edition = "2021"
+rust-version = "1.78"
+license = "MIT"
+repository = "https://github.com/twine-protocol/twine-rs"
+categories = ['data-structures', 'cryptography', 'blockchain']
+keywords = ["twine", "twine protocol", "randomness", "blockchain"]
+
+[workspace.dependencies]
+twine_core = { path = "./twine_core" }
+twine_builder = { path = "./twine_builder" }
+twine_http_store = { path = "./twine_http_store" }
+twine_sled_store = { path = "./twine_sled_store" }
+twine_car_store = { path = "./twine_car_store" }
+twine_pickledb_store = { path = "./twine_pickledb_store" }
+twine_sql_store = { path = "./twine_sql_store" }
+thiserror = "2.0.8"
+futures = "0.3"
+log = "0.4"
+either = "1.15"
+chrono = { version = "0.4", features = ["serde"] }
+rand = "0.8"
+itertools = "0.14"
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_bytes = "0.11"
+tokio = { version = "1.44", features = ["macros", "rt-multi-thread"] }
+ring = { version = "0.17" }
+rsa = "0.9"
+
 [features]
 default = ["sha3", "blake3"]
 http = ["dep:twine_http_store"]
@@ -42,11 +74,9 @@ rsa = ["twine_builder/rsa"]
 twine_core = { path = "./twine_core" }
 twine_builder = { path = "./twine_builder", optional = true }
 twine_http_store = { path = "./twine_http_store", optional = true }
-futures = "0.3"
 
 [dev-dependencies]
 twine_builder = { path = "./twine_builder" }
 twine_http_store = { path = "./twine_http_store" }
-serde = "1.0.216"
-rand = "0.8.5"
 tokio = { version = "1.44", features = ["macros", "rt-multi-thread"] }
+futures = "0.3"

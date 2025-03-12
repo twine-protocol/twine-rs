@@ -1,7 +1,11 @@
 [package]
 name = "twine_sql_store"
-version = "0.1.0"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
 
 [features]
 default = ['sqlite']
@@ -12,16 +16,16 @@ runtime-tokio = ["sqlx/runtime-tokio"]
 runtime-async-std = ["sqlx/runtime-async-std"]
 
 [dependencies]
-twine_core = { path = "../twine_core" }
-futures = "0.3"
-async-trait = "0.1"
+twine_core.workspace = true
+futures.workspace = true
+async-trait.workspace = true
 sqlx = { version = "0.8.3", features = ["any", "json"] }
-serde_json = { version = "1.0" }
+serde_json.workspace = true
 
 [dev-dependencies]
 sqlx = { version = "0.8.3", features = ["any", "mysql", "sqlite", "postgres", "runtime-tokio"] }
-tokio = { version = "1", features = ["full"] }
-twine_builder = { path = "../twine_builder" }
+tokio.workspace = true
+twine_builder.workspace = true
 
 [profile.dev.package.sqlx-macros]
 opt-level = 3

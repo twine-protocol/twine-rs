@@ -1,15 +1,19 @@
 [package]
 name = "twine_car_store"
-version = "0.1.0"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+categories.workspace = true
+keywords.workspace = true
 
 [dependencies]
-twine_core = { path = "../twine_core" }
-futures = "0.3"
-async-trait = "0.1"
+twine_core.workspace = true
+futures.workspace = true
+async-trait.workspace = true
 async-std = "1.10"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["full"] }
-twine_builder = { path = "../twine_builder" }
+tokio.workspace = true
+twine_builder.workspace = true
 tempfile = "3.15"

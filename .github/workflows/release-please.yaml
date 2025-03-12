@@ -1,4 +1,4 @@
-name: Release
+name: Release please
 
 on:
   workflow_run:
