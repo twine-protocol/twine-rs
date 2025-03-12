@@ -30,6 +30,7 @@ jobs:
         run: rustup update stable
 
       - name: Install cross-compilation tools
+        if: matrix.target != 'wasm32-unknown-unknown'
         uses: taiki-e/setup-cross-toolchain-action@v1
         with:
           target: ${{ matrix.target }}
