@@ -2,7 +2,6 @@ use crate::prompt::prompt_for_filename;
 use anyhow::Result;
 use clap::Parser;
 use inquire::Select;
-use std::os::unix::fs::PermissionsExt;
 use twine_builder::RingSigner;
 
 #[derive(Debug, Parser)]
@@ -45,9 +44,14 @@ impl KeygenCommand {
 
     // write the file and set permissions to 600
     tokio::fs::write(&filename, pem).await?;
-    let mut perms = tokio::fs::metadata(&filename).await?.permissions();
-    perms.set_mode(0o600);
-    tokio::fs::set_permissions(&filename, perms).await?;
+
+    #[cfg(unix)]
+    {
+      use std::os::unix::fs::PermissionsExt;
+      let mut perms = tokio::fs::metadata(&filename).await?.permissions();
+      perms.set_mode(0o600);
+      tokio::fs::set_permissions(&filename, perms).await?;
+    }
 
     log::info!("Private key saved to {}", filename);
 
