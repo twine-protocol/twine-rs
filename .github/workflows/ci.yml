@@ -7,33 +7,25 @@ on:
   pull_request:
 
 jobs:
-  # just run cargo check for wasm32 target
-  check:
-    name: Check Wasm32
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Cache dependencies
-        uses: swatinem/rust-cache@v2
-
-      - name: Install WASM Check Dependencies
-        run: rustup target add wasm32-unknown-unknown
-
-      - name: Check (WASM)
-        run: cargo check --package twine_core --package twine_builder --package twine_http_store --target wasm32-unknown-unknown
-
   test:
     name: Run Tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
+        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, wasm32-unknown-unknown]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install target
+        run: rustup target add ${{ matrix.target }}
 
       - name: Cache dependencies
         uses: swatinem/rust-cache@v2
 
+      - name: Check (WASM)
+        if: matrix.target == 'wasm32-unknown-unknown'
+        run: cargo check --package twine_core --package twine_builder --package twine_http_store --target wasm32-unknown-unknown
+
       - name: Run Tests
+        if: matrix.target != 'wasm32-unknown-unknown'
         run: cargo test --workspace --target ${{ matrix.target }}
