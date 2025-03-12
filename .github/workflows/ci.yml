@@ -29,6 +29,10 @@ jobs:
       - name: Install Rust
         run: rustup update stable
 
+      - name: Install wasm32 target
+        if: matrix.target == 'wasm32-unknown-unknown'
+        run: rustup target add wasm32-unknown-unknown
+
       - name: Install cross-compilation tools
         if: matrix.target != 'wasm32-unknown-unknown'
         uses: taiki-e/setup-cross-toolchain-action@v1
