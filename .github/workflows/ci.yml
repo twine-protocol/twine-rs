@@ -12,12 +12,18 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, wasm32-unknown-unknown]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        target: [x86_64-unknown-linux-gnu, aarch64-apple-darwin, aarch64-unknown-linux-gnu, x86_64-pc-windows-gnu, wasm32-unknown-unknown]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install target
-        run: rustup target add ${{ matrix.target }}
+      - name: Install Rust
+        run: rustup update stable
+
+      - name: Install cross-compilation tools
+        uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: ${{ matrix.target }}
 
       - name: Cache dependencies
         uses: swatinem/rust-cache@v2
