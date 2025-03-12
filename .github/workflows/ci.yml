@@ -8,8 +8,8 @@ on:
 
 jobs:
   test:
-    name: Run Tests
-    runs-on: ubuntu-latest
+    name: Run Tests for ${{ matrix.target }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
