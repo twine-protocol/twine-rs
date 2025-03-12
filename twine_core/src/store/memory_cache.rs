@@ -214,7 +214,8 @@ mod test {
     pub tixel_hits: Arc<RwLock<HashMap<Cid, u32>>>,
   }
 
-  #[async_trait]
+  #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+  #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
   impl unchecked_base::BaseResolver for DummyResolver {
     async fn fetch_strands<'a>(
       &'a self,
