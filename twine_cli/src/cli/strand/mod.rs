@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 use clap::Parser;
 use indent::indent_all_by;
-use twine_core::ipld_core::serde::from_ipld;
-use twine_core::resolver::*;
+use twine_lib::ipld_core::serde::from_ipld;
+use twine_lib::resolver::*;
 use anyhow::Result;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]

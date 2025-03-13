@@ -5,7 +5,7 @@ use biscuit::{
 };
 use ring::signature::{EcdsaKeyPair, RsaKeyPair};
 use serde_json::json;
-use twine_core::crypto::Signature;
+use twine_lib::crypto::Signature;
 
 pub struct BiscuitSigner(Secret, String);
 

@@ -3,8 +3,8 @@ use futures::executor;
 use std::fmt::Display;
 use std::{ops::Deref, str::FromStr};
 use twine_car_store::CarStore;
-use twine_core::resolver::ResolverSetSeries;
-use twine_core::{errors::StoreError, resolver::unchecked_base, store::Store};
+use twine_lib::resolver::ResolverSetSeries;
+use twine_lib::{errors::StoreError, resolver::unchecked_base, store::Store};
 use twine_http_store::reqwest;
 use twine_pickledb_store::PickleDbStore;
 use twine_sled_store::{SledStore, SledStoreOptions};
@@ -82,7 +82,7 @@ impl AsRef<dyn unchecked_base::BaseResolver> for AnyStore {
 
 #[allow(dead_code)]
 impl AnyStore {
-  pub async fn save<T: Into<twine_core::twine::AnyTwine> + Send>(
+  pub async fn save<T: Into<twine_lib::twine::AnyTwine> + Send>(
     &self,
     twine: T,
   ) -> std::result::Result<(), StoreError> {
@@ -96,7 +96,7 @@ impl AnyStore {
   }
 
   pub async fn save_many<
-    I: Into<twine_core::twine::AnyTwine> + Send,
+    I: Into<twine_lib::twine::AnyTwine> + Send,
     S: Iterator<Item = I> + Send,
     T: IntoIterator<Item = I, IntoIter = S> + Send,
   >(
@@ -113,7 +113,7 @@ impl AnyStore {
   }
 
   pub async fn save_stream<
-    I: Into<twine_core::twine::AnyTwine> + Send,
+    I: Into<twine_lib::twine::AnyTwine> + Send,
     T: futures::stream::Stream<Item = I> + Send + Unpin,
   >(
     &self,
@@ -128,7 +128,7 @@ impl AnyStore {
     }
   }
 
-  pub async fn delete<C: twine_core::as_cid::AsCid + Send>(
+  pub async fn delete<C: twine_lib::as_cid::AsCid + Send>(
     &self,
     cid: C,
   ) -> std::result::Result<(), StoreError> {

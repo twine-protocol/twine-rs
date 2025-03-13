@@ -5,7 +5,7 @@ use crate::{
 use anyhow::Result;
 use clap::Parser;
 use futures::stream::TryStreamExt;
-use twine_core::{
+use twine_lib::{
   resolver::{RangeQuery, Resolver},
   twine::Twine,
   Cid,

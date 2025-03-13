@@ -2,10 +2,10 @@ use std::time::Duration;
 
 use futures::{StreamExt, TryStreamExt};
 use tokio::pin;
-use twine_core::resolver::*;
-use twine_core::store::MemoryCache;
-use twine_core::store::Store;
-use twine_core::Cid;
+use twine_lib::resolver::*;
+use twine_lib::store::MemoryCache;
+use twine_lib::store::Store;
+use twine_lib::Cid;
 use twine_http_store::*;
 // use futures_time::prelude::*;
 // use futures_time::time::Duration;
@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   //   reqwest::Client::new(),
   //   HttpStoreOptions::default().url("http://192.168.68.58:8787")
   // );
-  let store = twine_core::store::MemoryStore::new();
+  let store = twine_lib::store::MemoryStore::new();
 
   println!("strands:");
   let strands = resolver.strands().await?;

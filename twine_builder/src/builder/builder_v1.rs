@@ -1,7 +1,7 @@
 use super::*;
 use biscuit::jwk::JWK;
-use twine_core::schemas::v1::{ChainContentV1, ContainerV1, PulseContentV1};
-use twine_core::{
+use twine_lib::schemas::v1::{ChainContentV1, ContainerV1, PulseContentV1};
+use twine_lib::{
   errors::{SpecificationError, VerificationError},
   ipld_core::{codec::Codec, serde::to_ipld},
   multihash_codetable::{Code, MultihashDigest},
@@ -116,7 +116,7 @@ impl<'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
   }
 
   pub fn done(self) -> Result<Twine, BuildError> {
-    use twine_core::schemas::*;
+    use twine_lib::schemas::*;
 
     // validate the cross stitches
     let cross_stitches = self.stitches.clone();
@@ -165,7 +165,7 @@ impl<'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
 
     let hasher = self.strand.hasher();
     let bytes =
-      twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
+      twine_lib::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
     let dat = hasher.digest(&bytes).to_bytes();
     let signature = String::from_utf8(self.signer.sign(&dat)?.into()).unwrap();
 
@@ -236,7 +236,7 @@ impl<'a, S: Signer<Key = JWK<()>>> StrandBuilder<'a, S> {
   }
 
   pub fn done(self) -> Result<Strand, BuildError> {
-    use twine_core::schemas::*;
+    use twine_lib::schemas::*;
     let key = self.signer.public_key();
     let content: ChainContentV1 = match self.version.major {
       1 => v1::ChainContentV1 {
@@ -259,7 +259,7 @@ impl<'a, S: Signer<Key = JWK<()>>> StrandBuilder<'a, S> {
     };
 
     let bytes =
-      twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
+      twine_lib::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
     let dat = self.hasher.digest(&bytes).to_bytes();
     let signature = String::from_utf8(self.signer.sign(&dat)?.into()).unwrap();
     let container = ContainerV1::<ChainContentV1>::new_from_parts(

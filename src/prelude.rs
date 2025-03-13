@@ -1,15 +1,15 @@
 #[doc(no_inline)]
-pub use twine_core::as_cid::AsCid;
+pub use twine_lib::as_cid::AsCid;
 #[doc(no_inline)]
-pub use twine_core::errors::*;
+pub use twine_lib::errors::*;
 #[doc(no_inline)]
-pub use twine_core::resolver::*;
+pub use twine_lib::resolver::*;
 #[doc(no_inline)]
-pub use twine_core::store::*;
+pub use twine_lib::store::*;
 #[doc(no_inline)]
-pub use twine_core::twine::{AnyTwine, Stitch, Strand, Tixel, Twine, TwineBlock};
+pub use twine_lib::twine::{AnyTwine, Stitch, Strand, Tixel, Twine, TwineBlock};
 #[doc(no_inline)]
-pub use twine_core::{Cid, Ipld};
+pub use twine_lib::{Cid, Ipld};
 
 #[doc(no_inline)]
 #[cfg(feature = "build")]

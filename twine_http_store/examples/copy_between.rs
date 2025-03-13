@@ -1,9 +1,9 @@
 use futures::{StreamExt, TryStreamExt};
 // use tokio::pin;
-use twine_core::resolver::*;
-use twine_core::store::MemoryCache;
-use twine_core::store::Store;
-use twine_core::twine::Strand;
+use twine_lib::resolver::*;
+use twine_lib::store::MemoryCache;
+use twine_lib::store::Store;
+use twine_lib::twine::Strand;
 use twine_http_store::*;
 
 #[tokio::main]

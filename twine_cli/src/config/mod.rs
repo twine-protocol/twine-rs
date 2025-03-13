@@ -6,7 +6,7 @@ use std::{
   collections::HashMap,
   path::{Path, PathBuf},
 };
-use twine_core::resolver::ResolverSetSeries;
+use twine_lib::resolver::ResolverSetSeries;
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]

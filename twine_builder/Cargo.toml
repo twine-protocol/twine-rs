@@ -15,7 +15,7 @@ rsa = ["dep:rsa", "dep:rand"]
 v1 = ["dep:biscuit"]
 
 [dependencies]
-twine_core.workspace = true
+twine_lib.workspace = true
 thiserror.workspace = true
 futures.workspace = true
 serde.workspace = true

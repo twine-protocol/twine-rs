@@ -3,13 +3,13 @@ use async_trait::async_trait;
 use futures::stream::{unfold, Stream};
 use futures::stream::{StreamExt, TryStreamExt};
 use std::pin::Pin;
-use twine_core::as_cid::AsCid;
-use twine_core::errors::{ResolutionError, StoreError};
-use twine_core::resolver::AbsoluteRange;
-use twine_core::resolver::{unchecked_base, Resolver};
-use twine_core::store::Store;
-use twine_core::twine::{AnyTwine, TwineBlock};
-use twine_core::{
+use twine_lib::as_cid::AsCid;
+use twine_lib::errors::{ResolutionError, StoreError};
+use twine_lib::resolver::AbsoluteRange;
+use twine_lib::resolver::{unchecked_base, Resolver};
+use twine_lib::store::Store;
+use twine_lib::twine::{AnyTwine, TwineBlock};
+use twine_lib::{
   twine::{Strand, Tixel},
   Cid,
 };

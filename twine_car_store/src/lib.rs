@@ -5,10 +5,10 @@ use futures::TryStreamExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::pin::Pin;
-use twine_core::resolver::RangeQuery;
-use twine_core::resolver::{unchecked_base::BaseResolver, AbsoluteRange, Resolver};
-use twine_core::store::MemoryStore;
-use twine_core::{as_cid::AsCid, errors::*, store::Store, twine::*, Cid};
+use twine_lib::resolver::RangeQuery;
+use twine_lib::resolver::{unchecked_base::BaseResolver, AbsoluteRange, Resolver};
+use twine_lib::store::MemoryStore;
+use twine_lib::{as_cid::AsCid, errors::*, store::Store, twine::*, Cid};
 
 #[derive(Debug, Clone)]
 pub struct CarStore {
@@ -49,7 +49,7 @@ impl CarStore {
     let file = std::fs::File::open(&self.filename)
       .map_err(|e| StoreError::Fetching(ResolutionError::Fetch(e.to_string())))?;
     let mut reader = std::io::BufReader::new(file);
-    let twines = twine_core::car::from_car_bytes(&mut reader)
+    let twines = twine_lib::car::from_car_bytes(&mut reader)
       .map_err(|e| StoreError::Fetching(ResolutionError::BadData(e.to_string())))?;
 
     for twine in twines {
@@ -103,7 +103,7 @@ impl CarStore {
     let all_tixels = all_tixels.map(|t| AnyTwine::Tixel(t));
     let all = strands.chain(all_tixels);
 
-    let mut bytes = twine_core::car::to_car_stream(all, roots).boxed();
+    let mut bytes = twine_lib::car::to_car_stream(all, roots).boxed();
 
     let map_err = |e: std::io::Error| StoreError::Saving(e.to_string());
     let mut file = std::fs::File::create(&self.filename).map_err(map_err)?; // Create or truncate the file

@@ -8,7 +8,7 @@ use futures::{stream::StreamExt, TryStreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use twine_core::{
+use twine_lib::{
   errors::ResolutionError,
   resolver::{AbsoluteRange, RangeQuery, Resolver, SingleQuery},
 };

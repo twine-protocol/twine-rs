@@ -1,6 +1,6 @@
 {
     "rust-analyzer.linkedProjects": [
-        "twine_core/Cargo.toml",
+        "twine_lib/Cargo.toml",
     ],
     "rust-analyzer.cargo.features": "all",
 }

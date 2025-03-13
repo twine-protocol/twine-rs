@@ -1,5 +1,5 @@
 {
-  "twine_core":"0.1.0",
+  "twine_lib":"0.1.0",
   "twine_builder":"0.1.0",
   "twine_http_store":"0.1.0",
   "twine_sql_store":"0.1.0",

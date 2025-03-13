@@ -1,6 +1,6 @@
 use ring::signature::Ed25519KeyPair;
 use std::fmt::Display;
-use twine_core::crypto::{PublicKey, Signature, SignatureAlgorithm};
+use twine_lib::crypto::{PublicKey, Signature, SignatureAlgorithm};
 
 #[derive(Debug, thiserror::Error)]
 pub struct SigningError(pub String);

@@ -1,9 +1,9 @@
 use futures::{StreamExt, TryStreamExt};
 use twine_builder::RingSigner;
 use twine_builder::TwineBuilder;
-use twine_core::resolver::*;
-use twine_core::store::Store;
-use twine_core::twine::Twine;
+use twine_lib::resolver::*;
+use twine_lib::store::Store;
+use twine_lib::twine::Twine;
 use twine_sled_store::*;
 
 #[tokio::main]

@@ -381,7 +381,7 @@ fn range_dir(s: i64, e: i64) -> i64 {
 /// # Examples
 ///
 /// ```
-/// use twine_core::{Cid, resolver::{RangeQuery, AbsoluteRange}};
+/// use twine_lib::{Cid, resolver::{RangeQuery, AbsoluteRange}};
 /// let cid = Cid::default();
 /// let latest = 10;
 /// let range = RangeQuery::from((cid, 0..2)).to_absolute(latest).unwrap();

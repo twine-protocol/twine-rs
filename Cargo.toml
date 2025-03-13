@@ -15,7 +15,7 @@ Twine protocol library meta-package
 
 [workspace]
 members = [
-  "twine_core",
+  "twine_lib",
   "twine_builder",
   "twine_http_store",
   "twine_sled_store",
@@ -35,7 +35,7 @@ categories = ['data-structures', 'cryptography', 'blockchain']
 keywords = ["twine", "randomness", "blockchain"]
 
 [workspace.dependencies]
-twine_core = { version = "0.1.0", path = "./twine_core" }
+twine_lib = { version = "0.1.0", path = "./twine_lib" }
 twine_builder = { version = "0.1.0", path = "./twine_builder" }
 twine_http_store = { version = "0.1.0", path = "./twine_http_store" }
 twine_sled_store = { version = "0.1.0", path = "./twine_sled_store" }
@@ -62,15 +62,15 @@ rsa = "0.9"
 default = ["sha3", "blake3"]
 http = ["dep:twine_http_store"]
 build = ["dep:twine_builder"]
-sha3 = ["twine_core/sha3"]
-blake3 = ["twine_core/blake3"]
-ripemd = ["twine_core/ripemd"]
-blake2s = ["twine_core/blake2s"]
-blake2b = ["twine_core/blake2b"]
+sha3 = ["twine_lib/sha3"]
+blake3 = ["twine_lib/blake3"]
+ripemd = ["twine_lib/ripemd"]
+blake2s = ["twine_lib/blake2s"]
+blake2b = ["twine_lib/blake2b"]
 rsa = ["twine_builder/rsa"]
 
 [dependencies]
-twine_core.workspace = true
+twine_lib.workspace = true
 twine_builder = { workspace = true, optional = true }
 twine_http_store = { workspace = true, optional = true }
 

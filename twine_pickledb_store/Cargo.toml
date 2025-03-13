@@ -10,7 +10,7 @@ keywords.workspace = true
 description = "Twine protocol rust library pickledb store"
 
 [dependencies]
-twine_core.workspace = true
+twine_lib.workspace = true
 pickledb = { version = "0.5", features = ["bincode"], default-features = false }
 futures.workspace = true
 async-trait.workspace = true

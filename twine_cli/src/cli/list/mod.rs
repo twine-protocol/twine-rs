@@ -6,7 +6,7 @@ use anyhow::Result;
 use clap::Parser;
 use futures::stream::{Stream, StreamExt, TryStreamExt};
 use num_format::{SystemLocale, ToFormattedString};
-use twine_core::{
+use twine_lib::{
   errors::ResolutionError,
   resolver::{RangeQuery, Resolver, SingleQuery},
   twine::{Strand, Twine},

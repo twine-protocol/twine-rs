@@ -10,8 +10,8 @@ use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
-use twine_core::resolver::{unchecked_base::BaseResolver, AbsoluteRange, Resolver};
-use twine_core::{as_cid::AsCid, errors::*, store::Store, twine::*, Cid};
+use twine_lib::resolver::{unchecked_base::BaseResolver, AbsoluteRange, Resolver};
+use twine_lib::{as_cid::AsCid, errors::*, store::Store, twine::*, Cid};
 
 pub use pickledb;
 

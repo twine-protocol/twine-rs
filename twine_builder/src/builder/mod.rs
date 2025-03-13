@@ -1,5 +1,5 @@
 use crate::{signer::SigningError, Signer};
-use twine_core::{
+use twine_lib::{
   crypto::PublicKey,
   errors::{SpecificationError, VerificationError},
   twine::{Strand, Twine},
@@ -71,7 +71,7 @@ mod testv1 {
   use crate::BiscuitSigner;
   use biscuit::jws::Secret;
   use std::sync::Arc;
-  use twine_core::ipld_core::ipld;
+  use twine_lib::ipld_core::ipld;
 
   use super::*;
   use ring::signature::*;
@@ -261,7 +261,7 @@ mod testv1 {
 mod testv2 {
   use super::*;
   use ring::signature::Ed25519KeyPair;
-  use twine_core::{
+  use twine_lib::{
     ipld_core::ipld,
     store::MemoryStore,
     twine::{CrossStitches, Twine, TwineBlock},

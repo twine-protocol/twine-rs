@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 
-pub use twine_core;
+pub use twine_lib;
 pub mod prelude;
 
 #[cfg(feature = "build")]

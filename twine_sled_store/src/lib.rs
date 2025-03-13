@@ -5,8 +5,8 @@ use sled::transaction::TransactionError;
 use sled::Db;
 use std::collections::{HashMap, HashSet};
 use std::{pin::Pin, sync::Arc};
-use twine_core::resolver::{unchecked_base::BaseResolver, AbsoluteRange, Resolver};
-use twine_core::{as_cid::AsCid, errors::*, store::Store, twine::TwineBlock, twine::*, Cid};
+use twine_lib::resolver::{unchecked_base::BaseResolver, AbsoluteRange, Resolver};
+use twine_lib::{as_cid::AsCid, errors::*, store::Store, twine::TwineBlock, twine::*, Cid};
 use zerocopy::{FromZeros, KnownLayout};
 use zerocopy::{
   byteorder::{BigEndian, U64},

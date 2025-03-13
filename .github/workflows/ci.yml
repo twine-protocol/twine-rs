@@ -42,7 +42,7 @@ jobs:
 
       - name: Check (WASM)
         if: matrix.target == 'wasm32-unknown-unknown'
-        run: cargo check --package twine_core --package twine_builder --package twine_http_store --target wasm32-unknown-unknown
+        run: cargo check --package twine_lib --package twine_builder --package twine_http_store --target wasm32-unknown-unknown
 
       - name: Run Tests
         if: matrix.target != 'wasm32-unknown-unknown'

@@ -1,7 +1,7 @@
 use pkcs8::{der::Encode, DecodePrivateKey, SecretDocument};
 use std::vec;
 use thiserror::Error;
-use twine_core::crypto::{PublicKey, Signature, SignatureAlgorithm};
+use twine_lib::crypto::{PublicKey, Signature, SignatureAlgorithm};
 
 use crate::{Signer, SigningError};
 

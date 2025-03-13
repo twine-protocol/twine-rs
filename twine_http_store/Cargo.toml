@@ -10,7 +10,7 @@ keywords.workspace = true
 description = "Twine protocol rust library http store"
 
 [dependencies]
-twine_core.workspace = true
+twine_lib.workspace = true
 futures.workspace = true
 async-trait.workspace = true
 # fvm_ipld_car = "0.7"

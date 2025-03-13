@@ -1,5 +1,5 @@
 use super::*;
-use twine_core::{
+use twine_lib::{
   crypto::PublicKey,
   errors::{SpecificationError, VerificationError},
   ipld_core::{codec::Codec, serde::to_ipld},
@@ -106,7 +106,7 @@ impl<'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
   }
 
   pub fn done(self) -> Result<Twine, BuildError> {
-    use twine_core::schemas::*;
+    use twine_lib::schemas::*;
 
     let index = self
       .prev
@@ -154,7 +154,7 @@ impl<'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
     };
 
     let bytes =
-      twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
+      twine_lib::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
     let signature = self.signer.sign(&bytes)?;
 
     let container = v2::ContainerV2::new_from_parts(Verified::try_new(content)?, signature);
@@ -215,7 +215,7 @@ impl<'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
   }
 
   pub fn done(self) -> Result<Strand, BuildError> {
-    use twine_core::schemas::*;
+    use twine_lib::schemas::*;
     let key = self.signer.public_key();
 
     let content = match self.version.major {
@@ -241,7 +241,7 @@ impl<'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
     };
 
     let bytes =
-      twine_core::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
+      twine_lib::serde_ipld_dagcbor::codec::DagCborCodec::encode_to_vec(&content).unwrap();
     let signature = self.signer.sign(&bytes)?;
     let container = v2::ContainerV2::new_from_parts(Verified::try_new(content)?, signature);
     Ok(Strand::try_new(container)?)

@@ -8,8 +8,8 @@ use std::{
   path::{Path, PathBuf},
 };
 use twine_builder::RingSigner;
-use twine_core::ipld_core::ipld;
-use twine_core::{multihash_codetable::Code, twine::TwineBlock};
+use twine_lib::ipld_core::ipld;
+use twine_lib::{multihash_codetable::Code, twine::TwineBlock};
 
 #[derive(Debug, Parser)]
 pub struct CreateCommand {

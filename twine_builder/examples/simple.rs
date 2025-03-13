@@ -1,5 +1,5 @@
 use twine_builder::{RingSigner, TwineBuilder};
-use twine_core::{ipld_core::ipld, multihash_codetable::Code};
+use twine_lib::{ipld_core::ipld, multihash_codetable::Code};
 
 fn main() {
   let signer = RingSigner::generate_ed25519().unwrap();

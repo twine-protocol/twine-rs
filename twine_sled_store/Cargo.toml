@@ -10,7 +10,7 @@ keywords.workspace = true
 description = "Twine protocol rust library sled store"
 
 [dependencies]
-twine_core.workspace = true
+twine_lib.workspace = true
 sled = "0.34"
 futures.workspace = true
 async-trait.workspace = true

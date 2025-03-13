@@ -1,7 +1,7 @@
 use futures::TryStreamExt;
 use tempfile::TempDir;
 use twine_builder::{RingSigner, TwineBuilder};
-use twine_core::{ipld_core::ipld, multihash_codetable::Code, resolver::Resolver, store::Store};
+use twine_lib::{ipld_core::ipld, multihash_codetable::Code, resolver::Resolver, store::Store};
 use twine_pickledb_store::PickleDbStore;
 
 #[tokio::main]

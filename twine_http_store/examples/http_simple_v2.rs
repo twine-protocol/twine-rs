@@ -1,9 +1,9 @@
 use futures::{StreamExt, TryStreamExt};
-use twine_core::resolver::*;
-use twine_core::twine::Strand;
+use twine_lib::resolver::*;
+use twine_lib::twine::Strand;
 use twine_http_store::*;
-// use twine_core::store::MemoryCache;
-// use twine_core::store::Store;
+// use twine_lib::store::MemoryCache;
+// use twine_lib::store::Store;
 // use futures_time::prelude::*;
 // use futures_time::time::Duration;
 // use futures_time::stream;
@@ -11,7 +11,7 @@ use twine_http_store::*;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let resolver = v2::HttpStore::new(reqwest::Client::new()).with_url("http://localhost:8787/");
-  // let store = twine_core::store::MemoryStore::new();
+  // let store = twine_lib::store::MemoryStore::new();
 
   println!("strands:");
   let strands: Vec<Strand> = resolver

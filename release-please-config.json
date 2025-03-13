@@ -5,8 +5,8 @@
   "include-v-in-tag": true,
   "include-component-in-tag": true,
   "packages": {
-    "twine_core": {
-      "component": "twine_core",
+    "twine_lib": {
+      "component": "twine_lib",
       "release-type": "rust"
     },
     "twine_builder": {

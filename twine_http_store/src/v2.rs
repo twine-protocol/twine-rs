@@ -5,11 +5,11 @@ use reqwest::{
   header::{ACCEPT, CONTENT_TYPE},
   Method, StatusCode, Url,
 };
-use twine_core::car::from_car_bytes;
-use twine_core::resolver::unchecked_base::TwineStream;
-use twine_core::resolver::{MaybeSend, Resolver, TwineResolution};
-use twine_core::twine::Twine;
-use twine_core::{
+use twine_lib::car::from_car_bytes;
+use twine_lib::resolver::unchecked_base::TwineStream;
+use twine_lib::resolver::{MaybeSend, Resolver, TwineResolution};
+use twine_lib::twine::Twine;
+use twine_lib::{
   as_cid::AsCid,
   errors::{ResolutionError, StoreError},
   resolver::{unchecked_base::BaseResolver, AbsoluteRange, SingleQuery},
@@ -182,7 +182,7 @@ impl HttpStore {
       .bytes()
       .await
       .map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-    use twine_core::car::CarDecodeError;
+    use twine_lib::car::CarDecodeError;
     let twines = from_car_bytes(&mut reader.as_ref()).map_err(|e| match e {
       CarDecodeError::DecodeError(e) => ResolutionError::BadData(e.to_string()),
       CarDecodeError::VerificationError(e) => ResolutionError::Invalid(e),
@@ -399,7 +399,7 @@ impl Store for HttpStore {
     twines: T,
   ) -> Result<(), StoreError> {
     use futures::stream::StreamExt;
-    use twine_core::car::to_car_stream;
+    use twine_lib::car::to_car_stream;
     let twines: Vec<AnyTwine> = twines.into_iter().map(|t| t.into()).collect();
     let (strands, tixels): (Vec<_>, Vec<_>) = twines
       .into_iter()

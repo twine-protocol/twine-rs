@@ -2,7 +2,7 @@ use std::{fmt::Display, ops::Deref, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use twine_core::{as_cid::AsCid, Cid};
+use twine_lib::{as_cid::AsCid, Cid};
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
@@ -15,7 +15,7 @@ impl Display for CidStr {
 }
 
 impl FromStr for CidStr {
-  type Err = twine_core::cid::Error;
+  type Err = twine_lib::cid::Error;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     Ok(Self(Cid::from_str(s)?))

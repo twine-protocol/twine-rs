@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0](https://github.com/twine-protocol/twine-rs/releases/tag/twine_core-v0.1.0) - 2025-03-13
+## [0.1.0](https://github.com/twine-protocol/twine-rs/releases/tag/twine_lib-v0.1.0) - 2025-03-13
 
 ### Added
 

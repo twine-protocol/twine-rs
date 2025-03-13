@@ -1,5 +1,5 @@
 use twine_builder::{RingSigner, TwineBuilder};
-use twine_core::{ipld_core::ipld, multihash_codetable::Code, resolver::Resolver, store::Store};
+use twine_lib::{ipld_core::ipld, multihash_codetable::Code, resolver::Resolver, store::Store};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

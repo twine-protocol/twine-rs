@@ -5,7 +5,7 @@
 /// # Examples
 ///
 /// ```
-/// use twine_core::skiplist::get_layer_pos;
+/// use twine_lib::skiplist::get_layer_pos;
 /// assert_eq!(get_layer_pos(10, 1560), 1); // (multiple of 10)
 /// assert_eq!(get_layer_pos(10, 1264), 0); // (NOT a multiple of 10)
 /// assert_eq!(get_layer_pos(10, 3000), 3); // (multiple of 1000)
@@ -43,7 +43,7 @@ pub fn get_layer_pos(radix: u8, index: u64) -> usize {
 /// # Examples
 ///
 /// ```
-/// use twine_core::skiplist::SkipList;
+/// use twine_lib::skiplist::SkipList;
 /// let radix = 10;
 /// let from_index = 23;
 /// let to_index = 5;

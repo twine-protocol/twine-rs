@@ -14,7 +14,7 @@ name = "twine"
 path = "src/main.rs"
 
 [dependencies]
-twine_core.workspace = true
+twine_lib.workspace = true
 twine_builder = { workspace = true, features = ["rsa"] }
 twine_http_store.workspace = true
 twine_sled_store.workspace = true

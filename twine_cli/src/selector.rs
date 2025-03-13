@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::convert::TryFrom;
-use twine_core::resolver::{RangeQuery, SingleQuery};
-use twine_core::Cid;
+use twine_lib::resolver::{RangeQuery, SingleQuery};
+use twine_lib::Cid;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Selector {

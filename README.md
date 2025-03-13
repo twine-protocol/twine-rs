@@ -2,7 +2,7 @@
 
 Official rust library for the [Twine Protocol](https://docs.twine.world).
 
-The `twine` crate is a meta crate for ease of use of `twine_core`
+The `twine` crate is a meta crate for ease of use of `twine_lib`
 and optionally `twine_builder` and `twine_http_store` through feature
 flags. Its main purpose is to provide a prelude module to be used
 as: `use twine::prelude::*;`.
@@ -29,7 +29,7 @@ fn main(){
 
 ```rust
 use twine::prelude::*;
-use twine_core::{ipld_core::ipld, multihash_codetable::Code};
+use twine_lib::{ipld_core::ipld, multihash_codetable::Code};
 use twine_builder::{TwineBuilder, RingSigner};
 
 fn main() {

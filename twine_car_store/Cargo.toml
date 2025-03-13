@@ -10,7 +10,7 @@ keywords.workspace = true
 description = "Twine protocol rust library CAR store"
 
 [dependencies]
-twine_core.workspace = true
+twine_lib.workspace = true
 futures.workspace = true
 async-trait.workspace = true
 async-std.workspace = true
