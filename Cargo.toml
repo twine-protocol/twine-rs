@@ -15,14 +15,14 @@ Twine protocol library meta-package
 
 [workspace]
 members = [
-  "./twine_core",
-  "./twine_builder",
-  "./twine_http_store",
-  "./twine_sled_store",
-  "./twine_cli",
-  "./twine_car_store",
-  "./twine_pickledb_store",
-  "./twine_sql_store",
+  "twine_core",
+  "twine_builder",
+  "twine_http_store",
+  "twine_sled_store",
+  "twine_cli",
+  "twine_car_store",
+  "twine_pickledb_store",
+  "twine_sql_store",
 ]
 
 [workspace.package]
