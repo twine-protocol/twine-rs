@@ -1,19 +1,17 @@
 [package]
 name = "twine"
 version = "0.0.1"
-authors = ["Jasper Palfree <jasper.palfree@colordo.edu>"]
-license = "MIT"
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 readme = "README.md"
-repository = "https://github.com/twine-protocol/twine-rs"
-documentation = ""
-homepage = ""
 description = """
-Twine prococol library
+Twine protocol library meta-package
 """
-keywords = ["twine"]
-categories = []
-edition = "2021"
-rust-version = "1.78"
 
 [workspace]
 members = [
@@ -37,13 +35,13 @@ categories = ['data-structures', 'cryptography', 'blockchain']
 keywords = ["twine", "twine protocol", "randomness", "blockchain"]
 
 [workspace.dependencies]
-twine_core = { path = "./twine_core" }
-twine_builder = { path = "./twine_builder" }
-twine_http_store = { path = "./twine_http_store" }
-twine_sled_store = { path = "./twine_sled_store" }
-twine_car_store = { path = "./twine_car_store" }
-twine_pickledb_store = { path = "./twine_pickledb_store" }
-twine_sql_store = { path = "./twine_sql_store" }
+twine_core = { version = "0.1.0", path = "./twine_core" }
+twine_builder = { version = "0.1.0", path = "./twine_builder" }
+twine_http_store = { version = "0.1.0", path = "./twine_http_store" }
+twine_sled_store = { version = "0.1.0", path = "./twine_sled_store" }
+twine_car_store = { version = "0.1.0", path = "./twine_car_store" }
+twine_pickledb_store = { version = "0.1.0", path = "./twine_pickledb_store" }
+twine_sql_store = { version = "0.1.0", path = "./twine_sql_store" }
 thiserror = "2.0.12"
 futures = "0.3"
 log = "0.4"
@@ -72,9 +70,9 @@ blake2b = ["twine_core/blake2b"]
 rsa = ["twine_builder/rsa"]
 
 [dependencies]
-twine_core = { path = "./twine_core" }
-twine_builder = { path = "./twine_builder", optional = true }
-twine_http_store = { path = "./twine_http_store", optional = true }
+twine_core.workspace = true
+twine_builder = { workspace = true, optional = true }
+twine_http_store = { workspace = true, optional = true }
 
 [dev-dependencies]
 twine_builder = { path = "./twine_builder" }
