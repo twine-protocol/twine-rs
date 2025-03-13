@@ -32,7 +32,7 @@ rust-version = "1.78"
 license = "MIT"
 repository = "https://github.com/twine-protocol/twine-rs"
 categories = ['data-structures', 'cryptography', 'blockchain']
-keywords = ["twine", "twine protocol", "randomness", "blockchain"]
+keywords = ["twine", "randomness", "blockchain"]
 
 [workspace.dependencies]
 twine_core = { version = "0.1.0", path = "./twine_core" }
