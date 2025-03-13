@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.1](https://github.com/twine-protocol/twine-rs/compare/v0.1.0...v0.1.1) (2025-03-13)
+
+
+### Miscellaneous Chores
+
+* release 0.1.0 ([2fce65c](https://github.com/twine-protocol/twine-rs/commit/2fce65c1fbe254581f976e9bb3ff5ccff3481a69))
+* **twine_core:** release 0.1.0 ([a80134b](https://github.com/twine-protocol/twine-rs/commit/a80134bbb2e01741de7eea45dee2020f348ee8de))
+* **twine_core:** release 0.1.1 ([addefeb](https://github.com/twine-protocol/twine-rs/commit/addefeb66b2176d545869b3d0f790a333f09a002))
+
 ## [0.1.0](https://github.com/twine-protocol/twine-rs/compare/v0.1.0...v0.1.0) (2025-03-13)
 
 
