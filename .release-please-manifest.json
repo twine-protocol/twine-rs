@@ -1,10 +1,11 @@
 {
-  "twine_core":"0.1.0",
-  "twine_builder":"0.1.0",
-  "twine_http_store":"0.1.0",
-  "twine_sql_store":"0.1.0",
-  "twine_sled_store":"0.1.0",
-  "twine_car_store":"0.1.0",
-  "twine_pickledb_store":"0.1.0",
-  "twine_cli":"0.1.0"
+  "twine_core": "0.1.0",
+  "twine_builder": "0.1.0",
+  "twine_http_store": "0.1.0",
+  "twine_sql_store": "0.1.0",
+  "twine_sled_store": "0.1.0",
+  "twine_car_store": "0.1.0",
+  "twine_pickledb_store": "0.1.0",
+  "twine_cli": "0.1.0",
+  ".": "0.1.1"
 }
