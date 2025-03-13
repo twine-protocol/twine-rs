@@ -12,7 +12,7 @@ twine_core.workspace = true
 pickledb = { version = "0.5", features = ["bincode"], default-features = false }
 futures.workspace = true
 async-trait.workspace = true
-async-std = "1.10"
+async-std.workspace = true
 serde.workspace = true
 serde_bytes.workspace = true
 

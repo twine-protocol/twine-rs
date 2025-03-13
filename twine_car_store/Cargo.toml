@@ -11,7 +11,7 @@ keywords.workspace = true
 twine_core.workspace = true
 futures.workspace = true
 async-trait.workspace = true
-async-std = "1.10"
+async-std.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

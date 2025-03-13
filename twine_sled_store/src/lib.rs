@@ -7,22 +7,22 @@ use std::collections::{HashMap, HashSet};
 use std::{pin::Pin, sync::Arc};
 use twine_core::resolver::{unchecked_base::BaseResolver, AbsoluteRange, Resolver};
 use twine_core::{as_cid::AsCid, errors::*, store::Store, twine::TwineBlock, twine::*, Cid};
-use zerocopy::FromZeroes;
+use zerocopy::{FromZeros, KnownLayout};
 use zerocopy::{
   byteorder::{BigEndian, U64},
-  AsBytes, FromBytes, Unaligned,
+  IntoBytes, FromBytes, Unaligned, Immutable
 };
 
 pub use sled;
 
-#[derive(FromZeroes, FromBytes, AsBytes, Unaligned)]
+#[derive(FromBytes, IntoBytes, Unaligned, KnownLayout, Immutable)]
 #[repr(C)]
 struct LatestRecord {
   index: U64<BigEndian>,
   cid: [u8; 68],
 }
 
-#[derive(FromZeroes, FromBytes, AsBytes, Unaligned)]
+#[derive(FromBytes, IntoBytes, Unaligned, KnownLayout, Immutable)]
 #[repr(C)]
 struct IndexKey {
   strand: [u8; 68],
@@ -128,8 +128,8 @@ impl SledStore {
     match latest {
       None => return Ok(None),
       Some(latest) => {
-        let record = LatestRecord::ref_from(&latest).ok_or(ResolutionError::BadData(
-          "Invalid latest record".to_string(),
+        let record = LatestRecord::ref_from_bytes(&latest).map_err(|e| ResolutionError::BadData(
+          e.to_string(),
         ))?;
         let index = record.index.get();
         Ok(Some(index))
@@ -145,8 +145,8 @@ impl SledStore {
     match latest {
       None => return Ok(None),
       Some(latest) => {
-        let record = LatestRecord::ref_from(&latest).ok_or(ResolutionError::BadData(
-          "Invalid latest record".to_string(),
+        let record = LatestRecord::ref_from_bytes(&latest).map_err(|e| ResolutionError::BadData(
+          e.to_string(),
         ))?;
         let cid =
           Cid::try_from(record.cid.to_vec()).map_err(|e| ResolutionError::Fetch(e.to_string()))?;

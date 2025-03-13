@@ -18,7 +18,7 @@ itertools.workspace = true
 either.workspace = true
 serde_json.workspace = true
 log.workspace = true
-zerocopy = { version = "0.7", features = ["byteorder", "derive"] }
+zerocopy = { version = "0.8.23", features = ["derive"] }
 
 [dev-dependencies]
 tokio.workspace = true

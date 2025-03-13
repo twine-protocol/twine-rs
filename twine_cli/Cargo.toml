@@ -25,12 +25,12 @@ serde_json.workspace = true
 async-trait.workspace = true
 tokio = { workspace = true, features = ["full"] }
 itertools.workspace = true
-serde_yml = "0.0.10"
+serde_yml = "0.0.12"
 serde_with = "3.8"
 confy = "0.6"
 clap = { version = "4", features = ["derive"] }
-clap-stdin = "0.4"
-directories = "5.0"
+clap-stdin = "0.6.0"
+directories = "6.0.0"
 anyhow = "1.0"
 indicatif = { version = "0.17", features = ["futures"] }
 indicatif-log-bridge = "0.2"

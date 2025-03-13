@@ -23,9 +23,9 @@ chrono.workspace = true
 num-bigint = "0.4"
 biscuit = { version = "0.7", optional = true }
 rsa = { workspace = true, optional = true }
-rand = { version = "0.8", optional = true }
+rand = { workspace = true, optional = true }
 pkcs8 = { version = "0.10", features = ["pem"] }
-const-oid = { version = "0.9", features = ["db"] }
+const-oid = { version = "0.9.6", features = ["db"] }
 ring.workspace = true
 
 [target.'wasm32-unknown-unknown'.dependencies.ring]
