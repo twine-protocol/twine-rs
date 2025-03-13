@@ -2,14 +2,32 @@
   "plugins": ["cargo-workspace"],
   "release-type": "rust",
   "packages": {
-    ".": {},
-    "twine_core": {},
-    "twine_builder": {},
-    "twine_http_store": {},
-    "twine_sql_store": {},
-    "twine_sled_store": {},
-    "twine_car_store": {},
-    "twine_pickledb_store": {},
-    "twine_cli": {}
+    ".": {
+      "component": "twine"
+    },
+    "twine_core": {
+      "component": "twine_core"
+    },
+    "twine_builder": {
+      "component": "twine_builder"
+    },
+    "twine_http_store": {
+      "component": "twine_http_store"
+    },
+    "twine_sql_store": {
+      "component": "twine_sql_store"
+    },
+    "twine_sled_store": {
+      "component": "twine_sled_store"
+    },
+    "twine_car_store": {
+      "component": "twine_car_store"
+    },
+    "twine_pickledb_store": {
+      "component": "twine_pickledb_store"
+    },
+    "twine_cli": {
+      "component": "twine_cli"
+    }
   }
 }
