@@ -8,10 +8,13 @@ use serde::{Deserialize, Serialize};
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use std::io::Read;
 
+/// Error type for car decoding
 #[derive(Debug, thiserror::Error)]
 pub enum CarDecodeError {
+  /// Invalid Twine data
   #[error("{0}")]
   VerificationError(#[from] VerificationError),
+  /// Error decoding CAR
   #[error("Error decoding CAR: {0}")]
   DecodeError(#[from] rs_car_sync::CarDecodeError),
 }
@@ -36,12 +39,47 @@ fn encode_varint_u64(input: u64, buf: &mut [u8; U64_LEN]) -> (&[u8], usize) {
   (&buf[0..=i], i + 1)
 }
 
+/// A CAR header
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CarHeader {
+  /// The version of the CAR format
   pub version: u8,
+  /// The root CIDs
   pub roots: Vec<Cid>,
 }
 
+/// Convert a stream of TwineBlocks to a CAR stream
+///
+/// # Example
+///
+/// ```rust
+/// use twine_lib::car::to_car_stream;
+/// # use twine_lib::twine::{Strand, Tixel};
+/// # use twine_lib::twine::TwineBlock;
+/// # use twine_lib::{errors::VerificationError, Cid};
+/// # use std::{fmt::Display, sync::Arc};
+/// # use futures::stream::StreamExt;
+/// # #[derive(Clone)]
+/// # struct Dummy(Cid);
+/// # impl TwineBlock for Dummy {
+/// #   fn cid(&self) -> &Cid { &self.0 }
+/// #   fn bytes(&self) -> Arc<[u8]> { Arc::new([]) }
+/// #   fn from_tagged_dag_json<S: Display>(_json: S) -> Result<Self, VerificationError> { Ok(Dummy(Cid::default())) }
+/// #   fn from_bytes_unchecked(_hasher: multihash_codetable::Code, _bytes: Vec<u8>) -> Result<Self, VerificationError> { Ok(Dummy(Cid::default())) }
+/// #   fn from_block<T: AsRef<[u8]>>(_cid: Cid, _bytes: T) -> Result<Self, VerificationError> { Ok(Dummy(_cid)) }
+/// #   fn tagged_dag_json(&self) -> String { "".to_string() }
+/// #   fn content_bytes(&self) -> Arc<[u8]> { Arc::new([]) }
+/// # }
+/// # let some_strand = Dummy(Cid::default());
+///
+/// let stream = futures::stream::iter(vec![some_strand.clone()]);
+/// let roots = vec![some_strand.cid().clone()];
+/// let car_stream = to_car_stream(stream, roots);
+///
+/// # tokio::runtime::Runtime::new().unwrap().block_on(async {
+/// let bytes: Vec<u8> = car_stream.collect::<Vec<_>>().await.concat();
+/// # });
+/// ```
 pub fn to_car_stream<I: TwineBlock, S: Stream<Item = I>>(
   stream: S,
   roots: Vec<Cid>,
@@ -63,6 +101,8 @@ pub fn to_car_stream<I: TwineBlock, S: Stream<Item = I>>(
   futures::stream::iter(vec![header]).chain(blocks)
 }
 
+/// Convert a CAR stream of bytes to a stream of TwineBlocks
+///
 pub fn from_car_bytes<R: Read>(mut reader: &mut R) -> Result<Vec<AnyTwine>, CarDecodeError> {
   // block validation happens in twine creation
   let car_reader = CarReader::new(&mut reader, false)?;
