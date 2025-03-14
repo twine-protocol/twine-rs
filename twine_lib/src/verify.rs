@@ -13,14 +13,41 @@ pub fn is_all_unique<T: Eq + std::hash::Hash, I: IntoIterator<Item = T>>(iter: I
   true
 }
 
-/// An opaque trait that can be implemented to verify the integrity of a data structure.
-///
+/// A trait for types that can verify their own validity.
 pub trait Verifiable {
+  /// The error type that is returned when verification fails.
   type Error: std::fmt::Debug + std::fmt::Display;
+  /// Verify the integrity of the data structure.
   fn verify(&self) -> Result<(), Self::Error>;
 }
 
-/// Container that identifies an inner structure that has been verified.
+/// An opaque trait that can be implemented to verify the integrity of a data structure.
+///
+/// This trait implements deref so that the inner type can be accessed directly.
+/// It is intended to be used on types that are deserialized from external sources.
+/// When the type is deserialized, the `verify` method is called and if
+/// it returns an error, the deserialization fails.
+///
+/// # Example
+///
+/// ```rust
+/// use serde::{Deserialize, Serialize};
+/// use twine::verify::{Verifiable, Verified};
+///
+/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// struct GreaterThanZero(u32);
+///
+/// impl Verifiable for GreaterThanZero {
+///   type Error = &'static str;
+///   fn verify(&self) -> Result<(), Self::Error> {
+///     if self.0 > 0 {
+///       Ok(())
+///     } else {
+///       Err("Value must be greater than zero")
+///     }
+///   }
+/// }
+/// ```
 #[derive(Debug, Clone, Serialize)]
 pub struct Verified<T: Verifiable>(T);
 
@@ -45,15 +72,18 @@ where
 }
 
 impl<T: Verifiable> Verified<T> {
+  /// Create a new verified container.
   pub fn try_new(inner: T) -> Result<Self, T::Error> {
     inner.verify()?;
     Ok(Self(inner))
   }
 
+  /// Consume the container and return the inner value.
   pub fn into_inner(self) -> T {
     self.0
   }
 
+  /// Get a reference to the inner value.
   pub fn as_inner(&self) -> &T {
     &self.0
   }
