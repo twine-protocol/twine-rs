@@ -1,9 +1,5 @@
 name: Release-plz
 
-permissions:
-  pull-requests: write
-  contents: write
-
 on:
   workflow_run:
     workflows: ["CI"]
@@ -14,6 +10,7 @@ jobs:
   # Release unpublished packages.
   release-plz-release:
     name: Release-plz release
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -34,6 +31,7 @@ jobs:
 
   # Create a PR with the new versions and changelog, preparing the next release.
   release-plz-pr:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     name: Release-plz PR
     runs-on: ubuntu-latest
     permissions:
