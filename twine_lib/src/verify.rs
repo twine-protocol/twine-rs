@@ -32,7 +32,7 @@ pub trait Verifiable {
 ///
 /// ```rust
 /// use serde::{Deserialize, Serialize};
-/// use twine::verify::{Verifiable, Verified};
+/// use twine_lib::verify::{Verifiable, Verified};
 ///
 /// #[derive(Debug, Clone, Serialize, Deserialize)]
 /// struct GreaterThanZero(u32);
