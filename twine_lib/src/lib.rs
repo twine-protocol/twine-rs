@@ -1,14 +1,12 @@
-//! Twine Core Library
-//!
-//! Docs...
-//!
-// pub(crate) mod serde_utils;
+#![doc = include_str!("../README.md")]
 
+/// A bytes type that serializes using serde_bytes
 #[derive(Debug, Clone, PartialEq, Eq, Hash, ::serde::Serialize, ::serde::Deserialize)]
 #[serde(transparent)]
 pub struct Bytes(#[serde(with = "serde_bytes")] pub Vec<u8>);
 
 impl Bytes {
+  /// Gets a copy of the bytes
   pub fn to_vec(&self) -> Vec<u8> {
     self.0.clone()
   }
