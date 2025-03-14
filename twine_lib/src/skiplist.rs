@@ -1,4 +1,4 @@
-/// Get the highest layer for which this (pulse) index
+/// Get the highest layer for which this (tixel) index
 /// is an anchor for.
 /// For example: in base 10, for the following indicies...
 ///
@@ -31,14 +31,15 @@ pub fn get_layer_pos(radix: u8, index: u64) -> usize {
   return result - 1;
 }
 
-/// Get an iterator of indices that can be used to skip through the chain.
-/// This can either provide the pulse indices themselves or a list of
-/// array indices of the links list for each pulse along the path.
+/// A utility for getting an iterator of indices that can be used to skip through a strand.
+///
+/// This can either provide the tixel indices themselves or a list of
+/// array indices of the links list for each tixel along the path.
 /// This will not include the from/to indices themselves.
 /// A radix of 1 doesn't make sense since `1^r` is always `1`.
 /// A radix of 0 is interpreted as no radix skipping, so the list
-/// just has the previous pulse cid, therefore a radix 0 skiplist
-/// is just a decreasing list of pulse indices.
+/// just has the previous tixel cid, therefore a radix 0 skiplist
+/// is just a decreasing list of tixel indices.
 ///
 /// # Examples
 ///
@@ -66,6 +67,14 @@ pub struct SkipList {
 }
 
 impl SkipList {
+  /// Create a new SkipList
+  ///
+  /// # Arguments
+  ///
+  /// * `radix` - The radix to use for skipping
+  /// * `from_index` - The index to start from
+  /// * `to_index` - The index to stop at
+  /// * `by_link` - Whether to return the array indices of the stitch list
   pub fn new(radix: u8, from_index: u64, to_index: u64, by_link: bool) -> Self {
     let radix = radix as u64;
 
@@ -95,6 +104,7 @@ impl IntoIterator for SkipList {
   }
 }
 
+/// An iterator for the SkipList
 pub struct SkipListIter {
   radix: u64,
   curr: u64,
@@ -107,6 +117,9 @@ pub struct SkipListIter {
 }
 
 impl SkipListIter {
+  /// Create a new SkipListIter
+  ///
+  /// Instead of calling this directly, use `SkipList::into_iter()`
   pub fn new(radix: u64, from_index: u64, to_index: u64, by_link: bool) -> Self {
     let diff = from_index - to_index;
     let startq = (diff as f64).log(radix as f64).floor() as u32;
