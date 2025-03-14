@@ -63,6 +63,7 @@ pub struct TixelFields {
 pub type TixelContentV2 = ContentV2<TixelFields>;
 
 impl Verifiable for TixelFields {
+  type Error = VerificationError;
   fn verify(&self) -> Result<(), VerificationError> {
     // must have at least one back-stitch if not the starting tixel
     if self.back_stitches.len() == 0 && self.index != 0 {

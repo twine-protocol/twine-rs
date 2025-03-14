@@ -1,8 +1,8 @@
+//! Verification utilities for ensuring that data structures are valid.
 use std::hash::Hash;
-
-use crate::errors::VerificationError;
 use serde::{Deserialize, Serialize};
 
+/// Verifies that a collection of items are all unique.
 pub fn is_all_unique<T: Eq + std::hash::Hash, I: IntoIterator<Item = T>>(iter: I) -> bool {
   let mut seen = std::collections::HashSet::new();
   for item in iter {
@@ -13,9 +13,11 @@ pub fn is_all_unique<T: Eq + std::hash::Hash, I: IntoIterator<Item = T>>(iter: I
   true
 }
 
-/// Identifies data structures that can be verified.
+/// An opaque trait that can be implemented to verify the integrity of a data structure.
+///
 pub trait Verifiable {
-  fn verify(&self) -> Result<(), VerificationError>;
+  type Error: std::fmt::Debug + std::fmt::Display;
+  fn verify(&self) -> Result<(), Self::Error>;
 }
 
 /// Container that identifies an inner structure that has been verified.
@@ -43,7 +45,7 @@ where
 }
 
 impl<T: Verifiable> Verified<T> {
-  pub fn try_new(inner: T) -> Result<Self, VerificationError> {
+  pub fn try_new(inner: T) -> Result<Self, T::Error> {
     inner.verify()?;
     Ok(Self(inner))
   }
@@ -84,6 +86,7 @@ impl<'de, T: Verifiable + Deserialize<'de>> Deserialize<'de> for Verified<T> {
 #[cfg(test)]
 mod test {
   use super::*;
+  use crate::errors::VerificationError;
 
   #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
   struct TestStruct {
@@ -91,7 +94,8 @@ mod test {
   }
 
   impl Verifiable for TestStruct {
-    fn verify(&self) -> Result<(), VerificationError> {
+    type Error = VerificationError;
+    fn verify(&self) -> Result<(), Self::Error> {
       if self.value == 42 {
         Ok(())
       } else {
@@ -109,7 +113,8 @@ mod test {
   }
 
   impl Verifiable for WithNested {
-    fn verify(&self) -> Result<(), VerificationError> {
+    type Error = VerificationError;
+    fn verify(&self) -> Result<(), Self::Error> {
       if self.value == 42 {
         Ok(())
       } else {

@@ -61,6 +61,7 @@ where
 }
 
 impl Verifiable for ContainerV1<ChainContentV1> {
+  type Error = VerificationError;
   fn verify(&self) -> Result<(), VerificationError> {
     let hasher = get_hasher(&self.cid)?;
     let computed = get_cid(hasher, DagCborCodec::encode_to_vec(self).unwrap());
@@ -142,6 +143,7 @@ impl ContainerV1<ChainContentV1> {
 }
 
 impl Verifiable for ContainerV1<PulseContentV1> {
+  type Error = VerificationError;
   fn verify(&self) -> Result<(), VerificationError> {
     let hasher = get_hasher(&self.cid)?;
     let computed = get_cid(hasher, DagCborCodec::encode_to_vec(self).unwrap());

@@ -20,6 +20,7 @@ pub struct ChainContentV1 {
 }
 
 impl Verifiable for ChainContentV1 {
+  type Error = VerificationError;
   fn verify(&self) -> Result<(), VerificationError> {
     if !is_all_unique(&self.mixins) {
       return Err(VerificationError::InvalidTwineFormat(

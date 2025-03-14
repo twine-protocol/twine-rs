@@ -206,6 +206,7 @@ impl StrandContainerV2 {
 }
 
 impl Verifiable for StrandContainerV2 {
+  type Error = VerificationError;
   fn verify(&self) -> Result<(), VerificationError> {
     self
       .key()
@@ -246,6 +247,7 @@ impl TixelContainerV2 {
 }
 
 impl Verifiable for TixelContainerV2 {
+  type Error = VerificationError;
   fn verify(&self) -> Result<(), VerificationError> {
     // currently there are no further verifications to do for the tixel alone
     Ok(())

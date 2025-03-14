@@ -20,6 +20,7 @@ pub struct StrandFields {
 pub type StrandContentV2 = ContentV2<StrandFields>;
 
 impl Verifiable for StrandFields {
+  type Error = VerificationError;
   fn verify(&self) -> Result<(), VerificationError> {
     if self.radix == 1 {
       return Err(VerificationError::InvalidTwineFormat(

@@ -16,6 +16,7 @@ pub struct PulseContentV1<P = Ipld> {
 }
 
 impl Verifiable for PulseContentV1 {
+  type Error = VerificationError;
   fn verify(&self) -> Result<(), VerificationError> {
     if !is_all_unique(&self.mixins) {
       return Err(VerificationError::InvalidTwineFormat(

@@ -36,6 +36,7 @@ impl<T> Verifiable for ContentV2<T>
 where
   T: Clone + Send + Verifiable,
 {
+  type Error = crate::errors::VerificationError;
   fn verify(&self) -> Result<(), crate::errors::VerificationError> {
     // no need to verify
     Ok(())

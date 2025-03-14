@@ -24,6 +24,7 @@ pub enum StrandSchemaVersion {
 }
 
 impl Verifiable for StrandSchemaVersion {
+  type Error = VerificationError;
   fn verify(&self) -> Result<(), VerificationError> {
     match self {
       StrandSchemaVersion::V1(v) => v.verify(),
@@ -162,6 +163,7 @@ pub enum TixelSchemaVersion {
 }
 
 impl Verifiable for TixelSchemaVersion {
+  type Error = VerificationError;
   fn verify(&self) -> Result<(), VerificationError> {
     match self {
       TixelSchemaVersion::V1(v) => v.verify(),
