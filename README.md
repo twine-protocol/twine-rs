@@ -1,18 +1,21 @@
-# twine
+# twine_protocol
+
+[![Crates.io Version](https://img.shields.io/crates/v/twine_protocol)](https://crates.io/crates/twine_protocol)
+[![docs.rs (with version)](https://img.shields.io/docsrs/twine_protocol/latest)](https://docs.rs/twine_protocol/latest/twine_protocol/)
 
 Official rust library for the [Twine Protocol](https://docs.twine.world).
 
-The `twine` crate is a meta crate for ease of use of `twine_lib`
+The `twine_protocol` crate is a meta crate for ease of use of `twine_lib`
 and optionally `twine_builder` and `twine_http_store` through feature
 flags. Its main purpose is to provide a prelude module to be used
-as: `use twine::prelude::*;`.
+as: `use twine_protocol::prelude::*;`.
 
 ## Quickstart
 
 ### Reading twine data
 
 ```rust
-use twine::prelude::*;
+use twine_protocol::prelude::*;
 
 const STRAND_JSON: &'static str = r#"{"cid":{"/":"bafyrmieej3j3sprtnbfziv6vhixzr3xxrcabnma43ajb5grhsixdvxzdvu"},"data":{"c":{"h":22,"v":"twine/2.0.0/time/1.0.0","k":{"a":"ED25519","k":{"/":{"bytes":"q0Th03lW3omSuQQSMKZZewQgmCalQLmAo3DN3M4PizM"}}},"r":32,"d":{},"g":"2024-12-20T00:00:00Z","e":null},"s":{"/":{"bytes":"hN5hlT+3+zwJzgmrej8LvtPrAnRsf0c2Qo8xZE0Bj0uY0Tudhi9CbBx/5AjPmceyYGifWb0uw5SZRLMDS15YBA"}}}}"#;
 
@@ -28,7 +31,7 @@ fn main(){
 ### Writing twine data
 
 ```rust
-use twine::prelude::*;
+use twine_protocol::prelude::*;
 use twine_lib::{ipld_core::ipld, multihash_codetable::Code};
 use twine_builder::{TwineBuilder, RingSigner};
 
@@ -78,7 +81,7 @@ fn main() {
 ### Retrieving data from a store (an http store)
 
 ```rust
-use twine::prelude::*;
+use twine_protocol::prelude::*;
 use twine_http_store::{v1, reqwest};
 use futures::{StreamExt, TryStreamExt};
 
@@ -122,4 +125,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 The rust twine library is distributed under the MIT license.
 
-[LICENSE-MIT](./LICENSE-MIT)
+[LICENSE-MIT](LICENSE-MIT)
