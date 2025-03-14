@@ -5,8 +5,13 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::Display;
 use std::str::FromStr;
 
+// TODO: consider using Verifiable trait and combining similar functionality
+
 const PREFIX: &str = "twine";
 
+/// Type for a specification string
+///
+/// Used internally to represent a specification string
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct Specification<const V: u8>(pub(crate) String);
 
@@ -19,12 +24,14 @@ impl<const V: u8> FromStr for Specification<V> {
 }
 
 impl<const V: u8> Specification<V> {
+  /// Create a new specification from a string
   pub fn from_string<S: Display>(s: S) -> Result<Self, SpecificationError> {
     let spec = Specification(s.to_string());
     spec.verify()?;
     Ok(spec)
   }
 
+  /// Get the parts of the specification
   pub fn parts(&self) -> (String, String, Option<Subspec>) {
     // has the form twine/1.0.x or twine/1.0.x/subspec/1.0.x
     let mut parts = self.0.splitn(3, '/');
@@ -48,6 +55,7 @@ impl<const V: u8> Specification<V> {
     (prefix.to_string(), version, subspec)
   }
 
+  /// Verify the specification string
   pub fn verify(&self) -> Result<(), SpecificationError> {
     // ensure either 1 or three /
     let count = self.0.chars().filter(|&c| c == '/').count();
@@ -74,17 +82,20 @@ impl<const V: u8> Specification<V> {
     Ok(())
   }
 
+  /// Get the semver of the specification
   pub fn semver(&self) -> Version {
     // at this point we know it's ok
     let (_, ver, _) = self.parts();
     Version::parse(&ver).unwrap()
   }
 
+  /// Get the subspec
   pub fn subspec(&self) -> Option<Subspec> {
     let (_, _, subspec) = self.parts();
     subspec
   }
 
+  /// Check if the specification satisfies a version requirement
   pub fn satisfies(&self, req: VersionReq) -> bool {
     let version = self.semver();
     req.matches(&version)
@@ -110,16 +121,22 @@ impl<const V: u8> TryFrom<String> for Specification<V> {
   }
 }
 
+/// A twine subspec
+///
+/// A subspec is part of the overall Twine specification string
+/// and has the form <prefix>/<version>
 #[derive(Debug, Clone, PartialEq)]
 pub struct Subspec(pub(crate) String);
 
 impl Subspec {
+  /// Create a new subspec from a string
   pub fn from_string<S: Display>(s: S) -> Result<Self, SpecificationError> {
     let spec = Subspec(s.to_string());
     spec.verify()?;
     Ok(spec)
   }
 
+  /// Get the parts of the subspec
   pub fn parts(&self) -> (String, String) {
     // has the form subspec/1.0.0
     let mut parts = self.0.splitn(2, '/');
@@ -128,6 +145,7 @@ impl Subspec {
     (prefix.to_string(), version.to_string())
   }
 
+  /// Verify the subspec string
   pub fn verify(&self) -> Result<(), SpecificationError> {
     let (prefix, ver) = self.parts();
     if prefix.len() == 0 {
@@ -139,16 +157,19 @@ impl Subspec {
     Ok(())
   }
 
+  /// Get the prefix of the subspec
   pub fn prefix(&self) -> String {
     let (prefix, _) = self.parts();
     prefix
   }
 
+  /// Get the semver of the subspec
   pub fn semver(&self) -> Version {
     let (_, ver) = self.parts();
     Version::parse(&ver).unwrap()
   }
 
+  /// Check if the subspec satisfies a version requirement
   pub fn satisfies(&self, req: VersionReq) -> bool {
     let version = self.semver();
     req.matches(&version)
