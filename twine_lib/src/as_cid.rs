@@ -1,7 +1,9 @@
 use crate::Cid;
 use std::sync::Arc;
 
+/// Trait for anything that can be represented as a CID
 pub trait AsCid {
+  /// Get the CID as a reference
   fn as_cid(&self) -> &Cid;
 }
 
