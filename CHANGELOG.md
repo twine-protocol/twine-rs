@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/twine-protocol/twine-rs/compare/twine_protocol-v0.1.0...twine_protocol-v0.1.1) - 2025-03-15
+
+### Other
+
+- *(docs)* add no_run to certain doctests
+- *(docs)* fix names in readme
+- configuration for docs
+- get rid of release-please workflow
+
 ## [0.1.0](https://github.com/twine-protocol/twine-rs/releases/tag/twine_protocol-v0.1.0) - 2025-03-13
 
 ### Added

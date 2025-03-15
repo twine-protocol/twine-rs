@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/twine-protocol/twine-rs/compare/twine_lib-v0.1.0...twine_lib-v0.2.0) - 2025-03-15
+
+### Added
+
+- breaking change. Verifiable trait custom Error type
+
+### Other
+
+- *(docs)* document Tixel struct
+- *(docs)* add no_run to certain doctests
+- *(docs)* document the Twine struct
+- *(docs)* document TwineBlock trait
+- *(docs)* document as_cid
+- *(docs)* document the car module
+- *(docs)* document the errors module
+- *(docs)* document twine_lib main module
+- *(docs)* document serde module
+- fix verify docs
+- *(docs)* document skiplist module
+- *(docs)* document specification module
+- *(docs)* document verify module
+
 ## [0.1.0](https://github.com/twine-protocol/twine-rs/releases/tag/twine_lib-v0.1.0) - 2025-03-13
 
 ### Added
