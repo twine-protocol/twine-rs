@@ -52,7 +52,7 @@ pub struct CarHeader {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,no_run
 /// use twine_lib::car::to_car_stream;
 /// # use twine_lib::twine::{Strand, Tixel};
 /// # use twine_lib::twine::TwineBlock;

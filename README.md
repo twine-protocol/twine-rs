@@ -30,7 +30,7 @@ fn main(){
 
 ### Writing twine data
 
-```rust
+```rust,no_run
 use twine_protocol::prelude::*;
 use twine_lib::{ipld_core::ipld, multihash_codetable::Code};
 use twine_builder::{TwineBuilder, RingSigner};
@@ -80,7 +80,7 @@ fn main() {
 
 ### Retrieving data from a store (an http store)
 
-```rust
+```rust,no_run
 use twine_protocol::prelude::*;
 use twine_http_store::{v1, reqwest};
 use futures::{StreamExt, TryStreamExt};

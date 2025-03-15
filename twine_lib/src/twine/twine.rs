@@ -46,9 +46,6 @@ impl Twine {
   }
 
   /// Get the twine version of this record
-  ///
-  /// In Twine v1, the version is determined by the Strand.
-  /// In Twine v2, the version is determined by the Tixel.
   pub fn version(&self) -> Version {
     let strand_ver = self.strand().version();
     match strand_ver.major {
