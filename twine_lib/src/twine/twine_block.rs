@@ -3,7 +3,7 @@ use crate::{
   crypto::{assert_cid, get_hasher},
   Cid,
 };
-use multihash_codetable::Code;
+use multihash_codetable::{Code, Multihash};
 use std::{fmt::Display, sync::Arc};
 
 /// A trait providing methods for twine data structures
@@ -54,9 +54,9 @@ where
   }
 
   /// Get the hash of the content field
-  fn content_hash(&self) -> Vec<u8> {
+  fn content_hash(&self) -> Multihash {
     use multihash_codetable::MultihashDigest;
     let bytes = self.content_bytes();
-    self.hasher().digest(&bytes).to_bytes()
+    self.hasher().digest(&bytes)
   }
 }

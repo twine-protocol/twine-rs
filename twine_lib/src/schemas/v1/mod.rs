@@ -9,7 +9,7 @@ use crate::{
 };
 use biscuit::jwk::JWK;
 use ipld_core::{cid::Cid, codec::Codec, ipld::Ipld};
-use multihash_codetable::Code;
+use multihash_codetable::{Code, Multihash};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use serde_ipld_dagcbor::codec::DagCborCodec;
@@ -68,7 +68,7 @@ impl Verifiable for ContainerV1<ChainContentV1> {
     assert_cid(&self.cid, &computed)?;
     use multihash_codetable::MultihashDigest;
     let content_hash = hasher.digest(&DagCborCodec::encode_to_vec(&self.content).unwrap());
-    self.verify_signature(&self.signature, content_hash.to_bytes())
+    self.verify_signature(&self.signature, content_hash)
   }
 }
 
@@ -136,9 +136,9 @@ impl ContainerV1<ChainContentV1> {
   pub fn verify_signature<T: Display>(
     &self,
     sig: T,
-    content_hash: Vec<u8>,
+    content_hash: Multihash,
   ) -> Result<(), VerificationError> {
-    verify_signature(&self.key(), sig.to_string(), content_hash)
+    verify_signature(&self.key(), sig.to_string(), content_hash.to_bytes())
   }
 }
 

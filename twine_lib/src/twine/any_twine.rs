@@ -7,7 +7,7 @@ use crate::twine::Tagged;
 use crate::Cid;
 use core::str;
 use ipld_core::codec::Codec;
-use multihash_codetable::Code;
+use multihash_codetable::{Code, Multihash};
 use serde_ipld_dagjson::codec::DagJsonCodec;
 use std::convert::TryFrom;
 /// Structs and traits common to both Chain's and Pulses
@@ -34,7 +34,7 @@ impl AnyTwine {
     }
   }
 
-  pub fn content_hash(&self) -> Vec<u8> {
+  pub fn content_hash(&self) -> Multihash {
     match self {
       Self::Strand(s) => s.content_hash(),
       Self::Tixel(t) => t.content_hash(),
