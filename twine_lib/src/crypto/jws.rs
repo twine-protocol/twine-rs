@@ -5,6 +5,7 @@ use biscuit::{
   jws,
 };
 
+/// Verify a JWS signature with a JWK
 pub fn verify_signature<T: Clone, S: AsRef<str>, P: AsRef<[u8]>>(
   jwk: &JWK<T>,
   signature: S,
