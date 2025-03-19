@@ -13,13 +13,20 @@ use std::convert::TryFrom;
 /// Structs and traits common to both Chain's and Pulses
 use std::fmt::Display;
 
+/// A type that can be either a Strand or a Tixel
+///
+/// Useful for dealing with the fundamental data structures
+/// without needing to know which one you're dealing with.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum AnyTwine {
+  /// A [`Strand`]
   Strand(Strand),
+  /// A [`Tixel`]
   Tixel(Tixel),
 }
 
 impl AnyTwine {
+  /// Get the CID
   pub fn cid(&self) -> Cid {
     match self {
       Self::Strand(s) => s.cid(),
@@ -27,6 +34,10 @@ impl AnyTwine {
     }
   }
 
+  /// Get the Strand CID
+  ///
+  /// If this is a Tixel, it will return the CID of its strand property
+  /// If this is a Strand, it will return its own CID
   pub fn strand_cid(&self) -> Cid {
     match self {
       Self::Strand(s) => s.cid(),
@@ -34,6 +45,7 @@ impl AnyTwine {
     }
   }
 
+  /// Get the hash
   pub fn content_hash(&self) -> Multihash {
     match self {
       Self::Strand(s) => s.content_hash(),
@@ -71,6 +83,7 @@ impl AnyTwine {
     assert_cid(expected, &self.cid())
   }
 
+  /// Get a list of AnyTwines from a json string formatted as a tagged DAG-JSON array
   pub fn from_tagged_dag_json_array<S: AsRef<str>>(
     json: S,
   ) -> Result<Vec<Self>, VerificationError> {
