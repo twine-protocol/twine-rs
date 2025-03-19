@@ -10,4 +10,5 @@ pub use serialize::*;
 mod public_key;
 pub use public_key::*;
 
+/// A cryptographic signature
 pub type Signature = crate::Bytes;
