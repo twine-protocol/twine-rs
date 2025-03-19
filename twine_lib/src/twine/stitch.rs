@@ -8,13 +8,19 @@ use crate::errors::VerificationError;
 use crate::Cid;
 use crate::{errors::ResolutionError, resolver::Resolver};
 
+/// A Stitch is a reference to a Tixel via its CID and Strand CID
+///
+/// These get included in Tixels to chain them together.
 #[derive(Clone, Copy, Debug, PartialEq, Hash, Eq)]
 pub struct Stitch {
+  /// The strand CID
   pub strand: Cid,
+  /// The tixel CID
   pub tixel: Cid,
 }
 
 impl Stitch {
+  /// Refresh changes this stitch to the latest version of the tixel.
   pub async fn refresh(self, resolver: &impl Resolver) -> Result<Self, ResolutionError> {
     use futures::join;
     let (old, new) = join!(resolver.resolve(self), resolver.resolve_latest(self.strand));
@@ -76,10 +82,14 @@ impl From<(Cid, Cid)> for Stitch {
   }
 }
 
+/// BackStitches are links within the same strand
+///
+/// A [`Tixel`] will have a list stitches to previous tixels in the same strand.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct BackStitches(Vec<Stitch>);
 
 impl BackStitches {
+  /// Creates back stitches from a list of Tixel CIDs.
   pub fn new(strand: Cid, cids: Vec<Cid>) -> Self {
     Self(
       cids
@@ -116,14 +126,17 @@ impl BackStitches {
     Ok(Self(rev_list.into_iter().rev().collect()))
   }
 
+  /// Returns the number of stitches in the list
   pub fn len(&self) -> usize {
     self.0.len()
   }
 
+  /// Returns the CID of the strand these stitches are in
   pub fn strand_cid(&self) -> Cid {
     self.0.first().map(|s| s.strand).unwrap()
   }
 
+  /// Converts it into the condensed form
   pub fn into_condensed(self) -> Vec<Option<Cid>> {
     let rev_list = self
       .0
@@ -144,59 +157,75 @@ impl BackStitches {
     rev_list.into_iter().rev().collect()
   }
 
+  /// Get the first stitch in the list
   pub fn first(&self) -> Option<&Stitch> {
     self.0.first()
   }
 
+  /// Get the stitch at the given index
   pub fn get(&self, index: usize) -> Option<&Stitch> {
     self.0.get(index)
   }
 
+  /// Get all the stitches as a list
   pub fn stitches(&self) -> Vec<Stitch> {
     self.0.clone()
   }
 
+  /// Unwrap the underlying list without cloning
   pub fn into_inner(self) -> Vec<Stitch> {
     self.0
   }
 
+  /// Check if a tixel CID is included in the list
   pub fn includes<C: AsCid>(&self, cid: C) -> bool {
     self.0.iter().any(|s| &s.tixel == cid.as_cid())
   }
 }
 
+/// CrossStitches are links to other strands
+///
+/// A [`Tixel`] will have a list of stitches to tixels in other strands.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct CrossStitches(HashMap<Cid, Stitch>);
 
 impl CrossStitches {
+  /// Create a new CrossStitches from a list of Stitch references
   pub fn new<S: AsRef<[Stitch]>>(stitches: S) -> Self {
     Self(stitches.as_ref().iter().map(|s| (s.strand, *s)).collect())
   }
 
+  /// Get the stitch for a given strand CID
   pub fn get(&self, strand: &Cid) -> Option<&Stitch> {
     self.0.get(strand)
   }
 
+  /// Returns the number of stitches in the list
   pub fn len(&self) -> usize {
     self.0.len()
   }
 
+  /// Get a set of all the strands that are stitched
   pub fn strands(&self) -> HashSet<Cid> {
     self.0.keys().cloned().collect()
   }
 
+  /// Get all the stitches as a list
   pub fn stitches(&self) -> Vec<Stitch> {
     self.0.values().cloned().collect()
   }
 
+  /// Unwrap the underlying map without cloning
   pub fn into_inner(self) -> HashMap<Cid, Stitch> {
     self.0
   }
 
+  /// Check if a strand CID is included in the list
   pub fn strand_is_stitched<C: AsCid>(&self, strand: C) -> bool {
     self.0.contains_key(strand.as_cid())
   }
 
+  /// Add a new stitch or refresh an existing one
   pub async fn add_or_refresh<R: Resolver, C: AsCid>(
     mut self,
     strand: C,
@@ -228,6 +257,7 @@ impl CrossStitches {
     (Self(new_stitches), errors)
   }
 
+  /// Refresh all stitches, returning the new stitches or an error
   pub async fn refresh_all<R: Resolver>(self, resolver: &R) -> Result<Self, ResolutionError> {
     let mut new_stitches = HashMap::new();
     for (strand, stitch) in self {
@@ -237,6 +267,7 @@ impl CrossStitches {
     Ok(Self(new_stitches))
   }
 
+  /// Check if a tixel CID is included in the list
   pub fn includes<C: AsCid>(&self, cid: C) -> bool {
     self.0.values().any(|s| &s.tixel == cid.as_cid())
   }
