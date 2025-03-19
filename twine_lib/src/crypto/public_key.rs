@@ -4,6 +4,7 @@ use biscuit::jwk::JWK;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Display, str::FromStr};
 
+/// Digital signature algorithms used by Twine
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[non_exhaustive]
 #[serde(rename_all = "UPPERCASE")]
@@ -65,8 +66,10 @@ impl FromStr for SignatureAlgorithm {
   }
 }
 
+/// A public key used for verifying digital signatures
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PublicKey {
+  /// The signature algorithm used by the key
   #[serde(rename = "a")]
   pub alg: SignatureAlgorithm,
   /// ASN.1 DER encoded public key
@@ -75,10 +78,12 @@ pub struct PublicKey {
 }
 
 impl PublicKey {
+  /// Create a new public key struct
   pub fn new(alg: SignatureAlgorithm, key: Bytes) -> Self {
     Self { alg, key }
   }
 
+  /// Verify the signature of a message using this public key
   pub fn verify<D: AsRef<[u8]>>(
     &self,
     signature: Signature,
