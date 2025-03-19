@@ -25,6 +25,9 @@ use std::{fmt::Display, sync::Arc};
 /// a [`crate::resolver::Resolver`], or using [`Strand::from_tagged_dag_json`]
 /// or [`Strand::from_block`].
 ///
+/// A Strand contains an Arc to its underlying data, so it is
+/// efficient to clone and pass around.
+///
 /// # See also
 ///
 /// - [`Tixel`]

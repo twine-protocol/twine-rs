@@ -32,6 +32,9 @@ use serde_ipld_dagjson::codec::DagJsonCodec;
 /// Tixels implement PartialOrd, ordering by index IF they are part of
 /// the same strand.
 ///
+/// A Tixel contains an Arc to its underlying data, so it is
+/// efficient to clone and pass around.
+///
 /// # See also
 ///
 /// - [`Strand`]
