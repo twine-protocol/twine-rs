@@ -5,6 +5,11 @@ use either::Either;
 use ipld_core::cid::Cid;
 use serde::{Deserialize, Serialize, Serializer};
 
+/// A data structure representing a format for twine data that includes a CID
+///
+/// This is useful for serializing and deserializing twine data as JSON.
+/// For v1 twine data, the CID is needed to know the hash algorithm
+/// to compute the CID.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct Tagged<T> {
   cid: Cid,
@@ -12,12 +17,14 @@ pub struct Tagged<T> {
 }
 
 impl<T> Tagged<T> {
+  /// Unpack the twine data (Strand or Tixel) from the tagged data structure
   pub fn unpack(self) -> T {
     self.data
   }
 }
 
 impl<T: TwineBlock> Tagged<T> {
+  /// Create a new tagged data structure from the twine data
   pub fn new(data: T) -> Self {
     let cid = data.cid().clone();
     Tagged { cid, data }
