@@ -9,14 +9,19 @@ use std::ops::Bound;
 use std::ops::RangeBounds;
 use std::str::FromStr;
 
+/// A Query for retrieval of a single tixel
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum SingleQuery {
+  /// A query referenced using a stitch
   Stitch(Stitch),
+  /// A query referenced using an index and a strand CID
   Index(Cid, i64),
+  /// A query for the latest tixel on a strand
   Latest(Cid),
 }
 
 impl SingleQuery {
+  /// Get the strand CID of the query
   pub fn strand_cid(&self) -> &Cid {
     match self {
       SingleQuery::Stitch(stitch) => &stitch.strand,
@@ -25,6 +30,9 @@ impl SingleQuery {
     }
   }
 
+  /// Get the index of the query
+  ///
+  /// Panics if the query is not an index query
   pub fn unwrap_index(self) -> i64 {
     match self {
       SingleQuery::Index(_, index) => index,
@@ -197,24 +205,35 @@ impl Display for SingleQuery {
 /// The range is inclusive on both ends and indices are positive.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub struct AbsoluteRange {
+  /// The strand CID
   pub strand: Cid,
+  /// The start index
   pub start: u64,
+  /// The end index
   pub end: u64,
 }
 
 impl AbsoluteRange {
+  /// Create a new AbsoluteRange
+  ///
+  /// The start and end indices are inclusive
+  ///
+  /// It is preferred to use the `RangeQuery` enum to create ranges
   pub fn new(strand: Cid, start: u64, end: u64) -> Self {
     Self { strand, start, end }
   }
 
+  /// Check if the range is increasing
   pub fn is_increasing(&self) -> bool {
     self.start <= self.end
   }
 
+  /// Check if the range is decreasing
   pub fn is_decreasing(&self) -> bool {
     self.start > self.end
   }
 
+  /// Get the lower bound of the range
   pub fn lower(&self) -> u64 {
     if self.is_increasing() {
       self.start
@@ -223,6 +242,7 @@ impl AbsoluteRange {
     }
   }
 
+  /// Get the upper bound of the range
   pub fn upper(&self) -> u64 {
     if self.is_increasing() {
       self.end
@@ -231,6 +251,7 @@ impl AbsoluteRange {
     }
   }
 
+  /// Get the length of the range
   pub fn len(&self) -> u64 {
     if self.is_increasing() {
       self.end - self.start + 1
@@ -239,6 +260,7 @@ impl AbsoluteRange {
     }
   }
 
+  /// Batch this range into a Vec of AbsoluteRanges of a given size
   pub fn batches(&self, size: u64) -> Vec<Self> {
     let mut batches = Vec::new();
     assert!(size > 0, "Batch size must be greater than 0");
@@ -265,10 +287,12 @@ impl AbsoluteRange {
     batches
   }
 
+  /// Get an iterator over the range
   pub fn iter(&self) -> AbsoluteRangeIter {
     AbsoluteRangeIter::new(*self)
   }
 
+  /// Get the strand CID of the range
   pub fn strand_cid(&self) -> &Cid {
     &self.strand
   }
@@ -280,6 +304,9 @@ impl Display for AbsoluteRange {
   }
 }
 
+/// An iterator over an AbsoluteRange
+///
+/// Should be created by calling `iter` on an AbsoluteRange
 #[derive(Debug, Clone)]
 pub struct AbsoluteRangeIter {
   range: AbsoluteRange,
@@ -297,6 +324,7 @@ impl IntoIterator for AbsoluteRange {
 }
 
 impl AbsoluteRangeIter {
+  /// Create a new AbsoluteRangeIter
   pub fn new(range: AbsoluteRange) -> Self {
     let decreasing = range.is_decreasing();
     let current = Some(range.start);
@@ -401,11 +429,14 @@ fn range_dir(s: i64, e: i64) -> i64 {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum RangeQuery {
+  /// An absolute range where the indices are known and constant
   Absolute(AbsoluteRange),
+  /// A relative range where the indices can be relative to the latest index
   Relative(Cid, Bound<i64>, Bound<i64>),
 }
 
 impl RangeQuery {
+  /// Create a new RangeQuery from a CID and a [`RangeBounds<i64>`]
   pub fn from_range_bounds<C: AsCid, T: RangeBounds<i64>>(strand: C, range: T) -> Self {
     let start = match range.start_bound() {
       Bound::Unbounded => Bound::Included(&0),
@@ -475,6 +506,11 @@ impl RangeQuery {
     }
   }
 
+  /// Convert the range to an absolute range given the latest index
+  ///
+  /// If the range is already absolute, it will be returned as is.
+  ///
+  /// If the range is empty, None will be returned.
   pub fn to_absolute(self, latest: u64) -> Option<AbsoluteRange> {
     match self {
       Self::Absolute(range) => Some(range),
@@ -518,6 +554,12 @@ impl RangeQuery {
     }
   }
 
+  /// Try to convert the range to an absolute range given a resolver
+  ///
+  /// # See also
+  ///
+  /// - [`RangeQuery::to_absolute`]
+  /// - [`Resolver`]
   pub async fn try_to_absolute<R: Resolver>(
     self,
     resolver: &R,
@@ -531,6 +573,7 @@ impl RangeQuery {
     }
   }
 
+  /// Convert the range to a stream of single queries
   pub fn to_stream<'a, R: Resolver>(
     self,
     resolver: &'a R,
@@ -541,6 +584,7 @@ impl RangeQuery {
       .try_flatten()
   }
 
+  /// Convert the range to a stream of absolute ranges
   pub fn to_batch_stream<'a, R: Resolver>(
     self,
     resolver: &'a R,
@@ -559,10 +603,12 @@ impl RangeQuery {
     .try_flatten()
   }
 
+  /// Check if the range is absolute
   pub fn is_absolute(&self) -> bool {
     matches!(self, Self::Absolute(_))
   }
 
+  /// Get the strand CID of the range
   pub fn strand_cid(&self) -> &Cid {
     match self {
       Self::Absolute(range) => &range.strand,
@@ -667,14 +713,19 @@ impl Display for RangeQuery {
   }
 }
 
+/// A query that could be a strand, a single tixel, or a range of tixels
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AnyQuery {
+  /// A query for a strand
   Strand(Cid),
+  /// A query for a single tixel
   One(SingleQuery),
+  /// A query for a range of tixels
   Many(RangeQuery),
 }
 
 impl AnyQuery {
+  /// Get the strand CID of the query
   pub fn strand_cid(&self) -> &Cid {
     match self {
       Self::Strand(cid) => cid,
@@ -683,18 +734,22 @@ impl AnyQuery {
     }
   }
 
+  /// Check if it's a strand query
   pub fn is_strand(&self) -> bool {
     matches!(self, Self::Strand(_))
   }
 
+  /// Check if it's a single query
   pub fn is_one(&self) -> bool {
     matches!(self, Self::One(_))
   }
 
+  /// Check if it's a range query
   pub fn is_many(&self) -> bool {
     matches!(self, Self::Many(_))
   }
 
+  /// If the query is a range of length 1, reduce it to a single query
   pub fn reduce(self) -> Self {
     // if it's a range query with a single index, reduce it to a query
     match self {
