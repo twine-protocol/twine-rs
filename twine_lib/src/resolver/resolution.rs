@@ -3,6 +3,11 @@ use std::ops::Deref;
 
 use super::*;
 
+/// A return type for Resolver methods that return a Twine
+///
+/// This ensures that the query matches the returned Twine.
+/// If the query is requests an index or CID, this checks
+/// that the returned Twine's index or CID matches.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TwineResolution {
   query: SingleQuery,
@@ -10,6 +15,7 @@ pub struct TwineResolution {
 }
 
 impl TwineResolution {
+  /// Create a new TwineResolution
   pub fn try_new(query: SingleQuery, twine: Twine) -> Result<Self, ResolutionError> {
     if !query.matches(&twine) {
       return Err(ResolutionError::QueryMismatch(query));
@@ -17,14 +23,17 @@ impl TwineResolution {
     Ok(Self { query, twine })
   }
 
+  /// Access the query that was resolved
   pub fn query(&self) -> &SingleQuery {
     &self.query
   }
 
+  /// Access the Twine that was resolved
   pub fn twine(&self) -> &Twine {
     &self.twine
   }
 
+  /// Unpack the Twine from the resolution
   pub fn unpack(self) -> Twine {
     self.twine
   }
@@ -74,6 +83,9 @@ impl AsCid for TwineResolution {
   }
 }
 
+/// A return type for Resolver methods that return a Strand
+///
+/// This ensures that the query matches the returned Strand.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StrandResolution {
   cid: Cid,
@@ -81,6 +93,7 @@ pub struct StrandResolution {
 }
 
 impl StrandResolution {
+  /// Create a new StrandResolution
   pub fn try_new(cid: Cid, strand: Strand) -> Result<Self, ResolutionError> {
     if cid != strand.cid() {
       return Err(
@@ -94,14 +107,17 @@ impl StrandResolution {
     Ok(Self { cid, strand })
   }
 
+  /// Access the CID that was requested
   pub fn requested_cid(&self) -> &Cid {
     &self.cid
   }
 
+  /// Access the Strand that was resolved
   pub fn strand(&self) -> &Strand {
     &self.strand
   }
 
+  /// Unpack the Strand from the resolution
   pub fn unpack(self) -> Strand {
     self.strand
   }
