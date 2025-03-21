@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/twine-protocol/twine-rs/compare/twine_lib-v0.1.0...twine_lib-v0.2.0) - 2025-03-21
+
+### Added
+
+- breaking change. Verifiable trait custom Error type
+
+### Other
+
+- *(docs)* minor formatting fixes
+- *(docs)* minor change
+- *(docs)* document top level modules
+- *(docs)* document Store, MemoryStore, MemoryCache
+- *(docs)* document schemas
+- *(docs)* document resolver module
+- *(docs)* document Twine/StrandResolution
+- *(docs)* document BaseResolver
+- *(docs)* document query module
+- *(docs)* document crypto_serialize
+- *(docs)* document PublicKey and SignatureAlgorithm
+- *(docs)* document Signature type
+- *(docs)* document verify_signature in jws module
+- *(docs)* document hashing utilities
+- *(docs)* document AnyTwine
+- content_hash returns Multihash instead of Vec<u8>
+- *(docs)* specify Tixels and Strands are cheap to clone
+- *(docs)* document the stitches module
+- *(docs)* document Strand
+- *(docs)* document tagged format
+- *(docs)* document Tixel struct
+- *(docs)* add no_run to certain doctests
+- *(docs)* document the Twine struct
+- *(docs)* document TwineBlock trait
+- *(docs)* document as_cid
+- *(docs)* document the car module
+- *(docs)* document the errors module
+- *(docs)* document twine_lib main module
+- *(docs)* document serde module
+- fix verify docs
+- *(docs)* document skiplist module
+- *(docs)* document specification module
+- *(docs)* document verify module
+
 ## [0.1.0](https://github.com/twine-protocol/twine-rs/releases/tag/twine_lib-v0.1.0) - 2025-03-13
 
 ### Added
