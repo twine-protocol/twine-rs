@@ -1,3 +1,4 @@
+#![doc = include_str!("../README.md")]
 use async_trait::async_trait;
 use futures::stream::Stream;
 use futures::StreamExt;
@@ -95,6 +96,15 @@ impl TryFrom<BlockRecord> for AnyTwine {
   }
 }
 
+/// A [`Store`] that uses PickleDb as a backend
+///
+/// The store will by default use the [`PickleDbDumpPolicy::DumpUponRequest`]
+/// policy for saving data. And this will only save the data when the
+/// when the [`PickleDbStore::flush`] method is called or when the store is
+/// dropped.
+///
+/// But you can change this by using the
+/// [`PickleDbStore::new_with_policy`] method.
 #[derive(Clone)]
 pub struct PickleDbStore {
   pickle: Arc<Mutex<PickleDb>>,
@@ -110,10 +120,25 @@ impl Debug for PickleDbStore {
 }
 
 impl PickleDbStore {
+  /// Create a new PickleDbStore with the given path
+  ///
+  /// If the file does not exist, it will be created
   pub fn new(p: impl AsRef<Path>) -> pickledb::error::Result<Self> {
     Self::new_with_policy(p, PickleDbDumpPolicy::DumpUponRequest)
   }
 
+  /// Create a new PickleDbStore with the given path and dump policy
+  ///
+  /// # Example
+  ///
+  /// ```no_run
+  /// use twine_pickledb_store::PickleDbStore;
+  /// use twine_pickledb_store::pickledb::PickleDbDumpPolicy;
+  /// let store = PickleDbStore::new_with_policy(
+  ///   "./mydb",
+  ///   PickleDbDumpPolicy::DumpUponRequest
+  /// ).unwrap();
+  /// ```
   pub fn new_with_policy(
     p: impl AsRef<Path>,
     dump_policy: PickleDbDumpPolicy,
@@ -134,6 +159,7 @@ impl PickleDbStore {
     })
   }
 
+  /// Load a PickleDbStore from the given path in read-only mode
   pub fn load_read_only(p: impl AsRef<Path>) -> pickledb::error::Result<Self> {
     let pickle = PickleDb::load_read_only(p, SerializationMethod::Bin);
     Ok(Self {
@@ -228,6 +254,7 @@ impl PickleDbStore {
     self.get_tixel(&cid)
   }
 
+  /// Get the latest index for a strand
   pub fn latest_index<S: AsCid>(&self, strand: S) -> Option<u64> {
     let len = self
       .pickle
@@ -296,6 +323,7 @@ impl PickleDbStore {
     Ok(())
   }
 
+  /// Flush the PickleDb to disk
   pub fn flush(&self) -> Result<(), StoreError> {
     self
       .pickle

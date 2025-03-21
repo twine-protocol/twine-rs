@@ -1,3 +1,4 @@
+//! Example of using the PickleDbStore in a temporary file
 use futures::TryStreamExt;
 use tempfile::TempDir;
 use twine_builder::{RingSigner, TwineBuilder};
