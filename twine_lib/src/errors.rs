@@ -1,3 +1,4 @@
+//! Various error types used throughout the Twine library
 use crate::resolver::SingleQuery;
 use serde_ipld_dagcbor::error::CodecError as CborCodecError;
 use serde_ipld_dagjson::error::CodecError as JsonCodecError;

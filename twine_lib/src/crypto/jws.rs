@@ -1,3 +1,4 @@
+//! JSON Web Signature (JWS) utilities
 use crate::errors::VerificationError;
 
 use biscuit::{

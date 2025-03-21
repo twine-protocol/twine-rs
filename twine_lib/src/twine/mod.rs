@@ -1,3 +1,4 @@
+//! Main types for working with twine data
 mod any_twine;
 mod stitch;
 mod strand;

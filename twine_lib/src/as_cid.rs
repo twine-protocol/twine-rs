@@ -1,3 +1,4 @@
+//! Trait for anything that can be represented as a CID
 use crate::Cid;
 use std::sync::Arc;
 

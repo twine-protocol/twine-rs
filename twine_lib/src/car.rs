@@ -1,3 +1,5 @@
+//! Utilities for encoding and decoding twine data in
+//! [CAR](https://ipld.io/specs/transport/car/) format.
 use crate::twine::TwineBlock;
 use crate::{errors::VerificationError, twine::AnyTwine, Cid};
 use futures::stream::StreamExt;
@@ -8,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_ipld_dagcbor::codec::DagCborCodec;
 use std::io::Read;
 
-/// Error type for car decoding
+/// Error type for CAR decoding
 #[derive(Debug, thiserror::Error)]
 pub enum CarDecodeError {
   /// Invalid Twine data

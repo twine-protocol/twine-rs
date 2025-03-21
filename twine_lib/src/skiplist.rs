@@ -1,3 +1,5 @@
+//! Utilities for working with skiplists
+
 /// Get the highest layer for which this (tixel) index
 /// is an anchor for.
 /// For example: in base 10, for the following indicies...

@@ -1,3 +1,4 @@
+//! Hashing utilities
 use crate::errors::VerificationError;
 use crate::Cid;
 use ipld_core::codec::Codec;

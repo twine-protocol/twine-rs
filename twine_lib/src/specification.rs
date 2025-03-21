@@ -1,3 +1,4 @@
+//! Types that handle specification strings
 use crate::errors::SpecificationError;
 use semver::{Version, VersionReq};
 use serde::de::Error;

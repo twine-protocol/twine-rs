@@ -1,3 +1,4 @@
+//! Utilities for retrieving twine data
 use crate::as_cid::AsCid;
 use crate::errors::ResolutionError;
 use crate::twine::{Strand, Tixel, Twine};

@@ -1,3 +1,4 @@
+//! Various low-level cryptographic utilities
 mod hash;
 mod jws;
 

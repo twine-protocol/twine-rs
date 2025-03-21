@@ -1,3 +1,4 @@
+//! Serialization helpers
 use serde::{Deserialize, Serialize, Serializer};
 
 /// For use with serde_with to serialize and deserialize IPLD DAG-JSON
