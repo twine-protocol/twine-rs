@@ -1,3 +1,5 @@
+//! This example shows how to read data from a v1 http store
+//! and write it to a memory store.
 use std::time::Duration;
 
 use futures::{StreamExt, TryStreamExt};
@@ -21,10 +23,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     cfg,
   );
   let resolver = MemoryCache::new(resolver);
-  // let store = HttpStore::new(
-  //   reqwest::Client::new(),
-  //   HttpStoreOptions::default().url("http://192.168.68.58:8787")
-  // );
   let store = twine_lib::store::MemoryStore::new();
 
   println!("strands:");

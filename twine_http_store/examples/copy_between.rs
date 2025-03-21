@@ -1,3 +1,4 @@
+//! This example demonstrates how to copy twines between two http stores.
 use futures::{StreamExt, TryStreamExt};
 // use tokio::pin;
 use twine_lib::resolver::*;

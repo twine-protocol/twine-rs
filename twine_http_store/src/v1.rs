@@ -1,3 +1,4 @@
+//! Provides an HTTP store for the version 1 HTTP api
 use async_trait::async_trait;
 use futures::{Stream, TryStreamExt};
 use reqwest::{
@@ -15,9 +16,12 @@ use twine_lib::{
   Cid,
 };
 
+/// Options for the HTTP store
 #[derive(Debug, Clone, PartialEq)]
 pub struct HttpStoreOptions {
+  /// The URL for the store
   pub url: Url,
+  /// The number of concurrent requests the store will make to the server
   pub concurency: usize,
 }
 
@@ -31,20 +35,27 @@ impl Default for HttpStoreOptions {
 }
 
 impl HttpStoreOptions {
+  /// Set the URL for the store
   pub fn url(mut self, url: &str) -> Self {
     self.url = format!("{}/", url).parse().expect("Invalid URL");
     self
   }
 
+  /// Set the concurency for the store
+  ///
+  /// This is the number of concurrent requests the store will make
+  /// to the server.
   pub fn concurency(mut self, concurency: usize) -> Self {
     self.concurency = concurency;
     self
   }
 }
 
+/// A type implementing the [`Store`] trait for the version 1 HTTP API
 #[derive(Debug, Clone)]
 pub struct HttpStore {
   client: reqwest::Client,
+  /// Options for the store
   pub options: HttpStoreOptions,
 }
 
@@ -70,6 +81,18 @@ fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result
 }
 
 impl HttpStore {
+  /// Create a new HTTP store
+  ///
+  /// # Example
+  ///
+  /// ```
+  /// use twine_http_store::v1::*;
+  /// use twine_http_store::reqwest;
+  /// let options = HttpStoreOptions::default()
+  ///   .url("http://localhost:8080")
+  ///   .concurency(4);
+  /// let store = HttpStore::new(reqwest::Client::new(), options);
+  /// ```
   pub fn new(client: reqwest::Client, options: HttpStoreOptions) -> Self {
     Self { client, options }
   }

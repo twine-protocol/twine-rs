@@ -1,3 +1,4 @@
+//! Provides an HTTP store for the version 2 HTTP api
 use async_trait::async_trait;
 use futures::stream::{StreamExt, TryStreamExt};
 use futures::Stream;
@@ -33,6 +34,7 @@ fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result
   }
 }
 
+/// A type implementing the [`Store`] trait for the version 2 HTTP API
 #[derive(Debug, Clone)]
 pub struct HttpStore {
   client: reqwest::Client,
@@ -48,6 +50,22 @@ impl Default for HttpStore {
 }
 
 impl HttpStore {
+  /// Create a new instance of the HTTP store
+  ///
+  /// You can customize the client with the `reqwest::Client::builder()` method.
+  ///
+  /// # Example
+  ///
+  /// ```rust
+  /// use twine_http_store::v2::HttpStore;
+  /// use twine_http_store::reqwest;
+  /// let client = reqwest::Client::builder()
+  ///   .timeout(std::time::Duration::from_secs(10))
+  ///   .build()
+  ///   .unwrap();
+  /// let store = HttpStore::new(client)
+  ///   .with_url("http://localhost:8080");
+  /// ```
   pub fn new(client: reqwest::Client) -> Self {
     Self {
       client,
@@ -57,31 +75,49 @@ impl HttpStore {
     }
   }
 
+  /// Mutate the URL for the store
   pub fn url(&mut self, url: &str) -> &mut Self {
     self.url = format!("{}/", url).parse().expect("Invalid URL");
     self
   }
 
+  /// Set a new URL for the store and return the updated instance
   pub fn with_url(mut self, url: &str) -> Self {
     self.url = format!("{}/", url).parse().expect("Invalid URL");
     self
   }
 
+  /// Mutate the concurency for the store
+  ///
+  /// The concurency is the number of concurrent HTTP requests that
+  /// can be made to the server
   pub fn concurency(&mut self, concurency: usize) -> &mut Self {
     self.concurency = concurency;
     self
   }
 
+  /// Set a new concurency for the store and return the updated instance
+  ///
+  /// The concurency is the number of concurrent HTTP requests that
+  /// can be made to the server
   pub fn with_concurency(mut self, concurency: usize) -> Self {
     self.concurency = concurency;
     self
   }
 
+  /// Mutate the batch size for the store
+  ///
+  /// The batch size is the number of items to include in a single
+  /// request to the server
   pub fn batch_size(&mut self, batch_size: u64) -> &mut Self {
     self.batch_size = batch_size;
     self
   }
 
+  /// Set a new batch size for the store and return the updated instance
+  ///
+  /// The batch size is the number of items to include in a single
+  /// request to the server
   pub fn with_batch_size(mut self, batch_size: u64) -> Self {
     self.batch_size = batch_size;
     self

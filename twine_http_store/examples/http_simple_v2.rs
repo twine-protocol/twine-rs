@@ -1,3 +1,5 @@
+//! This example shows how to read data from a v2 http store
+//! and write it to a memory store.
 use futures::{StreamExt, TryStreamExt};
 use twine_lib::resolver::*;
 use twine_lib::twine::Strand;
