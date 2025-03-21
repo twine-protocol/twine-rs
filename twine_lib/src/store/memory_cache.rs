@@ -13,6 +13,13 @@ use std::sync::{Arc, RwLock};
 type TixelCache = Cache<Cid, Tixel>;
 type StrandCache = HashMap<Cid, (Option<Strand>, Cache<u64, Cid>)>;
 
+/// A memory cache that implements [`Resolver`]
+///
+/// This is useful for keeping a limited
+/// cache of twine data in memory. The cache
+/// sits on top of another [`Resolver`]
+/// and when a cache miss occurs it defers
+/// the call to the underlying Resolver.
 #[derive(Debug)]
 pub struct MemoryCache<T: Resolver> {
   strands: Arc<RwLock<StrandCache>>,
@@ -22,6 +29,7 @@ pub struct MemoryCache<T: Resolver> {
 }
 
 impl<T: Resolver> MemoryCache<T> {
+  /// Create a new cache, wrapping existing resolver
   pub fn new(resolver: T) -> Self {
     Self {
       strands: Arc::new(RwLock::new(HashMap::new())),
@@ -31,6 +39,7 @@ impl<T: Resolver> MemoryCache<T> {
     }
   }
 
+  /// Set a specific cache size
   pub fn with_cache_size(mut self, cache_size: usize) -> Self {
     self.cache_size = cache_size;
     self

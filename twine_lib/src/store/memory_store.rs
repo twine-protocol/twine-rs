@@ -27,6 +27,10 @@ impl StrandMap {
   }
 }
 
+/// A simple in-memory store
+///
+/// Clones will retain the data, since the data is
+/// stored inside of [`Arc`]s and [`RwLock`]s.
 #[derive(Debug, Default, Clone)]
 pub struct MemoryStore {
   tixels: Arc<RwLock<HashMap<Cid, Tixel>>>,
@@ -34,6 +38,7 @@ pub struct MemoryStore {
 }
 
 impl MemoryStore {
+  /// Create an empty store
   pub fn new() -> Self {
     Self {
       tixels: Arc::new(RwLock::new(HashMap::new())),
@@ -41,6 +46,7 @@ impl MemoryStore {
     }
   }
 
+  /// Save twine data synchronously
   pub fn save_sync(&self, twine: AnyTwine) -> Result<(), StoreError> {
     match twine {
       AnyTwine::Strand(strand) => {
