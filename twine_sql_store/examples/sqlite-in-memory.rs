@@ -1,3 +1,4 @@
+//! Example usage of opening a sqlite in-memory store
 use twine_builder::{RingSigner, TwineBuilder};
 use twine_lib::{ipld_core::ipld, multihash_codetable::Code, resolver::Resolver, store::Store};
 
