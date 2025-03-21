@@ -125,7 +125,7 @@ impl<const V: u8> TryFrom<String> for Specification<V> {
 /// A twine subspec
 ///
 /// A subspec is part of the overall Twine specification string
-/// and has the form <prefix>/<version>
+/// and has the form {prefix}/{version}
 #[derive(Debug, Clone, PartialEq)]
 pub struct Subspec(pub(crate) String);
 
