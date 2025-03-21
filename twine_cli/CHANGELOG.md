@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/twine-protocol/twine-rs/compare/twine_cli-v0.1.0...twine_cli-v0.1.1) - 2025-03-21
+
+### Other
+
+- *(docs)* document twine_cli
+
 ## [0.1.0](https://github.com/twine-protocol/twine-rs/releases/tag/twine_cli-v0.1.0) - 2025-03-13
 
 ### Added

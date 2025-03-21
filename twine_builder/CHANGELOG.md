@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/twine-protocol/twine-rs/compare/twine_builder-v0.1.0...twine_builder-v0.1.1) - 2025-03-21
+
+### Fixed
+
+- *(twine_builder)* expose underlying builder types
+
+### Other
+
+- *(docs)* specify feature flags needed
+- *(docs)* document twine_builder
+
 ## [0.1.0](https://github.com/twine-protocol/twine-rs/releases/tag/twine_builder-v0.1.0) - 2025-03-13
 
 ### Added
