@@ -1,3 +1,4 @@
+//! Example of using a local CAR file as a store.
 use futures::TryStreamExt;
 use tempfile::NamedTempFile;
 use twine_builder::{RingSigner, TwineBuilder};
