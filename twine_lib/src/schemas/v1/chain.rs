@@ -8,14 +8,21 @@ use serde::{Deserialize, Serialize};
 
 use super::{Mixin, V1};
 
+/// The content field of a Chain
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ChainContentV1 {
+  /// The specification of the chain
   pub specification: V1,
+  /// The public key of the chain
   pub key: JWK<()>,
+  /// The meta data of the chain (the details)
   pub meta: Ipld,
+  /// The mixins of the chain (cross-stitches)
   pub mixins: Vec<Mixin>, // we check that these links are not on the same chain at runtime
+  /// The source of the chain
   pub source: String,
+  /// The radix of the chain
   pub links_radix: u32,
 }
 

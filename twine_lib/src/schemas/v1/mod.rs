@@ -1,3 +1,8 @@
+//! The `v1` module contains the data structures for
+//! describing version 1 schemas
+//!
+//! In version 1, Strands were called Chains,
+//! Tixels were called Pulses, and Stitches were called Mixins.
 use std::{fmt::Display, hash::Hash};
 
 use crate::{
@@ -18,6 +23,7 @@ mod chain;
 mod mixin;
 mod pulse;
 
+/// The [`Specification`] type for version 1 schemas
 pub type V1 = crate::specification::Specification<1>;
 
 impl Default for V1 {
@@ -30,6 +36,7 @@ pub use chain::*;
 pub use mixin::*;
 pub use pulse::*;
 
+/// A container for a chain or pulse
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct ContainerV1<C: Clone + Verifiable + Send> {
@@ -76,25 +83,30 @@ impl<C> ContainerV1<C>
 where
   C: Clone + Verifiable + Send + Serialize + for<'de> Deserialize<'de>,
 {
+  /// Compute the CID using the given hasher
   pub fn compute_cid(&mut self, hasher: Code) {
     let dat = DagCborCodec::encode_to_vec(self).unwrap();
     self.cid = get_cid(hasher, dat.as_slice());
   }
 
+  /// Get the CID
   pub fn cid(&self) -> &Cid {
     &self.cid
   }
 
+  /// Get the content
   pub fn content(&self) -> &C {
     &self.content
   }
 
+  /// Get the signature
   pub fn signature(&self) -> &str {
     &self.signature
   }
 }
 
 impl ContainerV1<ChainContentV1> {
+  /// Create a new Chain Container
   pub fn new_from_parts(
     hasher: Code,
     content: Verified<ChainContentV1>,
@@ -109,30 +121,37 @@ impl ContainerV1<ChainContentV1> {
     chain
   }
 
+  /// Get the public key JWK
   pub fn key(&self) -> JWK<()> {
     self.content.key.clone()
   }
 
+  /// Get the specification string
   pub fn spec_str(&self) -> &str {
     self.content.specification.0.as_str()
   }
 
+  /// Get the radix value
   pub fn radix(&self) -> u8 {
     self.content.links_radix as u8
   }
 
+  /// Get the version
   pub fn version(&self) -> Version {
     self.content.specification.semver()
   }
 
+  /// Get the subspec if it exists
   pub fn subspec(&self) -> Option<Subspec> {
     self.content.specification.subspec()
   }
 
+  /// Get the details
   pub fn details(&self) -> &Ipld {
     &self.content.meta
   }
 
+  /// Check a given signature using this Chain's public key
   pub fn verify_signature<T: Display>(
     &self,
     sig: T,
@@ -153,6 +172,7 @@ impl Verifiable for ContainerV1<PulseContentV1> {
 }
 
 impl ContainerV1<PulseContentV1> {
+  /// Create a new Pulse Container
   pub fn new_from_parts(
     hasher: Code,
     content: Verified<PulseContentV1>,
@@ -167,31 +187,38 @@ impl ContainerV1<PulseContentV1> {
     pulse
   }
 
+  /// Get the strand CID
   pub fn strand_cid(&self) -> &Cid {
     &self.content.chain
   }
 
+  /// Get the specification string
   pub fn spec_str(&self) -> &str {
     "twine/1.0.x"
   }
 
+  /// Get the index
   pub fn index(&self) -> u64 {
     self.content.index as u64
   }
 
+  /// Get the source field value
   pub fn source(&self) -> &str {
     &self.content.source
   }
 
+  /// Get the details
   pub fn payload(&self) -> &Ipld {
     &self.content.payload
   }
 
+  /// Get the back stitches
   pub fn back_stitches(&self) -> BackStitches {
     let strand = self.strand_cid().clone();
     BackStitches::new(strand, self.content.links.clone())
   }
 
+  /// Get the cross stitches
   pub fn cross_stitches(&self) -> CrossStitches {
     CrossStitches::new(self.content.mixins.iter().cloned().collect::<Vec<Stitch>>())
   }

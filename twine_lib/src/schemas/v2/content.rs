@@ -1,10 +1,14 @@
 use super::*;
 use serde::{Deserialize, Serialize};
 
+/// Common fields for the content field
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct ContentV2<T: Clone + Send + Verifiable> {
+  /// The hash [`Code`]
   #[serde(rename = "h")]
   pub code: HashCode,
+  /// The specification
   #[serde(rename = "v")]
   pub specification: V2,
 

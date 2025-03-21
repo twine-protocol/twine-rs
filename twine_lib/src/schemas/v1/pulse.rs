@@ -4,19 +4,32 @@ use crate::{errors::VerificationError, verify::Verifiable};
 use crate::{Cid, Ipld};
 use serde::{Deserialize, Serialize};
 
+/// The content field of a Pulse
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct PulseContentV1<P = Ipld> {
+  /// The chain CID
   pub chain: Cid,
+  /// The index of the pulse
   pub index: u32, // note: DAG-CBOR supports i64, but we don't
+  /// The source of the pulse
   pub source: String,
+  /// The back stitches
   pub links: Vec<Cid>,
+  /// The cross stitches
   pub mixins: Vec<Mixin>, // we check that these links are not on the same chain at runtime
+  /// The payload
   pub payload: P,
 }
 
 impl Verifiable for PulseContentV1 {
   type Error = VerificationError;
+  /// Self-verification of the PulseContentV1
+  ///
+  /// The implemented verification checks are:
+  /// - Check that all mixins are unique
+  /// - Check that there are no mixins on the same chain as the pulse
+  /// - Check that non-starting pulses have at least one link
   fn verify(&self) -> Result<(), VerificationError> {
     if !is_all_unique(&self.mixins) {
       return Err(VerificationError::InvalidTwineFormat(

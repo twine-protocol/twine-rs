@@ -5,9 +5,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::twine::Stitch;
 
+/// A Mixin is the old name for a Stitch
+///
+/// This represents the old way it was stored in the data structure
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug)]
+#[serde(deny_unknown_fields)]
 pub struct Mixin {
+  /// The chain CID
   pub chain: Cid,
+  /// The Tixel CID
   pub value: Cid,
 }
 
