@@ -1,3 +1,4 @@
+//! Twine builder for version 2 data
 use super::*;
 use twine_lib::{
   crypto::PublicKey,
@@ -12,6 +13,9 @@ use twine_lib::{
   Ipld,
 };
 
+/// A builder for constructing a Tixel
+///
+/// Don't create this directly, use [`TwineBuilder`] instead.
 pub struct TixelBuilder<'a, 'b, S: Signer<Key = PublicKey>> {
   signer: &'a S,
   strand: Strand,
@@ -21,7 +25,7 @@ pub struct TixelBuilder<'a, 'b, S: Signer<Key = PublicKey>> {
 }
 
 impl<'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
-  pub fn new_first(signer: &'a S, strand: Strand) -> Self {
+  pub(crate) fn new_first(signer: &'a S, strand: Strand) -> Self {
     Self {
       signer,
       strand,
@@ -31,7 +35,7 @@ impl<'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
     }
   }
 
-  pub fn new_next(signer: &'a S, prev: &'b Twine) -> Self {
+  pub(crate) fn new_next(signer: &'a S, prev: &'b Twine) -> Self {
     Self {
       signer,
       strand: prev.strand().clone(),
@@ -41,11 +45,15 @@ impl<'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
     }
   }
 
+  /// Set the cross-stitches for this tixel
   pub fn cross_stitches<C: Into<CrossStitches>>(mut self, stitches: C) -> Self {
     self.stitches = stitches.into();
     self
   }
 
+  /// Set the payload for this tixel
+  ///
+  /// The payload can be any serializable type
   pub fn payload<P>(mut self, payload: P) -> Self
   where
     P: serde::ser::Serialize,
@@ -95,6 +103,31 @@ impl<'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
     }
   }
 
+  /// Provide a function to build the payload for this tixel and then finalize the tixel
+  ///
+  /// The provided builder function will be called with the current strand and the previous tixel
+  /// (if any). The function should return the payload for this tixel.
+  ///
+  /// This method will then finalize the tixel and return the constructed twine, equivalent
+  /// to calling `done()`.
+  ///
+  /// # Example
+  ///
+  /// ```rust
+  /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code, twine::CrossStitches};
+  /// use twine_builder::{TwineBuilder, RingSigner};
+  /// # let signer = RingSigner::generate_ed25519().unwrap();
+  /// let builder = TwineBuilder::new(signer);
+  /// # let strand = builder.build_strand().done().unwrap();
+  /// // ...
+  /// let first = builder.build_first(strand)
+  ///   .build_payload_then_done(|_, _| {
+  ///     Ok(ipld!({
+  ///       "foo": "bar",
+  ///     }))
+  ///   })
+  ///   .unwrap();
+  /// ```
   pub fn build_payload_then_done<F, P>(mut self, build_fn: F) -> Result<Twine, BuildError>
   where
     F: FnOnce(&Strand, Option<&Twine>) -> Result<P, BuildError>,
@@ -105,6 +138,7 @@ impl<'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
     self.done()
   }
 
+  /// Finalize the tixel and return the constructed twine
   pub fn done(self) -> Result<Twine, BuildError> {
     use twine_lib::schemas::*;
 
@@ -163,6 +197,9 @@ impl<'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
   }
 }
 
+/// A builder for constructing a Strand
+///
+/// Don't create this directly, use [`TwineBuilder`] instead.
 pub struct StrandBuilder<'a, S: Signer<Key = PublicKey>> {
   signer: &'a S,
   hasher: Code,
@@ -174,7 +211,7 @@ pub struct StrandBuilder<'a, S: Signer<Key = PublicKey>> {
 }
 
 impl<'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
-  pub fn new(signer: &'a S) -> Self {
+  pub(crate) fn new(signer: &'a S) -> Self {
     Self {
       signer,
       hasher: Code::Sha3_512,
@@ -186,11 +223,17 @@ impl<'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
     }
   }
 
+  /// Set the hasher for this strand
+  ///
+  /// Hashers can be found in [`twine_lib::multihash_codetable::Code`]
   pub fn hasher(mut self, hasher: Code) -> Self {
     self.hasher = hasher;
     self
   }
 
+  /// Set the details for this strand
+  ///
+  /// The details can be any serializable type
   pub fn details<P>(mut self, details: P) -> Self
   where
     P: serde::ser::Serialize,
@@ -199,21 +242,31 @@ impl<'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
     self
   }
 
+  /// Set the genesis time for this strand
+  ///
+  /// If not set, the current time when `done()` is called will be used.
   pub fn genesis(mut self, genesis: chrono::DateTime<chrono::Utc>) -> Self {
     self.genesis = Some(genesis);
     self
   }
 
+  /// Set the subspec for this strand
+  ///
+  /// For more information see [`twine_lib::specification::Subspec`]
   pub fn subspec(mut self, subspec: String) -> Self {
     self.subspec = Some(Subspec::from_string(subspec).expect("Invalid subspec"));
     self
   }
 
+  /// Set the radix for this strand
+  ///
+  /// The radix defaults to 32
   pub fn radix(mut self, radix: u8) -> Self {
     self.radix = radix;
     self
   }
 
+  /// Finalize the strand and return the constructed strand
   pub fn done(self) -> Result<Strand, BuildError> {
     use twine_lib::schemas::*;
     let key = self.signer.public_key();

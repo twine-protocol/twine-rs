@@ -1,3 +1,4 @@
+//! Underlying builder for Twine V1
 use super::*;
 use biscuit::jwk::JWK;
 use twine_lib::schemas::v1::{ChainContentV1, ContainerV1, PulseContentV1};
@@ -13,6 +14,9 @@ use twine_lib::{
   Ipld,
 };
 
+/// Builder for constructing a Twine V1 data
+///
+/// Don't create this directly, instead use [`crate::TwineBuilder`]
 pub struct TixelBuilder<'a, 'b, S: Signer<Key = JWK<()>>> {
   signer: &'a S,
   strand: Strand,
@@ -23,7 +27,7 @@ pub struct TixelBuilder<'a, 'b, S: Signer<Key = JWK<()>>> {
 }
 
 impl<'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
-  pub fn new_first(signer: &'a S, strand: Strand) -> Self {
+  pub(crate) fn new_first(signer: &'a S, strand: Strand) -> Self {
     Self {
       signer,
       strand,
@@ -34,7 +38,7 @@ impl<'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
     }
   }
 
-  pub fn new_next(signer: &'a S, prev: &'b Twine) -> Self {
+  pub(crate) fn new_next(signer: &'a S, prev: &'b Twine) -> Self {
     Self {
       signer,
       strand: prev.strand().clone(),
@@ -45,11 +49,18 @@ impl<'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
     }
   }
 
+  /// Set the cross stitches for this tixel
+  ///
+  /// The cross stitches must contain all cross stitches from the previous tixel
+  /// otherwise an error will be returned when building the tixel.
   pub fn cross_stitches<C: Into<CrossStitches>>(mut self, stitches: C) -> Self {
     self.stitches = stitches.into();
     self
   }
 
+  /// Set the payload for this tixel
+  ///
+  /// The payload can be any serializable type
   pub fn payload<P>(mut self, payload: P) -> Self
   where
     P: serde::ser::Serialize,
@@ -58,6 +69,7 @@ impl<'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
     self
   }
 
+  /// Set the source property for this tixel
   #[deprecated(note = "Use payload() or strand.details() instead")]
   pub fn source(mut self, source: String) -> Self {
     self.source = source;
@@ -105,6 +117,40 @@ impl<'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
     }
   }
 
+  /// Provide a function to build the payload for this tixel and then finalize the tixel
+  ///
+  /// The provided builder function will be called with the current strand and the previous tixel
+  /// (if any). The function should return the payload for this tixel.
+  ///
+  /// This method will then finalize the tixel and return the constructed twine, equivalent
+  /// to calling `done()`.
+  ///
+  /// # Example
+  ///
+  /// ```rust
+  /// # use std::sync::Arc;
+  /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code, twine::CrossStitches};
+  /// use twine_builder::{TwineBuilder, BiscuitSigner};
+  /// # use biscuit::jwk::JWK;
+  /// # use ring::signature::*;
+  /// # use biscuit::jws::Secret;
+  /// # let rng = ring::rand::SystemRandom::new();
+  /// # let pkcs = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, &rng).unwrap();
+  /// # let key = EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, pkcs.as_ref(), &rng).unwrap();
+  /// # let secret = Secret::EcdsaKeyPair(Arc::new(key));
+  /// # let signer = BiscuitSigner::new(secret, "ES256".to_string());
+  /// // ...
+  /// let builder = TwineBuilder::new(signer);
+  /// # let strand = builder.build_strand().done().unwrap();
+  /// // ...
+  /// let first = builder.build_first(strand)
+  ///   .build_payload_then_done(|_, _| {
+  ///     Ok(ipld!({
+  ///       "foo": "bar",
+  ///     }))
+  ///   })
+  ///   .unwrap();
+  /// ```
   pub fn build_payload_then_done<F, P>(mut self, build_fn: F) -> Result<Twine, BuildError>
   where
     F: FnOnce(&Strand, Option<&Twine>) -> Result<P, BuildError>,
@@ -115,6 +161,7 @@ impl<'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
     self.done()
   }
 
+  /// Finalize the tixel and return the constructed twine
   pub fn done(self) -> Result<Twine, BuildError> {
     use twine_lib::schemas::*;
 
@@ -176,6 +223,9 @@ impl<'a, 'b, S: Signer<Key = JWK<()>>> TixelBuilder<'a, 'b, S> {
   }
 }
 
+/// Builder for constructing a Strand V1 data
+///
+/// Don't create this directly, instead use [`crate::TwineBuilder`]
 pub struct StrandBuilder<'a, S: Signer<Key = JWK<()>>> {
   signer: &'a S,
   hasher: Code,
@@ -188,7 +238,7 @@ pub struct StrandBuilder<'a, S: Signer<Key = JWK<()>>> {
 }
 
 impl<'a, S: Signer<Key = JWK<()>>> StrandBuilder<'a, S> {
-  pub fn new(signer: &'a S) -> Self {
+  pub(crate) fn new(signer: &'a S) -> Self {
     Self {
       signer,
       hasher: Code::Sha3_512,
@@ -201,11 +251,17 @@ impl<'a, S: Signer<Key = JWK<()>>> StrandBuilder<'a, S> {
     }
   }
 
+  /// Set the hasher for this strand
+  ///
+  /// Hashers can be found in [`twine_lib::multihash_codetable::Code`]
   pub fn hasher(mut self, hasher: Code) -> Self {
     self.hasher = hasher;
     self
   }
 
+  /// Set the details for this strand
+  ///
+  /// The details can be any serializable type
   pub fn details<P>(mut self, details: P) -> Self
   where
     P: serde::ser::Serialize,
@@ -214,27 +270,36 @@ impl<'a, S: Signer<Key = JWK<()>>> StrandBuilder<'a, S> {
     self
   }
 
+  /// Set the subspec string for this strand
+  ///
+  /// See [`twine_lib::specification::Subspec`] for more information
   pub fn subspec(mut self, subspec: String) -> Self {
     self.subspec = Some(Subspec::from_string(subspec).expect("Invalid subspec"));
     self
   }
 
+  /// Set the radix for this strand
   pub fn radix(mut self, radix: u32) -> Self {
     self.radix = radix;
     self
   }
 
+  /// Set the cross stitches for this strand
+  ///
+  /// This is only a feature of v1 strands.
   pub fn cross_stitches<C: Into<CrossStitches>>(mut self, stitches: C) -> Self {
     self.stitches = stitches.into();
     self
   }
 
+  /// Set the source property for this strand
   #[deprecated(note = "Use details() instead")]
   pub fn source(mut self, source: String) -> Self {
     self.source = source;
     self
   }
 
+  /// Finalize the strand and return the constructed strand
   pub fn done(self) -> Result<Strand, BuildError> {
     use twine_lib::schemas::*;
     let key = self.signer.public_key();

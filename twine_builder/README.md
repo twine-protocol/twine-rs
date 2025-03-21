@@ -13,7 +13,7 @@ Normal construction of twine data involves the following:
 - Creating a [`Signer`] to sign data.
 - Creating a [`TwineBuilder`] and providing it with the signer.
 - Calling the build methods of the builder to construct data.
-- Saving that data to some [`Store`].
+- Saving that data to some [`twine_lib::store::Store`].
 
 See the documentation for specifics about the [`Signer`], [`TwineBuilder`],
 and [`Store`](https://docs.rs/twine_lib/latest/twine_lib/store/trait.Store.html).

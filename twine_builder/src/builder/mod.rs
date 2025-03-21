@@ -9,8 +9,8 @@ use twine_lib::{
 #[cfg(feature = "v1")]
 use biscuit::jwk::JWK;
 #[cfg(feature = "v1")]
-mod builder_v1;
-mod builder_v2;
+pub mod builder_v1;
+pub mod builder_v2;
 
 /// Errors that can occur when building Twine data.
 #[derive(Debug, thiserror::Error)]
