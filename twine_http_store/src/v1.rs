@@ -438,7 +438,10 @@ impl Store for HttpStore {
     twines: T,
   ) -> Result<(), StoreError> {
     use futures::stream::StreamExt;
-    self.save_many(twines.collect::<Vec<_>>().await).await?;
+    twines.chunks(100 as usize)
+      .then(|chunk| self.save_many(chunk))
+      .try_for_each(|_| async { Ok(()) })
+      .await?;
     Ok(())
   }
 
