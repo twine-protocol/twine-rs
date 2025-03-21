@@ -1,3 +1,4 @@
+//! Provides the interface to build Twine data.
 use crate::{signer::SigningError, Signer};
 use twine_lib::{
   crypto::PublicKey,
@@ -11,25 +12,54 @@ use biscuit::jwk::JWK;
 mod builder_v1;
 mod builder_v2;
 
+/// Errors that can occur when building Twine data.
 #[derive(Debug, thiserror::Error)]
 pub enum BuildError {
+  /// Twine data verification failed.
   #[error("Bad twine data: {0}")]
   BadData(#[from] VerificationError),
+  /// Invalid specification string
   #[error("Bad specification: {0}")]
   BadSpecification(#[from] SpecificationError),
+  /// Problem signing the data
   #[error("Problem signing: {0}")]
   ProblemSigning(#[from] SigningError),
+  /// Reached the highest index possible to represent
   #[error("Tixel index maximum reached")]
   IndexMaximum,
+  /// Problem occurred when attempting to construct the payload
   #[error("Payload construction failed: {0}")]
   PayloadConstruction(String),
 }
 
+/// Provides the interface to build [`Strand`]s and [`twine_lib::twine::Tixel`]s.
+///
+/// It uses the [`Signer`] it is provided for signatures, and
+/// this must match the key used to construct any pre-existing data.
+///
+/// # Example
+///
+/// ```no_run
+/// use twine_builder::{TwineBuilder, RingSigner};
+/// let signer = RingSigner::generate_ed25519().unwrap();
+/// let builder = TwineBuilder::new(signer);
+///
+/// // build a simple test strand
+/// let strand = builder.build_strand().done().unwrap();
+/// println!("{}", strand);
+/// // build the first tixel
+/// let first = builder.build_first(strand.clone()).done().unwrap();
+/// println!("{}", first);
+/// // build the next tixel
+/// let next = builder.build_next(&first).done().unwrap();
+/// println!("{}", next);
+/// ```
 pub struct TwineBuilder<const V: u8, S: Signer> {
   signer: S,
 }
 
 impl<const V: u8, S: Signer> TwineBuilder<V, S> {
+  /// Create a new TwineBuilder with the provided [`Signer`].
   pub fn new(signer: S) -> Self {
     Self { signer }
   }
@@ -37,28 +67,183 @@ impl<const V: u8, S: Signer> TwineBuilder<V, S> {
 
 #[cfg(feature = "v1")]
 impl<S: Signer<Key = JWK<()>>> TwineBuilder<1, S> {
+  /// Begin building a new [`Strand`].
+  ///
+  /// This method is intended to be chained with the
+  /// [`builder_v1::StrandBuilder`] methods to set the strand's details.
+  ///
+  /// # Example
+  ///
+  /// ```no_run
+  /// # use std::sync::Arc;
+  /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code};
+  /// use twine_builder::{TwineBuilder, BiscuitSigner};
+  /// # use biscuit::jwk::JWK;
+  /// # use ring::signature::*;
+  /// # use biscuit::jws::Secret;
+  /// # let rng = ring::rand::SystemRandom::new();
+  /// # let pkcs = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, &rng).unwrap();
+  /// # let key = EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, pkcs.as_ref(), &rng).unwrap();
+  /// # let secret = Secret::EcdsaKeyPair(Arc::new(key));
+  /// # let signer = BiscuitSigner::new(secret, "ES256".to_string());
+  /// // ...
+  /// let builder = TwineBuilder::new(signer);
+  /// let strand = builder.build_strand()
+  ///   .radix(2)
+  ///   .subspec("my_spec/1.0.1".to_string())
+  ///   .hasher(Code::Sha3_256)
+  ///   .details(ipld!({
+  ///     "arbitrary": "data",
+  ///   }))
+  ///   .done()
+  ///   .unwrap();
+  /// ```
   pub fn build_strand<'a>(&'a self) -> builder_v1::StrandBuilder<'a, S> {
     builder_v1::StrandBuilder::new(&self.signer)
   }
-
+  /// Begin building the first tixel (as a [`Twine`])
+  ///
+  /// This method is intended to be chained with the
+  /// [`builder_v1::TixelBuilder`] methods to set the tixel's details.
+  ///
+  /// # Example
+  ///
+  /// ```no_run
+  /// # use std::sync::Arc;
+  /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code, twine::CrossStitches};
+  /// use twine_builder::{TwineBuilder, BiscuitSigner};
+  /// # use biscuit::jwk::JWK;
+  /// # use ring::signature::*;
+  /// # use biscuit::jws::Secret;
+  /// # let rng = ring::rand::SystemRandom::new();
+  /// # let pkcs = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, &rng).unwrap();
+  /// # let key = EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, pkcs.as_ref(), &rng).unwrap();
+  /// # let secret = Secret::EcdsaKeyPair(Arc::new(key));
+  /// # let signer = BiscuitSigner::new(secret, "ES256".to_string());
+  /// // ...
+  /// let builder = TwineBuilder::new(signer);
+  /// # let strand = builder.build_strand().done().unwrap();
+  /// // ...
+  /// let first = builder.build_first(strand)
+  ///   .cross_stitches(CrossStitches::new(vec![]))
+  ///   .payload(ipld!({
+  ///     "arbitrary": "data",
+  ///   }))
+  ///   .done()
+  ///   .unwrap();
+  /// ```
   pub fn build_first<'a>(&'a self, strand: Strand) -> builder_v1::TixelBuilder<'a, 'a, S> {
     builder_v1::TixelBuilder::new_first(&self.signer, strand)
   }
 
+  /// Begin building subsequent tixel (as a [`Twine`])
+  ///
+  /// This method is intended to be chained with the
+  /// [`builder_v1::TixelBuilder`] methods to set the tixel's details.
+  ///
+  /// # Example
+  ///
+  /// ```no_run
+  /// # use std::sync::Arc;
+  /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code, twine::CrossStitches};
+  /// use twine_builder::{TwineBuilder, BiscuitSigner};
+  /// # use biscuit::jwk::JWK;
+  /// # use biscuit::jws::Secret;
+  /// # use ring::signature::*;
+  /// # let rng = ring::rand::SystemRandom::new();
+  /// # let pkcs = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, &rng).unwrap();
+  /// # let key = EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, pkcs.as_ref(), &rng).unwrap();
+  /// # let secret = Secret::EcdsaKeyPair(Arc::new(key));
+  /// # let signer = BiscuitSigner::new(secret, "ES256".to_string());
+  /// // ...
+  /// let builder = TwineBuilder::new(signer);
+  /// # let strand = builder.build_strand().done().unwrap();
+  /// # let prev = builder.build_first(strand).done().unwrap();
+  /// // ...
+  /// let first = builder.build_next(&prev)
+  ///   .cross_stitches(CrossStitches::new(vec![]))
+  ///   .payload(ipld!({
+  ///     "arbitrary": "data",
+  ///   }))
+  ///   .done()
+  ///   .unwrap();
+  /// ```
   pub fn build_next<'a, 'b>(&'a self, prev: &'b Twine) -> builder_v1::TixelBuilder<'a, 'b, S> {
     builder_v1::TixelBuilder::new_next(&self.signer, prev)
   }
 }
 
 impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
+  /// Begin building a new [`Strand`].
+  ///
+  /// This method is intended to be chained with the
+  /// [`builder_v2::StrandBuilder`] methods to set the strand's details.
+  ///
+  /// # Example
+  ///
+  /// ```no_run
+  /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code};
+  /// use twine_builder::{TwineBuilder, RingSigner};
+  /// let signer = RingSigner::generate_ed25519().unwrap();
+  /// let builder = TwineBuilder::new(signer);
+  /// let strand = builder.build_strand()
+  ///   .details(ipld!({
+  ///     "arbitrary": "data",
+  ///   }))
+  ///   .done()
+  ///   .unwrap();
+  /// ```
   pub fn build_strand<'a>(&'a self) -> builder_v2::StrandBuilder<'a, S> {
     builder_v2::StrandBuilder::new(&self.signer)
   }
 
+  /// Begin building the first tixel (as a [`Twine`])
+  ///
+  /// This method is intended to be chained with the
+  /// [`builder_v2::TixelBuilder`] methods to set the tixel's details.
+  ///
+  /// # Example
+  ///
+  /// ```no_run
+  /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code, twine::CrossStitches};
+  /// use twine_builder::{TwineBuilder, RingSigner};
+  /// let signer = RingSigner::generate_ed25519().unwrap();
+  /// let builder = TwineBuilder::new(signer);
+  /// let strand = builder.build_strand().done().unwrap();
+  /// let first = builder.build_first(strand)
+  ///   .cross_stitches(CrossStitches::new(vec![]))
+  ///   .payload(ipld!({
+  ///     "arbitrary": "data",
+  ///    }))
+  ///    .done()
+  ///    .unwrap();
+  /// ```
   pub fn build_first<'a>(&'a self, strand: Strand) -> builder_v2::TixelBuilder<'a, 'a, S> {
     builder_v2::TixelBuilder::new_first(&self.signer, strand)
   }
 
+  /// Begin building subsequent tixel (as a [`Twine`])
+  ///
+  /// This method is intended to be chained with the
+  /// [`builder_v2::TixelBuilder`] methods to set the tixel's details.
+  ///
+  /// # Example
+  ///
+  /// ```no_run
+  /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code, twine::CrossStitches};
+  /// use twine_builder::{TwineBuilder, RingSigner};
+  /// let signer = RingSigner::generate_ed25519().unwrap();
+  /// let builder = TwineBuilder::new(signer);
+  /// let strand = builder.build_strand().done().unwrap();
+  /// let prev = builder.build_first(strand).done().unwrap();
+  /// let next = builder.build_next(&prev)
+  ///   .cross_stitches(CrossStitches::new(vec![]))
+  ///   .payload(ipld!({
+  ///     "arbitrary": "data",
+  ///    }))
+  ///    .done()
+  ///    .unwrap();
+  /// ```
   pub fn build_next<'a, 'b>(&'a self, prev: &'b Twine) -> builder_v2::TixelBuilder<'a, 'b, S> {
     builder_v2::TixelBuilder::new_next(&self.signer, prev)
   }

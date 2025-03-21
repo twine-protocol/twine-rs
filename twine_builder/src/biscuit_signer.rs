@@ -7,9 +7,32 @@ use ring::signature::{EcdsaKeyPair, RsaKeyPair};
 use serde_json::json;
 use twine_lib::crypto::Signature;
 
+/// A signer that uses the `biscuit` crate to sign data.
+///
+/// # Deprecated
+///
+/// This signer is intended to be used with v1 data, which is
+/// being phased out. Use `RingSigner` with twine/2.0.0 instead.
+///
+/// # Example
+///
+/// ```rust
+/// use std::sync::Arc;
+/// use twine_lib::{ipld_core::ipld, multihash_codetable::Code};
+/// use twine_builder::{TwineBuilder, BiscuitSigner};
+/// use biscuit::jwk::JWK;
+/// use ring::signature::*;
+/// use biscuit::jws::Secret;
+/// let rng = ring::rand::SystemRandom::new();
+/// let pkcs = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, &rng).unwrap();
+/// let key = EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, pkcs.as_ref(), &rng).unwrap();
+/// let secret = Secret::EcdsaKeyPair(Arc::new(key));
+/// let signer = BiscuitSigner::new(secret, "ES256".to_string());
+/// ```
 pub struct BiscuitSigner(Secret, String);
 
 impl BiscuitSigner {
+  /// Create a new `BiscuitSigner` with the given secret and algorithm.
   #[deprecated(note = "Use `RingSigner` with twine/2.0.0 instead")]
   pub fn new(secret: Secret, alg: String) -> Self {
     Self(secret, alg)

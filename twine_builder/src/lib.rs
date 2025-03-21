@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 pub mod signer;
 pub use signer::{Signer, SigningError};
 

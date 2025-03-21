@@ -1,3 +1,5 @@
+//! This example demonstrates how to build a strand of twines
+//! using the TwineBuilder API.
 use twine_builder::{RingSigner, TwineBuilder};
 use twine_lib::{ipld_core::ipld, multihash_codetable::Code};
 

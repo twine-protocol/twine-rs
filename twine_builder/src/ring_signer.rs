@@ -29,6 +29,22 @@ enum Keys {
   Rsa(ring::signature::RsaKeyPair),
 }
 
+/// A signer that uses the `ring` crate to sign data
+///
+/// This is a v2 signer, and is intended to be used with twine/2.0.0.
+///
+/// # Example
+///
+/// ```rust
+/// use twine_builder::{RingSigner, Signer};
+/// let signer = RingSigner::generate_ed25519().unwrap();
+/// let pem = signer
+///   .pkcs8()
+///   .to_pem("PRIVATE_KEY", pkcs8::LineEnding::LF)
+///   .unwrap();
+/// let signer2 = RingSigner::from_pem(&pem).unwrap();
+/// assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
+/// ```
 pub struct RingSigner {
   alg: SignatureAlgorithm,
   keypair: Keys,
@@ -37,6 +53,9 @@ pub struct RingSigner {
 }
 
 impl RingSigner {
+  /// Create a new `RingSigner` with the given algorithm and private key
+  ///
+  /// It is likely more convenient to use the `from_pem` method to create a signer
   pub fn new(alg: SignatureAlgorithm, pkcs8: SecretDocument) -> Result<Self, RingSignerError> {
     let signer = match alg {
       SignatureAlgorithm::Ed25519 => {
@@ -115,6 +134,23 @@ impl RingSigner {
     Ok(signer)
   }
 
+  /// Create a new `RingSigner` from a PEM formatted private key
+  ///
+  /// The PEM string should contain a private key in PKCS8 format.
+  ///
+  /// # Example
+  ///
+  /// ```rust
+  /// use twine_builder::{RingSigner, Signer};
+  /// const PRIVATE_KEY_ED25519_PEM: &'static str = r#"
+  /// -----BEGIN PRIVATE KEY-----
+  /// MFECAQEwBQYDK2VwBCIEIJHCvDsbaia6M9aMlRXjdIMVbMyeGLwj/2crnzzoJnmH
+  /// gSEALX8wMpAh1EA0zraJTfEUx8F2uQBCvBmFkYpmvpX+jDc=
+  /// -----END PRIVATE KEY-----
+  /// "#;
+  ///
+  /// let signer = RingSigner::from_pem(PRIVATE_KEY_ED25519_PEM).unwrap();
+  /// ```
   pub fn from_pem<S: AsRef<str>>(pem: S) -> Result<Self, RingSignerError> {
     let pem = pem.as_ref();
     let (_, pkcs8) = SecretDocument::from_pem(pem)?;
@@ -169,14 +205,17 @@ impl RingSigner {
     Self::new(alg, pkcs8)
   }
 
+  /// Access the algorithm for this signer
   pub fn alg(&self) -> &SignatureAlgorithm {
     &self.alg
   }
 
+  /// Access the PKCS8 document for this signer
   pub fn pkcs8(&self) -> &SecretDocument {
     &self.pkcs8
   }
 
+  /// Convert the PKCS8 document to a PEM formatted string
   pub fn private_key_pem(&self) -> pkcs8::der::Result<String> {
     self
       .pkcs8
@@ -184,6 +223,8 @@ impl RingSigner {
       .map(|s| s.to_string())
   }
 
+  /// Convert the PKCS8 document to a PEM formatted string, but only include the private key
+  ///
   /// ring includes the public key in the pkcs8 document, so this method removes it
   /// for compatibility with openssl. However ring requires the V2 format, which
   /// includes the public key.
@@ -199,6 +240,7 @@ impl RingSigner {
     Ok(pkcs8)
   }
 
+  /// Generate a new signer with a random RSA keypair using the given bitsize
   #[cfg(feature = "rsa")]
   pub fn generate_rs256(bitsize: usize) -> rsa::Result<Self> {
     let keypair = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), bitsize)?;
@@ -207,6 +249,7 @@ impl RingSigner {
     Ok(Self::new(SignatureAlgorithm::Sha256Rsa(bitsize), pkcs8).unwrap())
   }
 
+  /// Generate a new signer with a random RSA keypair using the given bitsize
   #[cfg(feature = "rsa")]
   pub fn generate_rs384(bitsize: usize) -> rsa::Result<Self> {
     let keypair = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), bitsize)?;
@@ -215,6 +258,7 @@ impl RingSigner {
     Ok(Self::new(SignatureAlgorithm::Sha384Rsa(bitsize), pkcs8).unwrap())
   }
 
+  /// Generate a new signer with a random RSA keypair using the given bitsize
   #[cfg(feature = "rsa")]
   pub fn generate_rs512(bitsize: usize) -> rsa::Result<Self> {
     let keypair = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), bitsize)?;
@@ -223,6 +267,7 @@ impl RingSigner {
     Ok(Self::new(SignatureAlgorithm::Sha512Rsa(bitsize), pkcs8).unwrap())
   }
 
+  /// Generate a new signer with a random ECDSA P-256 keypair
   pub fn generate_p256() -> Result<Self, ring::error::Unspecified> {
     let rng = ring::rand::SystemRandom::new();
     let keypair = ring::signature::EcdsaKeyPair::generate_pkcs8(
@@ -233,6 +278,7 @@ impl RingSigner {
     Ok(Self::new(SignatureAlgorithm::EcdsaP256, pkcs8).unwrap())
   }
 
+  /// Generate a new signer with a random ECDSA P-384 keypair
   pub fn generate_p384() -> Result<Self, ring::error::Unspecified> {
     let rng = ring::rand::SystemRandom::new();
     let keypair = ring::signature::EcdsaKeyPair::generate_pkcs8(
@@ -243,6 +289,7 @@ impl RingSigner {
     Ok(Self::new(SignatureAlgorithm::EcdsaP384, pkcs8).unwrap())
   }
 
+  /// Generate a new signer with a random Ed25519 keypair
   pub fn generate_ed25519() -> Result<Self, ring::error::Unspecified> {
     let rng = ring::rand::SystemRandom::new();
     let keypair = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng)?;
