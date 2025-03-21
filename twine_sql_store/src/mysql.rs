@@ -1,3 +1,4 @@
+//! MySQL store implementation for Twine
 use super::{to_resolution_error, to_storage_error, Block};
 use async_trait::async_trait;
 use futures::stream::{unfold, Stream};
@@ -14,16 +15,29 @@ use twine_lib::{
   Cid,
 };
 
+/// A MySQL-based store for Twine data
 #[derive(Debug, Clone)]
 pub struct MysqlStore {
   pool: sqlx::MySqlPool,
 }
 
 impl MysqlStore {
+  /// Create a new MySQL store from a sqlx pool
   pub fn new(pool: sqlx::MySqlPool) -> Self {
     Self { pool }
   }
 
+  /// Open a new MySQL store from a URI
+  ///
+  /// # Example
+  ///
+  /// ```no_run
+  /// // Example usage of opening a MySQL store
+  /// use twine_sql_store::mysql::MysqlStore;
+  /// # async {
+  /// let store = MysqlStore::open("mysql://user:password@localhost/database").await.unwrap();
+  /// # };
+  /// ```
   pub async fn open(uri: &str) -> Result<Self, sqlx::Error> {
     let pool = sqlx::Pool::connect(uri).await?;
     Ok(Self::new(pool))

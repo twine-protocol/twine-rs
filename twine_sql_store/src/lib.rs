@@ -1,3 +1,4 @@
+#![doc = include_str!("../README.md")]
 use async_trait::async_trait;
 use futures::stream::Stream;
 use twine_lib::as_cid::AsCid;
@@ -30,17 +31,38 @@ fn to_storage_error(err: sqlx::Error) -> StoreError {
   StoreError::Saving(err.to_string())
 }
 
+/// A SQL-based store for Twine data
+///
+/// This store is a facade over the specific sql store implementations
+/// that can provide an easily swappable backend for Twine data storage.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum SqlStore {
+  /// A store that uses SQLite as the backend
   #[cfg(feature = "sqlite")]
   Sqlite(sqlite::SqliteStore),
+
+  /// A store that uses MySQL as the backend
   #[cfg(feature = "mysql")]
   Mysql(mysql::MysqlStore),
   //...
 }
 
 impl SqlStore {
+  /// Open a new SQL store from a URI
+  ///
+  /// Remember to enable the feature flags for the specific database(s)
+  /// you want to use.
+  ///
+  /// # Example
+  ///
+  /// ```no_run
+  /// use twine_sql_store::SqlStore;
+  /// // Example usage of opening a SQL store
+  /// # tokio::runtime::Runtime::new().unwrap().block_on(async {
+  /// let store = SqlStore::open("sqlite:my_database.db").await.unwrap();
+  /// # });
+  /// ```
   pub async fn open(uri: &str) -> Result<Self, sqlx::Error> {
     #[cfg(feature = "sqlite")]
     {
@@ -57,6 +79,7 @@ impl SqlStore {
     unimplemented!("unsupported uri: {}", uri);
   }
 
+  /// If the store is a SQLite store, create the necessary tables
   pub async fn create_sqlite_tables(&self) -> Result<(), sqlx::Error> {
     match self {
       #[cfg(feature = "sqlite")]

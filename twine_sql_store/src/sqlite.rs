@@ -1,3 +1,4 @@
+//! SQLite store implementation for Twine
 use super::{to_resolution_error, to_storage_error, Block};
 use async_trait::async_trait;
 use futures::stream::{unfold, Stream};
@@ -15,6 +16,7 @@ use twine_lib::{
   Cid,
 };
 
+/// The SQL schema for the SQLite store
 pub const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS Strands (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,21 +42,36 @@ CREATE TABLE IF NOT EXISTS Tixels (
 CREATE INDEX IF NOT EXISTS idx_tixels_cid ON Tixels (cid);
 "#;
 
+/// A Sqlite store for Twine data
 #[derive(Debug, Clone)]
 pub struct SqliteStore {
   pool: sqlx::SqlitePool,
 }
 
 impl SqliteStore {
+  /// Create a new Sqlite store from a sqlx pool
   pub fn new(pool: sqlx::SqlitePool) -> Self {
     Self { pool }
   }
 
+  /// Open a new Sqlite store from a URI
+  ///
+  /// # Example
+  ///
+  /// ```no_run
+  /// use twine_sql_store::sqlite::SqliteStore;
+  /// # async {
+  /// let store = SqliteStore::open("sqlite:my_database.db").await.unwrap();
+  /// # };
+  /// ```
   pub async fn open(uri: &str) -> Result<Self, sqlx::Error> {
     let pool = sqlx::Pool::connect(uri).await?;
     Ok(Self::new(pool))
   }
 
+  /// Create the tables for the store
+  ///
+  /// This will create the necessary tables for the store if they do not already exist
   pub async fn create_tables(&self) -> Result<(), sqlx::Error> {
     let mut conn = self.pool.acquire().await?;
     sqlx::query(SCHEMA).execute(&mut *conn).await?;
