@@ -1,3 +1,4 @@
+#![doc = include_str!("../README.md")]
 use async_trait::async_trait;
 use futures::Stream;
 use itertools::Itertools;
@@ -29,6 +30,7 @@ struct IndexKey {
   index: U64<BigEndian>,
 }
 
+/// Options for the SledStore
 #[derive(Debug, Clone, PartialEq)]
 pub struct SledStoreOptions {
   buffer_size: usize,
@@ -41,12 +43,16 @@ impl Default for SledStoreOptions {
 }
 
 impl SledStoreOptions {
+  /// Set the buffer size for the store
+  ///
+  /// The buffer size is the number of items to buffer when saving in batches
   pub fn buffer_size(mut self, buffer_size: usize) -> Self {
     self.buffer_size = buffer_size;
     self
   }
 }
 
+/// A [`Store`] that uses Sled as the backend
 #[derive(Debug, Clone)]
 pub struct SledStore {
   db: Arc<Db>,
@@ -54,6 +60,19 @@ pub struct SledStore {
 }
 
 impl SledStore {
+  /// Create a new SledStore
+  ///
+  /// # Example
+  ///
+  /// ```no_run
+  /// use twine_sled_store::*;
+  /// let db = sled::Config::new()
+  ///   .temporary(true)
+  ///   .path("./mydb")
+  ///   .open()
+  ///   .unwrap();
+  /// let store = SledStore::new(db, SledStoreOptions::default());
+  /// ```
   pub fn new(db: Db, options: SledStoreOptions) -> Self {
     Self {
       db: Arc::new(db),
@@ -92,6 +111,7 @@ fn get_strand_from_key(key: &[u8]) -> Cid {
 }
 
 impl SledStore {
+  /// Flush the store
   pub fn flush(&self) -> sled::Result<usize> {
     self.db.flush()
   }

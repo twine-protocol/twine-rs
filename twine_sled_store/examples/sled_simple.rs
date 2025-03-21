@@ -1,3 +1,4 @@
+//! Example of creating twine data and saving it to a sled store
 use futures::{StreamExt, TryStreamExt};
 use twine_builder::RingSigner;
 use twine_builder::TwineBuilder;
