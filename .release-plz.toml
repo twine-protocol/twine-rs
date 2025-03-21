@@ -1,0 +1,3 @@
+[workspace]
+dependencies_update = true # update dependencies with `cargo update`
+pr_labels = ["release"]
