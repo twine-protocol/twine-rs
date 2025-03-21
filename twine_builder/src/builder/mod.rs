@@ -32,7 +32,7 @@ pub enum BuildError {
   PayloadConstruction(String),
 }
 
-/// Provides the interface to build [`Strand`]s and [`twine_lib::twine::Tixel`]s.
+/// Provides the interface to build Strands and Tixels.
 ///
 /// It uses the [`Signer`] it is provided for signatures, and
 /// this must match the key used to construct any pre-existing data.
@@ -72,6 +72,8 @@ impl<S: Signer<Key = JWK<()>>> TwineBuilder<1, S> {
   /// This method is intended to be chained with the
   /// [`builder_v1::StrandBuilder`] methods to set the strand's details.
   ///
+  /// Requires the `v1` feature to be enabled.
+  ///
   /// # Example
   ///
   /// ```no_run
@@ -85,9 +87,9 @@ impl<S: Signer<Key = JWK<()>>> TwineBuilder<1, S> {
   /// # let pkcs = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, &rng).unwrap();
   /// # let key = EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, pkcs.as_ref(), &rng).unwrap();
   /// # let secret = Secret::EcdsaKeyPair(Arc::new(key));
-  /// # let signer = BiscuitSigner::new(secret, "ES256".to_string());
+  /// # let biscuit_signer = BiscuitSigner::new(secret, "ES256".to_string());
   /// // ...
-  /// let builder = TwineBuilder::new(signer);
+  /// let builder = TwineBuilder::new(biscuit_signer);
   /// let strand = builder.build_strand()
   ///   .radix(2)
   ///   .subspec("my_spec/1.0.1".to_string())
@@ -106,6 +108,8 @@ impl<S: Signer<Key = JWK<()>>> TwineBuilder<1, S> {
   /// This method is intended to be chained with the
   /// [`builder_v1::TixelBuilder`] methods to set the tixel's details.
   ///
+  /// Requires the `v1` feature to be enabled.
+  ///
   /// # Example
   ///
   /// ```no_run
@@ -119,9 +123,9 @@ impl<S: Signer<Key = JWK<()>>> TwineBuilder<1, S> {
   /// # let pkcs = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, &rng).unwrap();
   /// # let key = EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, pkcs.as_ref(), &rng).unwrap();
   /// # let secret = Secret::EcdsaKeyPair(Arc::new(key));
-  /// # let signer = BiscuitSigner::new(secret, "ES256".to_string());
+  /// # let biscuit_signer = BiscuitSigner::new(secret, "ES256".to_string());
   /// // ...
-  /// let builder = TwineBuilder::new(signer);
+  /// let builder = TwineBuilder::new(biscuit_signer);
   /// # let strand = builder.build_strand().done().unwrap();
   /// // ...
   /// let first = builder.build_first(strand)
@@ -141,6 +145,8 @@ impl<S: Signer<Key = JWK<()>>> TwineBuilder<1, S> {
   /// This method is intended to be chained with the
   /// [`builder_v1::TixelBuilder`] methods to set the tixel's details.
   ///
+  /// Requires the `v1` feature to be enabled.
+  ///
   /// # Example
   ///
   /// ```no_run
@@ -154,9 +160,9 @@ impl<S: Signer<Key = JWK<()>>> TwineBuilder<1, S> {
   /// # let pkcs = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, &rng).unwrap();
   /// # let key = EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, pkcs.as_ref(), &rng).unwrap();
   /// # let secret = Secret::EcdsaKeyPair(Arc::new(key));
-  /// # let signer = BiscuitSigner::new(secret, "ES256".to_string());
+  /// # let biscuit_signer = BiscuitSigner::new(secret, "ES256".to_string());
   /// // ...
-  /// let builder = TwineBuilder::new(signer);
+  /// let builder = TwineBuilder::new(biscuit_signer);
   /// # let strand = builder.build_strand().done().unwrap();
   /// # let prev = builder.build_first(strand).done().unwrap();
   /// // ...

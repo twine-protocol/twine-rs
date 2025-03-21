@@ -1,3 +1,6 @@
+//! A signer that uses the `biscuit` crate to sign data.
+//!
+//! Requires the `v1` feature to be enabled.
 use crate::{Signer, SigningError};
 use biscuit::{
   jwk::{AlgorithmParameters, JWK},
@@ -8,6 +11,8 @@ use serde_json::json;
 use twine_lib::crypto::Signature;
 
 /// A signer that uses the `biscuit` crate to sign data.
+///
+/// Requires the `v1` feature to be enabled.
 ///
 /// # Deprecated
 ///
