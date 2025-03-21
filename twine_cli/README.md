@@ -1,12 +1,7 @@
 # Twine CLI
 
-## Design ideas
+[![Crates.io Version](https://img.shields.io/crates/v/twine_cli)](https://crates.io/crates/twine_cli)
+[![docs.rs (with version)](https://img.shields.io/docsrs/twine_cli/latest)](https://docs.rs/twine_cli/latest/twine_cli/)
 
-```sh
-twine init # create a local dir config file and store
-twine ls # list strands in local dir
-twine create ./strand-info.json -k ./ed25519.key # create a strand
-twine commit -s 1 ./payload.json # create a tixel with payload on strand "1"
-twine sync # sync with configured remote stores
-twine dump bafyreislkdf # print all strand data as json (-o car) for car output
-```
+This is a work-in-progress, unstable, commandline interface for working
+with twine protocol data.
