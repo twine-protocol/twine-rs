@@ -228,7 +228,7 @@ pub trait Resolver: BaseResolver {
 
   /// Resolve a range of Twine objects on a Strand
   ///
-  /// This can be supplied as a RangeQuery or any type that implements Into<RangeQuery>
+  /// This can be supplied as a RangeQuery or any type that implements [`Into<RangeQuery>`]
   ///
   /// # Example
   ///

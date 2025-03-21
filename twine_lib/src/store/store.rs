@@ -16,7 +16,7 @@ pub trait Store: BaseResolver {
   /// Save a single twine object
   ///
   /// Note: if saving a full [`Twine`](crate::twine::Twine) type, it will store
-  /// the [`Tixel`](crate::tixel::Tixel) data. The strand data must be stored
+  /// the [`Tixel`](crate::twine::Tixel) data. The strand data must be stored
   /// with its own call.
   ///
   /// # Example

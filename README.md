@@ -5,7 +5,7 @@
 
 Official rust library for the [Twine Protocol](https://docs.twine.world).
 
-The [twine_protocol](twine_protocol) crate is a meta crate for ease of use of
+The [twine_protocol](.) crate is a meta crate for ease of use of
 [twine_lib](twine_lib) and optionally [twine_builder](twine_builder) and [twine_http_store](twine_http_store) through feature flags. Its main purpose
 is to provide a prelude module to be used as: `use twine_protocol::prelude::*;`.
 
@@ -16,7 +16,7 @@ many crates for various purposes:
 
 ### Core libraries
 
-- [twine_protocol](twine_protocol) meta library for ease of use
+- [twine_protocol](.) meta library for ease of use
 - [twine_lib](twine_lib) core library for reading twine data
 - [twine_builder](twine_builder) utilities for constructing twine data
 

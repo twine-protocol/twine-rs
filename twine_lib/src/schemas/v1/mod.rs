@@ -23,7 +23,7 @@ mod chain;
 mod mixin;
 mod pulse;
 
-/// The [`Specification`] type for version 1 schemas
+/// The [`crate::specification::Specification`] type for version 1 schemas
 pub type V1 = crate::specification::Specification<1>;
 
 impl Default for V1 {
