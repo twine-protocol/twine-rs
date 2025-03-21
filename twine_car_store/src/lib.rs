@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use async_trait::async_trait;
 use futures::stream::Stream;
 use futures::StreamExt;
@@ -10,6 +12,10 @@ use twine_lib::resolver::{unchecked_base::BaseResolver, AbsoluteRange, Resolver}
 use twine_lib::store::MemoryStore;
 use twine_lib::{as_cid::AsCid, errors::*, store::Store, twine::*, Cid};
 
+/// A store that saves twines to a single file in CARv1 format
+///
+/// The store is completely loaded into memory and then
+/// flushed to disk whenever a [`Store`] operation is called.
 #[derive(Debug, Clone)]
 pub struct CarStore {
   memstore: MemoryStore,
@@ -25,6 +31,7 @@ impl Drop for CarStore {
 }
 
 impl CarStore {
+  /// Create a new store that saves to the given file
   pub fn new<S: AsRef<Path>>(filename: S) -> Result<Self, StoreError> {
     let s = Self {
       memstore: MemoryStore::new(),
@@ -59,6 +66,7 @@ impl CarStore {
     Ok(())
   }
 
+  /// Flush the store to disk
   pub async fn flush(&self) -> Result<(), StoreError> {
     let strands: Vec<Strand> = self.memstore.fetch_strands().await?.try_collect().await?;
     let latests: Vec<Tixel> = futures::stream::iter(strands.iter())
