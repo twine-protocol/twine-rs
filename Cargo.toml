@@ -15,7 +15,6 @@ Twine protocol library meta-package
 
 [package.metadata.docs.rs]
 all-features = true
-cargo-args = ["--workspace", "--exclude", "twine_cli"]
 
 [workspace]
 members = [
