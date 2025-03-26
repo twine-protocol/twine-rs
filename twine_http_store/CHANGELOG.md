@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2](https://github.com/twine-protocol/twine-rs/compare/twine_http_store-v0.1.1...twine_http_store-v0.1.2) - 2025-03-26
+
+### Fixed
+
+- *(docs)* fix links to other crates
+
 ## [0.1.1](https://github.com/twine-protocol/twine-rs/compare/twine_http_store-v0.1.0...twine_http_store-v0.1.1) - 2025-03-21
 
 ### Fixed
