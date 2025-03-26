@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2](https://github.com/twine-protocol/twine-rs/compare/twine_protocol-v0.1.1...twine_protocol-v0.1.2) - 2025-03-26
+
+### Fixed
+
+- *(docs)* fix links to other crates
+- *(docs)* incorrect docs.rs config
+
+### Other
+
+- configuration for release-plz
+
 ## [0.1.1](https://github.com/twine-protocol/twine-rs/compare/twine_protocol-v0.1.0...twine_protocol-v0.1.1) - 2025-03-21
 
 ### Other
