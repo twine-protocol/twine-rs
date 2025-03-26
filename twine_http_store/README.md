@@ -25,4 +25,4 @@ robustness.
 
 ## Examples
 
-See the [examples](examples) for example uses.
+See the [examples](https://github.com/twine-protocol/twine-rs/tree/main/twine_http_store/examples) for example uses.

@@ -5,8 +5,8 @@
 
 Official rust library for the [Twine Protocol](https://docs.twine.world).
 
-The [twine_protocol](.) crate is a meta crate for ease of use of
-[twine_lib](twine_lib) and optionally [twine_builder](twine_builder) and [twine_http_store](twine_http_store) through feature flags. Its main purpose
+The [twine_protocol](https://docs.rs/twine_protocol) crate is a meta crate for ease of use of
+[twine_lib](https://docs.rs/twine_lib) and optionally [twine_builder](https://docs.rs/twine_builder) and [twine_http_store](https://docs.rs/twine_http_store) through feature flags. Its main purpose
 is to provide a prelude module to be used as: `use twine_protocol::prelude::*;`.
 
 ## Packages
@@ -16,24 +16,24 @@ many crates for various purposes:
 
 ### Core libraries
 
-- [twine_protocol](.) meta library for ease of use
-- [twine_lib](twine_lib) core library for reading twine data
-- [twine_builder](twine_builder) utilities for constructing twine data
+- [twine_protocol](https://docs.rs/twine_protocol) meta library for ease of use
+- [twine_lib](https://docs.rs/twine_lib) core library for reading twine data
+- [twine_builder](https://docs.rs/twine_builder) utilities for constructing twine data
 
 ### Stores
 
 These provide various ways to store twine data, all implementing the
 `Store` trait.
 
-- [twine_http_store](twine_http_store) saving twine data to a twine http api
-- [twine_sql_store](twine_sql_store) saving twine data to sqlite or mysql dbs
-- [twine_sled_store](twine_sled_store) saving twine data to a Sled KV db
-- [twine_car_store](twine_car_store) saving twine data to a CAR file
-- [twine_pickledb_store](twine_pickledb_store) saving twine data to a simple binary data file
+- [twine_http_store](https://docs.rs/twine_http_store) saving twine data to a twine http api
+- [twine_sql_store](https://docs.rs/twine_sql_store) saving twine data to sqlite or mysql dbs
+- [twine_sled_store](https://docs.rs/twine_sled_store) saving twine data to a Sled KV db
+- [twine_car_store](https://docs.rs/twine_car_store) saving twine data to a CAR file
+- [twine_pickledb_store](https://docs.rs/twine_pickledb_store) saving twine data to a simple binary data file
 
 ### CLI
 
-The [twine_cli](twine_cli) is a work-in-progress commandline interface for
+The [twine_cli](https://docs.rs/twine_cli) is a work-in-progress commandline interface for
 fetching, reading, and copying twine data.
 
 ## Quickstart
@@ -151,4 +151,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 The rust twine library is distributed under the MIT license.
 
-[LICENSE-MIT](LICENSE-MIT)
+[LICENSE-MIT](https://github.com/twine-protocol/twine-rs?tab=MIT-1-ov-file)
