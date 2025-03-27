@@ -50,6 +50,32 @@ pub struct CarHeader {
   pub roots: Vec<Cid>,
 }
 
+impl CarHeader {
+  /// Create a new CAR header
+  pub fn new(version: u8, roots: Vec<Cid>) -> Self {
+    Self { version, roots }
+  }
+
+  /// Encode to bytes
+  pub fn encode_to_bytes(&self) -> Vec<u8> {
+    let header_bytes = DagCborCodec::encode_to_vec(self).unwrap();
+    let mut buf = [0u8; U64_LEN];
+    let (buf_ref, input_len) = encode_varint_u64(header_bytes.len() as u64, &mut buf);
+    let (enc, _) = buf_ref.split_at(input_len);
+    let header = vec![enc.to_vec(), header_bytes].concat();
+    header
+  }
+}
+
+fn twine_to_block_bytes<I: TwineBlock>(twine: I) -> Vec<u8> {
+  let cid = twine.cid();
+  let bytes = twine.bytes();
+  let mut buf = [0u8; U64_LEN];
+  let (buf_ref, len) = encode_varint_u64((bytes.len() + cid.encoded_len()) as u64, &mut buf);
+  let (enc, _) = buf_ref.split_at(len);
+  vec![enc, &cid.to_bytes(), &bytes].concat()
+}
+
 /// Convert a stream of TwineBlocks to a CAR stream
 ///
 /// # Example
@@ -87,20 +113,19 @@ pub fn to_car_stream<I: TwineBlock, S: Stream<Item = I>>(
   roots: Vec<Cid>,
 ) -> impl Stream<Item = Vec<u8>> {
   let header = CarHeader { version: 1, roots };
-  let header_bytes = DagCborCodec::encode_to_vec(&header).unwrap();
-  let mut buf = [0u8; U64_LEN];
-  let (buf_ref, input_len) = encode_varint_u64(header_bytes.len() as u64, &mut buf);
-  let (enc, _) = buf_ref.split_at(input_len);
-  let header = vec![enc.to_vec(), header_bytes].concat();
-  let blocks = stream.map(|twine| {
-    let cid = twine.cid();
-    let bytes = twine.bytes();
-    let mut buf = [0u8; U64_LEN];
-    let (buf_ref, len) = encode_varint_u64((bytes.len() + cid.encoded_len()) as u64, &mut buf);
-    let (enc, _) = buf_ref.split_at(len);
-    vec![enc, &cid.to_bytes(), &bytes].concat()
-  });
-  futures::stream::iter(vec![header]).chain(blocks)
+  let blocks = stream.map(twine_to_block_bytes);
+  futures::stream::iter(vec![header.encode_to_bytes()]).chain(blocks)
+}
+
+/// Convert an iterator of TwineBlocks to a byte array in CAR format
+pub fn to_car_bytes<T: IntoIterator<Item = I>, I: TwineBlock>(twines: T, roots: Vec<Cid>) -> Vec<u8> {
+  let header = CarHeader { version: 1, roots };
+  let blocks = twines.into_iter().map(twine_to_block_bytes);
+  vec![header.encode_to_bytes()]
+    .into_iter()
+    .chain(blocks)
+    .collect::<Vec<_>>()
+    .concat()
 }
 
 /// Convert a CAR stream of bytes to a stream of TwineBlocks
@@ -145,13 +170,11 @@ mod test {
     Ok(())
   }
 
-  #[tokio::test]
-  async fn test_from_car_bytes() -> Result<(), Box<dyn Error>> {
+  #[test]
+  fn test_from_car_bytes() -> Result<(), Box<dyn Error>> {
     let twine = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
     let roots = vec![twine.cid()];
-    let stream = futures::stream::iter(vec![twine.clone()]);
-    let car_stream = to_car_stream(stream, roots.clone());
-    let car_bytes = car_stream.collect::<Vec<_>>().await.concat();
+    let car_bytes = to_car_bytes(vec![twine.clone()], roots);
     let twines = from_car_bytes(&mut &*car_bytes).unwrap();
     assert_eq!(twines.len(), 1);
     assert_eq!(twines[0].cid(), twine.cid());
