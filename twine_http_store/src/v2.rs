@@ -34,6 +34,58 @@ fn handle_save_result(res: Result<reqwest::Response, ResolutionError>) -> Result
   }
 }
 
+pub(crate) async fn parse_response(
+  response: reqwest::Response,
+) -> Result<impl Stream<Item = Result<AnyTwine, ResolutionError>>, ResolutionError> {
+  let reader = response
+    .bytes()
+    .await
+    .map_err(|e| ResolutionError::Fetch(e.to_string()))?;
+  use twine_lib::car::CarDecodeError;
+  let twines = from_car_bytes(&mut reader.as_ref()).map_err(|e| match e {
+    CarDecodeError::DecodeError(e) => ResolutionError::BadData(e.to_string()),
+    CarDecodeError::VerificationError(e) => ResolutionError::Invalid(e),
+  })?;
+  let stream = futures::stream::iter(twines.into_iter().map(Ok));
+  Ok(stream)
+}
+
+pub(crate) async fn type_from_response<E, T: TryFrom<AnyTwine, Error = E>>(
+  response: reqwest::Response,
+) -> Result<T, ResolutionError>
+where
+  ResolutionError: From<E>,
+{
+  let mut stream = parse_response(response).await?;
+  let first = stream
+    .next()
+    .await
+    .ok_or(ResolutionError::BadData("No data in response".into()))?;
+  let item = T::try_from(first?)?;
+  Ok(item)
+}
+
+pub(crate) async fn twine_from_response(
+  response: reqwest::Response,
+) -> Result<Twine, ResolutionError> {
+  let mut stream = parse_response(response).await?;
+  let first = stream
+    .next()
+    .await
+    .ok_or(ResolutionError::BadData("No data in response".into()))?;
+  let second = stream.next().await.ok_or(ResolutionError::BadData(
+    "Expected more data in response".into(),
+  ))?;
+
+  let (strand, tixel) = match (first?, second?) {
+    (AnyTwine::Strand(s), AnyTwine::Tixel(t)) => (s, t),
+    (AnyTwine::Tixel(t), AnyTwine::Strand(s)) => (s, t),
+    _ => return Err(ResolutionError::BadData("Expected Strand and Tixel".into())),
+  };
+
+  Ok(Twine::try_new(strand, tixel)?)
+}
+
 /// A type implementing the [`Store`] trait for the version 2 HTTP API
 #[derive(Debug, Clone)]
 pub struct HttpStore {
@@ -209,61 +261,6 @@ impl HttpStore {
       },
     }
   }
-
-  async fn parse_response(
-    &self,
-    response: reqwest::Response,
-  ) -> Result<impl Stream<Item = Result<AnyTwine, ResolutionError>>, ResolutionError> {
-    let reader = response
-      .bytes()
-      .await
-      .map_err(|e| ResolutionError::Fetch(e.to_string()))?;
-    use twine_lib::car::CarDecodeError;
-    let twines = from_car_bytes(&mut reader.as_ref()).map_err(|e| match e {
-      CarDecodeError::DecodeError(e) => ResolutionError::BadData(e.to_string()),
-      CarDecodeError::VerificationError(e) => ResolutionError::Invalid(e),
-    })?;
-    let stream = futures::stream::iter(twines.into_iter().map(Ok));
-    Ok(stream)
-  }
-
-  async fn type_from_response<E, T: TryFrom<AnyTwine, Error = E>>(
-    &self,
-    response: reqwest::Response,
-  ) -> Result<T, ResolutionError>
-  where
-    ResolutionError: From<E>,
-  {
-    let mut stream = self.parse_response(response).await?;
-    let first = stream
-      .next()
-      .await
-      .ok_or(ResolutionError::BadData("No data in response".into()))?;
-    let item = T::try_from(first?)?;
-    Ok(item)
-  }
-
-  async fn twine_from_response(
-    &self,
-    response: reqwest::Response,
-  ) -> Result<Twine, ResolutionError> {
-    let mut stream = self.parse_response(response).await?;
-    let first = stream
-      .next()
-      .await
-      .ok_or(ResolutionError::BadData("No data in response".into()))?;
-    let second = stream.next().await.ok_or(ResolutionError::BadData(
-      "Expected more data in response".into(),
-    ))?;
-
-    let (strand, tixel) = match (first?, second?) {
-      (AnyTwine::Strand(s), AnyTwine::Tixel(t)) => (s, t),
-      (AnyTwine::Tixel(t), AnyTwine::Strand(s)) => (s, t),
-      _ => return Err(ResolutionError::BadData("Expected Strand and Tixel".into())),
-    };
-
-    Ok(Twine::try_new(strand, tixel)?)
-  }
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
@@ -300,7 +297,7 @@ impl BaseResolver for HttpStore {
 
   async fn fetch_strands(&self) -> Result<TwineStream<'_, Strand>, ResolutionError> {
     let response = self.send(self.get("")).await?;
-    let stream = self.parse_response(response).await?;
+    let stream = parse_response(response).await?;
     let stream = stream.map(|t| {
       let strand = Strand::try_from(t?)?;
       Ok(strand)
@@ -319,7 +316,7 @@ impl BaseResolver for HttpStore {
     let cid = strand.as_cid();
     let path = format!("{}", cid);
     let response = self.send(self.get(&path)).await?;
-    let strand = self.type_from_response(response).await?;
+    let strand = type_from_response(response).await?;
     Ok(strand)
   }
 
@@ -327,7 +324,7 @@ impl BaseResolver for HttpStore {
     let q: SingleQuery = (strand, tixel).into();
     let path = format!("{}", q);
     let response = self.send(self.get(&path)).await?;
-    let tixel = self.type_from_response(response).await?;
+    let tixel = type_from_response(response).await?;
     Ok(tixel)
   }
 
@@ -335,7 +332,7 @@ impl BaseResolver for HttpStore {
     let q: SingleQuery = (strand, index).into();
     let path = format!("{}", q);
     let response = self.send(self.get(&path)).await?;
-    let tixel = self.type_from_response(response).await?;
+    let tixel = type_from_response(response).await?;
     Ok(tixel)
   }
 
@@ -343,7 +340,7 @@ impl BaseResolver for HttpStore {
     let q = SingleQuery::Latest(*strand);
     let path = format!("{}", q);
     let response = self.send(self.get(&path)).await?;
-    let tixel = self.type_from_response(response).await?;
+    let tixel = type_from_response(response).await?;
     Ok(tixel)
   }
 
@@ -357,7 +354,7 @@ impl BaseResolver for HttpStore {
         let path = format!("{}", range);
         async move {
           let res = self.send(self.get(&path)).await?;
-          self.parse_response(res).await
+          parse_response(res).await
         }
       })
       .buffered(self.concurency)
@@ -389,7 +386,7 @@ impl Resolver for HttpStore {
     let q = SingleQuery::from(*strand.as_cid());
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
-    let twine = self.twine_from_response(response).await?;
+    let twine = twine_from_response(response).await?;
     TwineResolution::try_new(q, twine)
   }
 
@@ -401,7 +398,7 @@ impl Resolver for HttpStore {
     let q = SingleQuery::from((strand.as_cid(), index));
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
-    let twine = self.twine_from_response(response).await?;
+    let twine = twine_from_response(response).await?;
     TwineResolution::try_new(q, twine)
   }
 
@@ -413,7 +410,7 @@ impl Resolver for HttpStore {
     let q = SingleQuery::from((strand.as_cid(), tixel.as_cid()));
     let path = format!("{}", q);
     let response = self.send(self.get(&path).query(&[("full", "")])).await?;
-    let twine = self.twine_from_response(response).await?;
+    let twine = twine_from_response(response).await?;
     TwineResolution::try_new(q, twine)
   }
 }
