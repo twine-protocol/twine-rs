@@ -1,6 +1,6 @@
 [package]
 name = "twine_protocol"
-version = "0.1.1"
+version = "0.1.2"
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -38,13 +38,13 @@ categories = ['data-structures', 'cryptography']
 keywords = ["twine", "randomness", "blockchain"]
 
 [workspace.dependencies]
-twine_lib = { version = "0.2.0", path = "./twine_lib" }
-twine_builder = { version = "0.1.1", path = "./twine_builder" }
-twine_http_store = { version = "0.1.1", path = "./twine_http_store" }
-twine_sled_store = { version = "0.1.1", path = "./twine_sled_store" }
-twine_car_store = { version = "0.1.1", path = "./twine_car_store" }
-twine_pickledb_store = { version = "0.1.1", path = "./twine_pickledb_store" }
-twine_sql_store = { version = "0.1.1", path = "./twine_sql_store" }
+twine_lib = { version = "0.2.1", path = "./twine_lib" }
+twine_builder = { version = "0.1.2", path = "./twine_builder" }
+twine_http_store = { version = "0.1.2", path = "./twine_http_store" }
+twine_sled_store = { version = "0.1.2", path = "./twine_sled_store" }
+twine_car_store = { version = "0.1.2", path = "./twine_car_store" }
+twine_pickledb_store = { version = "0.1.2", path = "./twine_pickledb_store" }
+twine_sql_store = { version = "0.1.2", path = "./twine_sql_store" }
 thiserror = "2.0.12"
 futures = "0.3"
 log = "0.4"
