@@ -9,6 +9,9 @@ categories.workspace = true
 keywords.workspace = true
 description = "Twine protocol rust library http store"
 
+[features]
+server = ["axum", "tower-service"]
+
 [dependencies]
 twine_lib.workspace = true
 futures.workspace = true
@@ -19,7 +22,11 @@ serde_json.workspace = true
 reqwest = { version = "0.12", features = ["stream", "brotli", "json"] }
 itertools.workspace = true
 backon = "1.3"
+axum = { version = "0.8", optional = true }
+tower-service = { version = "0.3", optional = true }
+thiserror.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
 futures-time = "3.0"
+twine_builder.workspace = true

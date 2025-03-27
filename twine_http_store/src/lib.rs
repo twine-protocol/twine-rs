@@ -2,6 +2,8 @@
 pub use reqwest;
 pub mod v1;
 pub mod v2;
+#[cfg(feature = "server")]
+pub mod server;
 
 /// Determine the version of a twine HTTP store
 pub async fn determine_version(uri: &str) -> Option<u8> {
