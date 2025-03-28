@@ -1,3 +1,4 @@
+//! This module provides an v2 HTTP API backed by a Twine store.
 use axum::{
     extract::{Path, Query, State},
     response::{Json, IntoResponse},
@@ -9,11 +10,28 @@ use twine_lib::{errors::ResolutionError, store::Store, resolver::Resolver};
 use std::sync::Arc;
 use serde::Deserialize;
 
+/// Options for the API
+#[derive(Debug, Clone)]
+pub struct ApiOptions {
+  /// The maximum length of a query
+  /// If the length of the query exceeds this value, a 400 error will be returned
+  /// Default: 1000
+  pub max_query_length: u64,
+}
+
+impl Default for ApiOptions {
+  fn default() -> Self {
+    Self {
+      max_query_length: 1000,
+    }
+  }
+}
+
 pub use api::api;
 
 mod api {
-  use axum::http::HeaderMap;
-  use twine_lib::errors::{ConversionError, StoreError, VerificationError};
+  use axum::{http::HeaderMap, routing::head, Extension};
+  use twine_lib::{errors::{ConversionError, StoreError, VerificationError}, resolver::AnyQuery};
   use super::*;
 
   #[allow(unused)]
@@ -101,12 +119,15 @@ mod api {
   /// Create a new router for a twine http api using the given store
   pub fn api<S: Store + Resolver + 'static>(
     store: S,
+    options: ApiOptions,
   ) -> Router {
     let store = Arc::new(store);
     Router::new()
       .route("/", get(list_strands))
       .route("/{query}", get(query))
+      .route("/{query}", head(has_record))
       .with_state(store)
+      .layer(Extension(options))
   }
 
   async fn list_strands<S: Store + Resolver>(
@@ -121,14 +142,41 @@ mod api {
     State(store): State<Arc<S>>,
     Path(query): Path<String>,
     Query(query_params): Query<QueryParams>,
+    options: Extension<ApiOptions>,
   ) -> Result<axum::response::Response, ApiError> {
-
     handlers::query(
       query,
       store,
       wants_car(&headers),
       query_params.full.into(),
+      options.0
     ).await
+  }
+
+  async fn has_record<S: Store + Resolver>(
+    State(store): State<Arc<S>>,
+    Path(query): Path<String>,
+  ) -> Result<axum::response::Response, ApiError> {
+    let query = match query.parse::<AnyQuery>() {
+      Ok(query) => query,
+      Err(_) => return Ok((
+        StatusCode::BAD_REQUEST,
+        "Invalid query".to_string(),
+      ).into_response()),
+    };
+    let res = match query {
+      AnyQuery::Strand(strand) => store.has_strand(&strand).await?,
+      AnyQuery::One(single) => store.has(single).await?,
+      AnyQuery::Many(_) => return Ok((
+        StatusCode::BAD_REQUEST,
+        "Range queries are not supported for HEAD".to_string(),
+      ).into_response()),
+    };
+    if res {
+      Ok(StatusCode::OK.into_response())
+    } else {
+      Err(ApiError::NotFound)
+    }
   }
 }
 
@@ -142,6 +190,7 @@ mod handlers {
     store: Arc<S>,
     as_car: bool,
     full: bool,
+    options: ApiOptions,
   ) -> Result<axum::response::Response, api::ApiError> {
     let result = match q.parse::<AnyQuery>() {
       Ok(query) => match query {
@@ -165,8 +214,19 @@ mod handlers {
         }
         AnyQuery::Many(range) => {
           use futures::TryStreamExt;
+          let absolute = range.try_to_absolute(store.as_ref()).await?;
+          if absolute.is_none() {
+            return Ok(StatusCode::NO_CONTENT.into_response());
+          }
+          let range = absolute.unwrap();
+          if range.len() > options.max_query_length {
+            return Ok((
+              StatusCode::BAD_REQUEST,
+              format!("Query length exceeds max length of {}", options.max_query_length),
+            ).into_response());
+          }
           let tixels: Vec<_> = store.resolve_range(range).await?.try_collect().await?;
-          let strand = if full {
+          let strand = if full && tixels.len() > 0 {
             Some((*tixels[0].strand()).clone().into())
           } else {
             None
@@ -304,6 +364,19 @@ mod test {
   }
 
   impl TestService {
+    pub async fn has(&mut self, query: &str) -> bool {
+      let request = axum::http::Request::builder()
+        .method("HEAD")
+        .uri(format!("/{}", query))
+        .header("accept", "application/vnd.ipld.car")
+        .body(axum::body::Body::empty())
+        .unwrap();
+
+      use tower_service::Service;
+      let response = self.router.as_service().call(request).await.unwrap();
+      response.status() == StatusCode::OK
+    }
+
     pub async fn get_one(&mut self, query: &str) -> AnyTwine {
       let request = axum::http::Request::builder()
         .method("GET")
@@ -345,7 +418,7 @@ mod test {
     let strand_cid = make_strand(&store).await.unwrap();
 
     let mut service = TestService {
-      router: api::api(store.clone()),
+      router: api::api(store.clone(), Default::default()),
     };
 
     let strands = service.get_many("").await;
@@ -363,7 +436,7 @@ mod test {
     let strand_cid = make_strand(&store).await.unwrap();
 
     let mut service = TestService {
-      router: api::api(store.clone()),
+      router: api::api(store.clone(), Default::default()),
     };
 
     let twines = service.get_many(&format!("{}:1:=4", strand_cid)).await;
@@ -380,7 +453,7 @@ mod test {
     let strand_cid = make_strand(&store).await.unwrap();
 
     let mut service = TestService {
-      router: api::api(store.clone()),
+      router: api::api(store.clone(), Default::default()),
     };
     let twine = service.get_one(&format!("{}:1", strand_cid)).await;
     let tixel = twine.unwrap_tixel();
@@ -398,7 +471,7 @@ mod test {
     let tixel_cid = store.resolve_index(strand_cid, index).await.unwrap().cid();
 
     let mut service = TestService {
-      router: api::api(store.clone()),
+      router: api::api(store.clone(), ApiOptions::default()),
     };
     let twine = service.get_one(&format!("{}:{}", strand_cid, tixel_cid)).await;
     let tixel = twine.unwrap_tixel();
@@ -415,7 +488,7 @@ mod test {
     let latest = store.resolve_latest(strand_cid).await.unwrap();
 
     let mut service = TestService {
-      router: api::api(store.clone()),
+      router: api::api(store.clone(), ApiOptions::default()),
     };
     let twine = service.get_one(&format!("{}:", strand_cid)).await;
     let tixel = twine.unwrap_tixel();
@@ -431,7 +504,7 @@ mod test {
     let strand_cid = make_strand(&store).await.unwrap();
 
     let mut service = TestService {
-      router: api::api(store.clone()),
+      router: api::api(store.clone(), ApiOptions::default()),
     };
     let request = axum::http::Request::builder()
       .method("GET")
@@ -453,11 +526,53 @@ mod test {
     let strand_cid = make_strand(&store).await.unwrap();
 
     let mut service = TestService {
-      router: api::api(store.clone()),
+      router: api::api(store.clone(), ApiOptions::default()),
     };
     let request = axum::http::Request::builder()
       .method("GET")
       .uri(format!("/{}:1000:bad", strand_cid))
+      .header("accept", "application/vnd.ipld.car")
+      .body(axum::body::Body::empty())
+      .unwrap();
+
+    use tower_service::Service;
+    let response = service.router.as_service().call(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn test_has() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+
+    let mut service = TestService {
+      router: api::api(store.clone(), ApiOptions::default()),
+    };
+
+    let result = service.has(&format!("{}:1", strand_cid)).await;
+    assert!(result);
+    let result = service.has(&format!("{}:1000", strand_cid)).await;
+    assert!(!result);
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn test_max_query_length() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+
+    let mut service = TestService {
+      router: api::api(store.clone(), ApiOptions {
+        max_query_length: 5,
+      }),
+    };
+
+    let request = axum::http::Request::builder()
+      .method("GET")
+      .uri(format!("/{}:0:=100", strand_cid))
       .header("accept", "application/vnd.ipld.car")
       .body(axum::body::Body::empty())
       .unwrap();
