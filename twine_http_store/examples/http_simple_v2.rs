@@ -12,7 +12,7 @@ use twine_http_store::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-  let resolver = v2::HttpStore::new(reqwest::Client::new()).with_url("http://localhost:8787/");
+  let resolver = v2::HttpStore::new(reqwest::Client::new()).with_url("http://localhost:3000/");
   // let store = twine_lib::store::MemoryStore::new();
 
   println!("strands:");
@@ -42,9 +42,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   let latest = resolver.resolve_latest(&twine).await?;
   println!("latest: {}", latest.cid());
 
-  // resolve 1000
+  // resolve 50
   resolver
-    .resolve_range((&twine, 0..=1000))
+    .resolve_range((&twine, 0..=50))
     .await?
     .inspect_ok(|twine| println!("index: {}, cid: {}", twine.index(), twine.cid()))
     .inspect_err(|err| eprintln!("error: {}", err))

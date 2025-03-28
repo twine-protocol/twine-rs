@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       })
       .build()?,
   )
-  .with_url("http://localhost:8787/");
+  .with_url("http://localhost:3000/");
 
   println!("strands:");
   let strands = resolver.strands().await?;
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   // now save first 10 twines
   let stream = resolver
-    .resolve_range((&strands[0], 0..=1000))
+    .resolve_range((&strands[0], 0..=10))
     .await?
     .inspect_ok(|twine| println!("index: {}, cid: {}", twine.index(), twine.cid()))
     .inspect_err(|err| eprintln!("error: {}", err))

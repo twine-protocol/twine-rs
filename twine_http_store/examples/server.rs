@@ -20,7 +20,7 @@ async fn make_strand_data<S: Store + Resolver>(
     .done()?;
   store.save(prev.clone()).await?;
 
-  for i in 1..10 {
+  for i in 1..100 {
     let tixel = builder
       .build_next(&prev)
       .payload(ipld!({
@@ -40,7 +40,10 @@ async fn main() -> Result<(), std::io::Error> {
   let strand_cid = make_strand_data(&store).await.unwrap();
   println!("created strand: {}", strand_cid);
 
-  let app = server::api(store, server::ApiOptions::default());
+  let app = server::api(store, server::ApiOptions {
+    read_only: false,
+    ..server::ApiOptions::default()
+  });
 
   // run our app with hyper, listening globally on port 3000
   let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

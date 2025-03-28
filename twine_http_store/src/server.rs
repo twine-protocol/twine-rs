@@ -2,7 +2,6 @@
 use axum::{
     extract::{Path, Query, State},
     response::{Json, IntoResponse},
-    routing::{get, Router},
     http::StatusCode,
 };
 use twine_lib::{twine::AnyTwine, serde::dag_json};
@@ -17,12 +16,16 @@ pub struct ApiOptions {
   /// If the length of the query exceeds this value, a 400 error will be returned
   /// Default: 1000
   pub max_query_length: u64,
+
+  /// If true (default), the API will not allow any write operations
+  pub read_only: bool,
 }
 
 impl Default for ApiOptions {
   fn default() -> Self {
     Self {
       max_query_length: 1000,
+      read_only: true,
     }
   }
 }
@@ -30,8 +33,8 @@ impl Default for ApiOptions {
 pub use api::api;
 
 mod api {
-  use axum::{http::HeaderMap, routing::head, Extension};
-  use twine_lib::{errors::{ConversionError, StoreError, VerificationError}, resolver::AnyQuery};
+  use axum::{body::Bytes, http::HeaderMap, routing::{get, Router}, Extension};
+  use twine_lib::{errors::{ConversionError, StoreError, VerificationError}, resolver::AnyQuery, Cid};
   use super::*;
 
   #[allow(unused)]
@@ -123,9 +126,8 @@ mod api {
   ) -> Router {
     let store = Arc::new(store);
     Router::new()
-      .route("/", get(list_strands))
-      .route("/{query}", get(query))
-      .route("/{query}", head(has_record))
+      .route("/", get(list_strands).put(put_strands))
+      .route("/{query}", get(query).head(has_record).put(put_tixels))
       .with_state(store)
       .layer(Extension(options))
   }
@@ -178,12 +180,52 @@ mod api {
       Err(ApiError::NotFound)
     }
   }
+
+  async fn put_strands<S: Store + Resolver>(
+    State(store): State<Arc<S>>,
+    Extension(options): Extension<ApiOptions>,
+    body: Bytes,
+  ) -> Result<axum::response::Response, ApiError> {
+    if options.read_only {
+      return Ok((
+        StatusCode::FORBIDDEN,
+        "This API is read-only".to_string(),
+      ).into_response());
+    }
+
+    handlers::save_strands(store, body).await
+  }
+
+  async fn put_tixels<S: Store + Resolver>(
+    State(store): State<Arc<S>>,
+    Extension(options): Extension<ApiOptions>,
+    Path(query): Path<String>,
+    body: Bytes,
+  ) -> Result<axum::response::Response, ApiError> {
+    if options.read_only {
+      return Ok((
+        StatusCode::FORBIDDEN,
+        "This API is read-only".to_string(),
+      ).into_response());
+    }
+
+    let strand_cid = match query.parse::<Cid>() {
+      Ok(cid) => cid,
+      Err(_) => return Ok((
+        StatusCode::BAD_REQUEST,
+        "Invalid strand cid".to_string(),
+      ).into_response()),
+    };
+
+    handlers::save_tixels(store, strand_cid, body).await
+  }
+
 }
 
 mod handlers {
   use super::*;
-  use twine_lib::resolver::AnyQuery;
-  use axum::response::IntoResponse;
+  use twine_lib::{resolver::AnyQuery, Cid};
+  use axum::{body::Bytes, response::IntoResponse};
 
   pub async fn query<S: Store + Resolver>(
     q: String,
@@ -261,6 +303,49 @@ mod handlers {
       Ok(Json(result).into_response())
     }
   }
+
+  pub async fn save_strands<S: Store + Resolver>(
+    store: Arc<S>,
+    bytes: Bytes,
+  ) -> Result<axum::response::Response, api::ApiError> {
+    let mut cursor = std::io::Cursor::new(bytes);
+    let strands = twine_lib::car::from_car_bytes(&mut cursor)
+      .map_err(|e| api::ApiError::BadRequestData(e.to_string()))?;
+
+    if ! strands.iter().all(|s| s.is_strand()) {
+      return Err(api::ApiError::BadRequestData("Not all items are strands".to_string()));
+    }
+
+    store.save_many(strands).await?;
+
+    Ok(StatusCode::CREATED.into_response())
+  }
+
+  pub async fn save_tixels<S: Store + Resolver>(
+    store: Arc<S>,
+    strand_cid: Cid,
+    bytes: Bytes,
+  ) -> Result<axum::response::Response, api::ApiError> {
+    let mut cursor = std::io::Cursor::new(bytes);
+    let things = twine_lib::car::from_car_bytes(&mut cursor)
+      .map_err(|e| api::ApiError::BadRequestData(e.to_string()))?;
+
+    let mut tixels: Vec<_> = things.into_iter()
+      .map(|t| {
+        if !t.is_tixel() {
+          return Err(api::ApiError::BadRequestData("Not all items are tixels".to_string()));
+        }
+        if t.strand_cid() != strand_cid {
+          return Err(api::ApiError::BadRequestData("Not all items are from the same strand".to_string()));
+        }
+        Ok(t.unwrap_tixel())
+      })
+      .collect::<Result<_, _>>()?;
+
+    tixels.sort_by_key(|t| t.index());
+    store.save_many(tixels).await?;
+    Ok(StatusCode::CREATED.into_response())
+  }
 }
 
 mod models {
@@ -309,6 +394,7 @@ mod models {
 mod test {
   use crate::v2;
   use super::*;
+  use axum::Router;
   use twine_builder::{RingSigner, TwineBuilder};
   use twine_lib::{ipld_core::ipld, store::MemoryStore, Cid};
 
@@ -410,6 +496,19 @@ mod test {
       let things = parse_response(response).await.unwrap();
       things
     }
+
+    pub async fn put(&mut self, query: &str, things: Vec<AnyTwine>) -> StatusCode {
+      let request = axum::http::Request::builder()
+        .method("PUT")
+        .uri(format!("/{}", query))
+        .header("accept", "application/vnd.ipld.car")
+        .body(axum::body::Body::from(twine_lib::car::to_car_bytes(things, vec![Cid::default()])))
+        .unwrap();
+
+      use tower_service::Service;
+      let response = self.router.as_service().call(request).await.unwrap();
+      response.status()
+    }
   }
 
   #[tokio::test]
@@ -425,6 +524,22 @@ mod test {
 
     assert_eq!(strands.len(), 1);
     let strand = strands[0].unwrap_strand();
+    assert_eq!(strand.cid(), strand_cid);
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn test_get_single_strand() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+
+    let mut service = TestService {
+      router: api::api(store.clone(), Default::default()),
+    };
+
+    let strand = service.get_one(&format!("{}", strand_cid)).await;
+    let strand = strand.unwrap_strand();
     assert_eq!(strand.cid(), strand_cid);
 
     Ok(())
@@ -567,6 +682,7 @@ mod test {
     let mut service = TestService {
       router: api::api(store.clone(), ApiOptions {
         max_query_length: 5,
+        ..ApiOptions::default()
       }),
     };
 
@@ -580,6 +696,41 @@ mod test {
     use tower_service::Service;
     let response = service.router.as_service().call(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn test_saving() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+    let other_store = MemoryStore::default();
+
+    let mut service = TestService {
+      router: api::api(other_store.clone(), ApiOptions {
+        read_only: false,
+        ..ApiOptions::default()
+      }),
+    };
+
+    use futures::TryStreamExt;
+    let strand = store.resolve_strand(&strand_cid).await.unwrap().unpack();
+    let tixels: Vec<AnyTwine> = store.resolve_range((strand.clone(), ..)).await?
+      .and_then(|t| async { Ok(t.into()) })
+      .try_collect().await?;
+
+    let ret = service.put("", vec![
+      strand.clone().into()
+    ]).await;
+
+    assert_eq!(ret, StatusCode::CREATED);
+
+    let ret = service.put(&format!("{}", strand_cid), tixels).await;
+    assert_eq!(ret, StatusCode::CREATED);
+
+    let fourth = store.resolve_index(strand_cid, 4).await.unwrap();
+    let tixel = other_store.resolve_index(strand_cid, 4).await.unwrap();
+    assert_eq!(fourth.cid(), tixel.cid());
 
     Ok(())
   }
