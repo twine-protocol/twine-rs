@@ -10,7 +10,7 @@ keywords.workspace = true
 description = "Twine protocol rust library http store"
 
 [features]
-server = ["axum", "tower-service"]
+server = ["axum", "tower", "tower-service"]
 
 [dependencies]
 twine_lib.workspace = true
@@ -23,6 +23,7 @@ reqwest = { version = "0.12", features = ["stream", "brotli", "json"] }
 itertools.workspace = true
 backon = "1.3"
 axum = { version = "0.8", optional = true }
+tower = { version = "0.5.2", optional = true }
 tower-service = { version = "0.3", optional = true }
 thiserror.workspace = true
 

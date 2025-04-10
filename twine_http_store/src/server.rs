@@ -130,6 +130,11 @@ mod api {
       .route("/{query}", get(query).head(has_record).put(put_tixels))
       .with_state(store)
       .layer(Extension(options))
+      // add a header to responses
+      .layer(tower::ServiceBuilder::new().map_response(|mut response: axum::response::Response| {
+        response.headers_mut().insert("X-Spool-Version", "2".parse().unwrap());
+        response
+      }))
   }
 
   async fn list_strands<S: Store + Resolver>(
@@ -732,6 +737,30 @@ mod test {
     let tixel = other_store.resolve_index(strand_cid, 4).await.unwrap();
     assert_eq!(fourth.cid(), tixel.cid());
 
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn check_header() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+    let mut service = TestService {
+      router: api::api(store.clone(), ApiOptions::default()),
+    };
+    let request = axum::http::Request::builder()
+      .method("GET")
+      .uri(format!("/{}:1", strand_cid))
+      .header("accept", "application/vnd.ipld.car")
+      .body(axum::body::Body::empty())
+      .unwrap();
+
+    use tower_service::Service;
+    let response = service.router.as_service().call(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+      response.headers().get("X-Spool-Version").unwrap(),
+      "2".parse::<axum::http::HeaderValue>().unwrap()
+    );
     Ok(())
   }
 }
