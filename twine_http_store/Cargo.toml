@@ -30,4 +30,7 @@ thiserror.workspace = true
 [dev-dependencies]
 tokio.workspace = true
 futures-time = "3.0"
+axum = "0.8"
+tower = "0.5.2"
+tower-service = "0.3"
 twine_builder.workspace = true
