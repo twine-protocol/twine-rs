@@ -2,14 +2,12 @@
 use axum::{
   http::StatusCode, extract::Request, middleware::Next, response::Response
 };
-use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
 use twine_builder::{RingSigner, TwineBuilder};
 use twine_http_store::server;
 use twine_lib::ipld_core::ipld;
 use twine_lib::{resolver::*, Cid};
 use twine_lib::store::{MemoryStore, Store};
-use hyper::server::conn::http1;
 
 async fn make_strand_data<S: Store + Resolver>(
     store: &S,
@@ -67,19 +65,24 @@ async fn main() -> Result<(), std::io::Error> {
     ..server::ApiOptions::default()
   };
 
+  let service = server::api(store, options);
+
+  let tower_service = tower::ServiceBuilder::new()
+    .service_fn(move |req: Request| {
+      let service = service.clone();
+      async move {
+        use hyper::service::Service;
+        service.call(req).await
+      }
+    });
+
+  let router = axum::Router::new()
+    .fallback_service(tower_service)
+    .layer(axum::middleware::from_fn(api_key_middleware));
+
   let addr: std::net::SocketAddr = ([127, 0, 0, 1], 3000).into();
   let listener = TcpListener::bind(addr).await?;
 
-  let service = server::api(store, options);
-
-  loop {
-      let (stream, _) = listener.accept().await?;
-      let io = TokioIo::new(stream);
-      let svc_clone = service.clone();
-      tokio::task::spawn(async move {
-          if let Err(err) = http1::Builder::new().serve_connection(io, svc_clone).await {
-              println!("Failed to serve connection: {:?}", err);
-          }
-      });
-  }
+  println!("Listening on {}", addr);
+  axum::serve(listener, router).await
 }

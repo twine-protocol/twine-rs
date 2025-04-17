@@ -1,7 +1,4 @@
 //! This module provides an v2 HTTP API backed by a Twine store.
-// use axum::{
-//     extract::{Path, Query, Request, State}, http::StatusCode, response::{IntoResponse, Json}
-// };
 use twine_lib::{store::Store, resolver::Resolver};
 
 /// Options for the API
@@ -24,6 +21,8 @@ impl Default for ApiOptions {
     }
   }
 }
+
+pub use api::ApiService;
 
 /// Create a hyper service for the Twine API
 pub fn api<S> (
@@ -130,13 +129,16 @@ mod api {
     })
   }
 
+  /// A hyper service for the Twine API
   #[derive(Debug, Clone)]
   pub struct ApiService<S> where S: Store + Resolver {
     store: Arc<S>,
     options: ApiOptions,
   }
 
+
   impl<S> ApiService<S> where S: Store + Resolver {
+    /// Create a new instance of API service
     pub fn new(store: S, options: ApiOptions) -> Self {
       Self {
         store: Arc::new(store),
@@ -147,7 +149,7 @@ mod api {
 
   impl<S, B: Body + Send + 'static> Service<Request<B>> for ApiService<S> where S: Store + Resolver + 'static, <B as http_body::Body>::Error: Send, <B as http_body::Body>::Data: Send {
     type Response = Response<BoxBody<Bytes, Infallible>>;
-    type Error = hyper::Error;
+    type Error = Infallible;
     #[cfg(target_arch = "wasm32")]
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
     #[cfg(not(target_arch = "wasm32"))]
@@ -410,372 +412,368 @@ mod models {
   }
 }
 
-// #[cfg(test)]
-// mod test {
-//   use crate::v2;
-//   use super::*;
-//   use axum::Router;
-//   use twine_builder::{RingSigner, TwineBuilder};
-//   use twine_lib::{ipld_core::ipld, store::MemoryStore, Cid};
-
-//   async fn make_strand<S: Store + Resolver>(
-//     store: &S,
-//   ) -> Result<Cid, Box<dyn std::error::Error>> {
-//     let signer = RingSigner::generate_ed25519().unwrap();
-//     let builder = TwineBuilder::new(signer);
-//     let strand = builder.build_strand().done()?;
-//     store.save(strand.clone()).await?;
-
-//     let mut prev = builder.build_first(strand.clone())
-//       .payload(ipld!({
-//         "i": 0
-//       }))
-//       .done()?;
-//     store.save(prev.clone()).await?;
-
-//     for i in 1..10 {
-//       let tixel = builder
-//         .build_next(&prev)
-//         .payload(ipld!({
-//           "i": i
-//         }))
-//         .done()?;
-//       store.save(tixel.clone()).await?;
-//       prev = tixel;
-//     }
-
-//     Ok(strand.cid())
-//   }
-
-//   async fn parse_response(
-//     response: axum::http::Response<axum::body::Body>,
-//   ) -> Result<Vec<AnyTwine>, Box<dyn std::error::Error>> {
-//     use futures::TryStreamExt;
-//     let (parts, body) = response.into_parts();
-
-//     let bytes = body.into_data_stream()
-//       .try_fold(Vec::new(), |mut acc, chunk| {
-//         acc.extend_from_slice(&chunk);
-//         futures::future::ok::<_, _>(acc)
-//       })
-//       .await?;
-//     let response = axum::http::Response::from_parts(parts, bytes);
-
-//     let things: Vec<AnyTwine> = v2::parse_response(response.into()).await?.try_collect().await?;
-//     Ok(things)
-//   }
-
-//   struct TestService{
-//     pub router: Router,
-//   }
-
-//   impl TestService {
-//     pub async fn has(&mut self, query: &str) -> bool {
-//       let request = axum::http::Request::builder()
-//         .method("HEAD")
-//         .uri(format!("/{}", query))
-//         .header("accept", "application/vnd.ipld.car")
-//         .body(axum::body::Body::empty())
-//         .unwrap();
-
-//       use tower_service::Service;
-//       let response = self.router.as_service().call(request).await.unwrap();
-//       response.status() == StatusCode::OK
-//     }
-
-//     pub async fn get_one(&mut self, query: &str) -> AnyTwine {
-//       let request = axum::http::Request::builder()
-//         .method("GET")
-//         .uri(format!("/{}", query))
-//         .header("accept", "application/vnd.ipld.car")
-//         .body(axum::body::Body::empty())
-//         .unwrap();
-
-//       use tower_service::Service;
-//       let response = self.router.as_service().call(request).await.unwrap();
-
-//       assert_eq!(response.status(), StatusCode::OK);
-
-//       let mut things = parse_response(response).await.unwrap();
-
-//       assert_eq!(things.len(), 1);
-//       things.pop().unwrap()
-//     }
-
-//     pub async fn get_many(&mut self, query: &str) -> Vec<AnyTwine> {
-//       let request = axum::http::Request::builder()
-//         .method("GET")
-//         .uri(format!("/{}", query))
-//         .header("accept", "application/vnd.ipld.car")
-//         .body(axum::body::Body::empty())
-//         .unwrap();
-
-//       use tower_service::Service;
-//       let response = self.router.as_service().call(request).await.unwrap();
-//       assert_eq!(response.status(), StatusCode::OK);
-//       let things = parse_response(response).await.unwrap();
-//       things
-//     }
-
-//     pub async fn put(&mut self, query: &str, things: Vec<AnyTwine>) -> StatusCode {
-//       let request = axum::http::Request::builder()
-//         .method("PUT")
-//         .uri(format!("/{}", query))
-//         .header("accept", "application/vnd.ipld.car")
-//         .body(axum::body::Body::from(twine_lib::car::to_car_bytes(things, vec![Cid::default()])))
-//         .unwrap();
-
-//       use tower_service::Service;
-//       let response = self.router.as_service().call(request).await.unwrap();
-//       response.status()
-//     }
-//   }
-
-//   #[tokio::test]
-//   async fn test_get_strands() -> Result<(), Box<dyn std::error::Error>> {
-//     let store = MemoryStore::default();
-//     let strand_cid = make_strand(&store).await.unwrap();
-
-//     let mut service = TestService {
-//       router: api::api(store.clone(), Default::default()),
-//     };
-
-//     let strands = service.get_many("").await;
-
-//     assert_eq!(strands.len(), 1);
-//     let strand = strands[0].unwrap_strand();
-//     assert_eq!(strand.cid(), strand_cid);
-
-//     Ok(())
-//   }
-
-//   #[tokio::test]
-//   async fn test_get_single_strand() -> Result<(), Box<dyn std::error::Error>> {
-//     let store = MemoryStore::default();
-//     let strand_cid = make_strand(&store).await.unwrap();
-
-//     let mut service = TestService {
-//       router: api::api(store.clone(), Default::default()),
-//     };
-
-//     let strand = service.get_one(&format!("{}", strand_cid)).await;
-//     let strand = strand.unwrap_strand();
-//     assert_eq!(strand.cid(), strand_cid);
-
-//     Ok(())
-//   }
-
-//   #[tokio::test]
-//   async fn test_get_range() -> Result<(), Box<dyn std::error::Error>> {
-//     let store = MemoryStore::default();
-//     let strand_cid = make_strand(&store).await.unwrap();
-
-//     let mut service = TestService {
-//       router: api::api(store.clone(), Default::default()),
-//     };
-
-//     let twines = service.get_many(&format!("{}:1:=4", strand_cid)).await;
-//     assert_eq!(twines.len(), 4);
-//     let twines = twines.into_iter().map(|t| t.unwrap_tixel()).collect::<Vec<_>>();
-//     let indices = twines.iter().map(|t| t.index()).collect::<Vec<_>>();
-//     assert_eq!(indices, vec![1, 2, 3, 4]);
-//     Ok(())
-//   }
-
-//   #[tokio::test]
-//   async fn test_get_single() -> Result<(), Box<dyn std::error::Error>> {
-//     let store = MemoryStore::default();
-//     let strand_cid = make_strand(&store).await.unwrap();
-
-//     let mut service = TestService {
-//       router: api::api(store.clone(), Default::default()),
-//     };
-//     let twine = service.get_one(&format!("{}:1", strand_cid)).await;
-//     let tixel = twine.unwrap_tixel();
-//     assert_eq!(tixel.index(), 1);
-
-//     Ok(())
-//   }
-
-//   #[tokio::test]
-//   async fn test_get_by_cid() -> Result<(), Box<dyn std::error::Error>> {
-//     let store = MemoryStore::default();
-//     let strand_cid = make_strand(&store).await.unwrap();
-
-//     let index = 6;
-//     let tixel_cid = store.resolve_index(strand_cid, index).await.unwrap().cid();
-
-//     let mut service = TestService {
-//       router: api::api(store.clone(), ApiOptions::default()),
-//     };
-//     let twine = service.get_one(&format!("{}:{}", strand_cid, tixel_cid)).await;
-//     let tixel = twine.unwrap_tixel();
-//     assert_eq!(tixel.index(), index);
-//     assert_eq!(tixel.cid(), tixel_cid);
-
-//     Ok(())
-//   }
-
-//   #[tokio::test]
-//   async fn test_get_latest() -> Result<(), Box<dyn std::error::Error>> {
-//     let store = MemoryStore::default();
-//     let strand_cid = make_strand(&store).await.unwrap();
-//     let latest = store.resolve_latest(strand_cid).await.unwrap();
-
-//     let mut service = TestService {
-//       router: api::api(store.clone(), ApiOptions::default()),
-//     };
-//     let twine = service.get_one(&format!("{}:", strand_cid)).await;
-//     let tixel = twine.unwrap_tixel();
-//     assert_eq!(tixel.index(), latest.index());
-//     assert_eq!(tixel.cid(), latest.cid());
-
-//     Ok(())
-//   }
-
-//   #[tokio::test]
-//   async fn test_not_found() -> Result<(), Box<dyn std::error::Error>> {
-//     let store = MemoryStore::default();
-//     let strand_cid = make_strand(&store).await.unwrap();
-
-//     let mut service = TestService {
-//       router: api::api(store.clone(), ApiOptions::default()),
-//     };
-//     let request = axum::http::Request::builder()
-//       .method("GET")
-//       .uri(format!("/{}:1000", strand_cid))
-//       .header("accept", "application/vnd.ipld.car")
-//       .body(axum::body::Body::empty())
-//       .unwrap();
-
-//     use tower_service::Service;
-//     let response = service.router.as_service().call(request).await.unwrap();
-//     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-
-//     Ok(())
-//   }
-
-//   #[tokio::test]
-//   async fn test_bad_query() -> Result<(), Box<dyn std::error::Error>> {
-//     let store = MemoryStore::default();
-//     let strand_cid = make_strand(&store).await.unwrap();
-
-//     let mut service = TestService {
-//       router: api::api(store.clone(), ApiOptions::default()),
-//     };
-//     let request = axum::http::Request::builder()
-//       .method("GET")
-//       .uri(format!("/{}:1000:bad", strand_cid))
-//       .header("accept", "application/vnd.ipld.car")
-//       .body(axum::body::Body::empty())
-//       .unwrap();
-
-//     use tower_service::Service;
-//     let response = service.router.as_service().call(request).await.unwrap();
-//     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-
-//     Ok(())
-//   }
-
-//   #[tokio::test]
-//   async fn test_has() -> Result<(), Box<dyn std::error::Error>> {
-//     let store = MemoryStore::default();
-//     let strand_cid = make_strand(&store).await.unwrap();
-
-//     let mut service = TestService {
-//       router: api::api(store.clone(), ApiOptions::default()),
-//     };
-
-//     let result = service.has(&format!("{}:1", strand_cid)).await;
-//     assert!(result);
-//     let result = service.has(&format!("{}:1000", strand_cid)).await;
-//     assert!(!result);
-
-//     Ok(())
-//   }
-
-//   #[tokio::test]
-//   async fn test_max_query_length() -> Result<(), Box<dyn std::error::Error>> {
-//     let store = MemoryStore::default();
-//     let strand_cid = make_strand(&store).await.unwrap();
-
-//     let mut service = TestService {
-//       router: api::api(store.clone(), ApiOptions {
-//         max_query_length: 5,
-//         ..ApiOptions::default()
-//       }),
-//     };
-
-//     let request = axum::http::Request::builder()
-//       .method("GET")
-//       .uri(format!("/{}:0:=100", strand_cid))
-//       .header("accept", "application/vnd.ipld.car")
-//       .body(axum::body::Body::empty())
-//       .unwrap();
-
-//     use tower_service::Service;
-//     let response = service.router.as_service().call(request).await.unwrap();
-//     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-
-//     Ok(())
-//   }
-
-//   #[tokio::test]
-//   async fn test_saving() -> Result<(), Box<dyn std::error::Error>> {
-//     let store = MemoryStore::default();
-//     let strand_cid = make_strand(&store).await.unwrap();
-//     let other_store = MemoryStore::default();
-
-//     let mut service = TestService {
-//       router: api::api(other_store.clone(), ApiOptions {
-//         read_only: false,
-//         ..ApiOptions::default()
-//       }),
-//     };
-
-//     use futures::TryStreamExt;
-//     let strand = store.resolve_strand(&strand_cid).await.unwrap().unpack();
-//     let tixels: Vec<AnyTwine> = store.resolve_range((strand.clone(), ..)).await?
-//       .and_then(|t| async { Ok(t.into()) })
-//       .try_collect().await?;
-
-//     let ret = service.put("", vec![
-//       strand.clone().into()
-//     ]).await;
-
-//     assert_eq!(ret, StatusCode::CREATED);
-
-//     let ret = service.put(&format!("{}", strand_cid), tixels).await;
-//     assert_eq!(ret, StatusCode::CREATED);
-
-//     let fourth = store.resolve_index(strand_cid, 4).await.unwrap();
-//     let tixel = other_store.resolve_index(strand_cid, 4).await.unwrap();
-//     assert_eq!(fourth.cid(), tixel.cid());
-
-//     Ok(())
-//   }
-
-//   #[tokio::test]
-//   async fn check_header() -> Result<(), Box<dyn std::error::Error>> {
-//     let store = MemoryStore::default();
-//     let strand_cid = make_strand(&store).await.unwrap();
-//     let mut service = TestService {
-//       router: api::api(store.clone(), ApiOptions::default()),
-//     };
-//     let request = axum::http::Request::builder()
-//       .method("GET")
-//       .uri(format!("/{}:1", strand_cid))
-//       .header("accept", "application/vnd.ipld.car")
-//       .body(axum::body::Body::empty())
-//       .unwrap();
-
-//     use tower_service::Service;
-//     let response = service.router.as_service().call(request).await.unwrap();
-//     assert_eq!(response.status(), StatusCode::OK);
-//     assert_eq!(
-//       response.headers().get("X-Spool-Version").unwrap(),
-//       "2".parse::<axum::http::HeaderValue>().unwrap()
-//     );
-//     Ok(())
-//   }
-// }
+#[cfg(test)]
+mod test {
+  use std::convert::Infallible;
+
+  use crate::v2;
+  use super::*;
+  use http_body_util::combinators::BoxBody;
+  use hyper::{service::Service, StatusCode};
+  use twine_builder::{RingSigner, TwineBuilder};
+  use twine_lib::{ipld_core::ipld, store::MemoryStore, Cid, twine::AnyTwine};
+
+  async fn make_strand<S: Store + Resolver>(
+    store: &S,
+  ) -> Result<Cid, Box<dyn std::error::Error>> {
+    let signer = RingSigner::generate_ed25519().unwrap();
+    let builder = TwineBuilder::new(signer);
+    let strand = builder.build_strand().done()?;
+    store.save(strand.clone()).await?;
+
+    let mut prev = builder.build_first(strand.clone())
+      .payload(ipld!({
+        "i": 0
+      }))
+      .done()?;
+    store.save(prev.clone()).await?;
+
+    for i in 1..10 {
+      let tixel = builder
+        .build_next(&prev)
+        .payload(ipld!({
+          "i": i
+        }))
+        .done()?;
+      store.save(tixel.clone()).await?;
+      prev = tixel;
+    }
+
+    Ok(strand.cid())
+  }
+
+  async fn parse_response(
+    response: hyper::Response<BoxBody<hyper::body::Bytes, Infallible>>,
+  ) -> Result<Vec<AnyTwine>, Box<dyn std::error::Error>> {
+    use futures::TryStreamExt;
+    let (parts, body) = response.into_parts();
+
+    use http_body_util::BodyExt;
+    let bytes = body.into_data_stream()
+      .try_fold(Vec::new(), |mut acc, chunk| {
+        acc.extend_from_slice(&chunk);
+        futures::future::ok::<_, _>(acc)
+      })
+      .await?;
+    let response = axum::http::Response::from_parts(parts, bytes);
+
+    let things: Vec<AnyTwine> = v2::parse_response(response.into()).await?.try_collect().await?;
+    Ok(things)
+  }
+
+  struct TestService{
+    pub api: ApiService<MemoryStore>,
+  }
+
+  impl TestService {
+    pub async fn has(&mut self, query: &str) -> bool {
+      let request = axum::http::Request::builder()
+        .method("HEAD")
+        .uri(format!("/{}", query))
+        .header("accept", "application/vnd.ipld.car")
+        .body(axum::body::Body::empty())
+        .unwrap();
+
+      let response = self.api.call(request).await.unwrap();
+      response.status() == StatusCode::OK
+    }
+
+    pub async fn get_one(&mut self, query: &str) -> AnyTwine {
+      let request = axum::http::Request::builder()
+        .method("GET")
+        .uri(format!("/{}", query))
+        .header("accept", "application/vnd.ipld.car")
+        .body(axum::body::Body::empty())
+        .unwrap();
+
+      let response = self.api.call(request).await.unwrap();
+
+      assert_eq!(response.status(), StatusCode::OK);
+
+      let mut things = parse_response(response).await.unwrap();
+
+      assert_eq!(things.len(), 1);
+      things.pop().unwrap()
+    }
+
+    pub async fn get_many(&mut self, query: &str) -> Vec<AnyTwine> {
+      let request = axum::http::Request::builder()
+        .method("GET")
+        .uri(format!("/{}", query))
+        .header("accept", "application/vnd.ipld.car")
+        .body(axum::body::Body::empty())
+        .unwrap();
+
+      let response = self.api.call(request).await.unwrap();
+      assert_eq!(response.status(), StatusCode::OK);
+      let things = parse_response(response).await.unwrap();
+      things
+    }
+
+    pub async fn put(&mut self, query: &str, things: Vec<AnyTwine>) -> StatusCode {
+      let request = axum::http::Request::builder()
+        .method("PUT")
+        .uri(format!("/{}", query))
+        .header("accept", "application/vnd.ipld.car")
+        .body(axum::body::Body::from(twine_lib::car::to_car_bytes(things, vec![Cid::default()])))
+        .unwrap();
+
+      let response = self.api.call(request).await.unwrap();
+      response.status()
+    }
+  }
+
+  #[tokio::test]
+  async fn test_get_strands() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+
+    let mut service = TestService {
+      api: api(store.clone(), Default::default()),
+    };
+
+    let strands = service.get_many("").await;
+
+    assert_eq!(strands.len(), 1);
+    let strand = strands[0].unwrap_strand();
+    assert_eq!(strand.cid(), strand_cid);
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn test_get_single_strand() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+
+    let mut service = TestService {
+      api: api(store.clone(), Default::default()),
+    };
+
+    let strand = service.get_one(&format!("{}", strand_cid)).await;
+    let strand = strand.unwrap_strand();
+    assert_eq!(strand.cid(), strand_cid);
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn test_get_range() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+
+    let mut service = TestService {
+      api: api(store.clone(), Default::default()),
+    };
+
+    let twines = service.get_many(&format!("{}:1:=4", strand_cid)).await;
+    assert_eq!(twines.len(), 4);
+    let twines = twines.into_iter().map(|t| t.unwrap_tixel()).collect::<Vec<_>>();
+    let indices = twines.iter().map(|t| t.index()).collect::<Vec<_>>();
+    assert_eq!(indices, vec![1, 2, 3, 4]);
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn test_get_single() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+
+    let mut service = TestService {
+      api: api(store.clone(), Default::default()),
+    };
+    let twine = service.get_one(&format!("{}:1", strand_cid)).await;
+    let tixel = twine.unwrap_tixel();
+    assert_eq!(tixel.index(), 1);
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn test_get_by_cid() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+
+    let index = 6;
+    let tixel_cid = store.resolve_index(strand_cid, index).await.unwrap().cid();
+
+    let mut service = TestService {
+      api: api(store.clone(), ApiOptions::default()),
+    };
+    let twine = service.get_one(&format!("{}:{}", strand_cid, tixel_cid)).await;
+    let tixel = twine.unwrap_tixel();
+    assert_eq!(tixel.index(), index);
+    assert_eq!(tixel.cid(), tixel_cid);
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn test_get_latest() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+    let latest = store.resolve_latest(strand_cid).await.unwrap();
+
+    let mut service = TestService {
+      api: api(store.clone(), ApiOptions::default()),
+    };
+    let twine = service.get_one(&format!("{}:", strand_cid)).await;
+    let tixel = twine.unwrap_tixel();
+    assert_eq!(tixel.index(), latest.index());
+    assert_eq!(tixel.cid(), latest.cid());
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn test_not_found() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+
+    let service = TestService {
+      api: api(store.clone(), ApiOptions::default()),
+    };
+    let request = axum::http::Request::builder()
+      .method("GET")
+      .uri(format!("/{}:1000", strand_cid))
+      .header("accept", "application/vnd.ipld.car")
+      .body(axum::body::Body::empty())
+      .unwrap();
+
+    let response = service.api.call(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn test_bad_query() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+
+    let service = TestService {
+      api: api(store.clone(), ApiOptions::default()),
+    };
+    let request = axum::http::Request::builder()
+      .method("GET")
+      .uri(format!("/{}:1000:bad", strand_cid))
+      .header("accept", "application/vnd.ipld.car")
+      .body(axum::body::Body::empty())
+      .unwrap();
+
+    let response = service.api.call(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn test_has() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+
+    let mut service = TestService {
+      api: api(store.clone(), ApiOptions::default()),
+    };
+
+    let result = service.has(&format!("{}:1", strand_cid)).await;
+    assert!(result);
+    let result = service.has(&format!("{}:1000", strand_cid)).await;
+    assert!(!result);
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn test_max_query_length() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+
+    let service = TestService {
+      api: api(store.clone(), ApiOptions {
+        max_query_length: 5,
+        ..ApiOptions::default()
+      }),
+    };
+
+    let request = axum::http::Request::builder()
+      .method("GET")
+      .uri(format!("/{}:0:=100", strand_cid))
+      .header("accept", "application/vnd.ipld.car")
+      .body(axum::body::Body::empty())
+      .unwrap();
+
+    let response = service.api.call(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn test_saving() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+    let other_store = MemoryStore::default();
+
+    let mut service = TestService {
+      api: api(other_store.clone(), ApiOptions {
+        read_only: false,
+        ..ApiOptions::default()
+      }),
+    };
+
+    use futures::TryStreamExt;
+    let strand = store.resolve_strand(&strand_cid).await.unwrap().unpack();
+    let tixels: Vec<AnyTwine> = store.resolve_range((strand.clone(), ..)).await?
+      .and_then(|t| async { Ok(t.into()) })
+      .try_collect().await?;
+
+    let ret = service.put("", vec![
+      strand.clone().into()
+    ]).await;
+
+    assert_eq!(ret, StatusCode::CREATED);
+
+    let ret = service.put(&format!("{}", strand_cid), tixels).await;
+    assert_eq!(ret, StatusCode::CREATED);
+
+    let fourth = store.resolve_index(strand_cid, 4).await.unwrap();
+    let tixel = other_store.resolve_index(strand_cid, 4).await.unwrap();
+    assert_eq!(fourth.cid(), tixel.cid());
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn check_header() -> Result<(), Box<dyn std::error::Error>> {
+    let store = MemoryStore::default();
+    let strand_cid = make_strand(&store).await.unwrap();
+    let service = TestService {
+      api: api(store.clone(), ApiOptions::default()),
+    };
+    let request = axum::http::Request::builder()
+      .method("GET")
+      .uri(format!("/{}:1", strand_cid))
+      .header("accept", "application/vnd.ipld.car")
+      .body(axum::body::Body::empty())
+      .unwrap();
+
+    let response = service.api.call(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+      response.headers().get("X-Spool-Version").unwrap(),
+      "2".parse::<axum::http::HeaderValue>().unwrap()
+    );
+    Ok(())
+  }
+}
