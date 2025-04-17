@@ -10,7 +10,7 @@ keywords.workspace = true
 description = "Twine protocol rust library http store"
 
 [features]
-server = ["axum", "tower", "tower-service"]
+server = ["hyper", "hyper-util", "http-body", "http-body-util"]
 
 [dependencies]
 twine_lib.workspace = true
@@ -22,15 +22,20 @@ serde_json.workspace = true
 reqwest = { version = "0.12", features = ["stream", "brotli", "json"] }
 itertools.workspace = true
 backon = "1.3"
-axum = { version = "0.8", optional = true }
+axum = { version = "0.8", optional = true, default-features = false, features = ["query", "json"] }
 tower = { version = "0.5.2", optional = true }
 tower-service = { version = "0.3", optional = true }
+routerify = { version = "3", optional = true }
+hyper = { version = "1.6.0", optional = true, features = ["http1", "server"] }
+hyper-util = { version = "0.1", optional = true }
+http-body-util = { version = "^0.1", optional = true }
+http-body = { version = "^1.0", optional = true }
 thiserror.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
 futures-time = "3.0"
-axum = "0.8"
+axum = { version = "0.8", default-features = false, features = ["query", "json", "tokio", "http1"] }
 tower = "0.5.2"
 tower-service = "0.3"
 twine_builder.workspace = true
