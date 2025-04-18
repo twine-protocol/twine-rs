@@ -2,6 +2,7 @@
 use axum::{
   http::StatusCode, extract::Request, middleware::Next, response::Response
 };
+use tokio::net::TcpListener;
 use twine_builder::{RingSigner, TwineBuilder};
 use twine_http_store::server;
 use twine_lib::ipld_core::ipld;
@@ -58,16 +59,30 @@ async fn main() -> Result<(), std::io::Error> {
   let strand_cid = make_strand_data(&store).await.unwrap();
   println!("created strand: {}", strand_cid);
 
-  let app = server::api(store, server::ApiOptions {
+  let options = server::ApiOptions {
+    max_query_length: 1000,
     read_only: false,
     ..server::ApiOptions::default()
-  });
+  };
 
-  // add an axum layer to check api key
-  let app = app.layer(axum::middleware::from_fn(api_key_middleware));
+  let service = server::api(store, options);
 
-  // run our app with hyper, listening globally on port 3000
-  let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-  println!("listening on {}", listener.local_addr().unwrap());
-  axum::serve(listener, app).await
+  let tower_service = tower::ServiceBuilder::new()
+    .service_fn(move |req: Request| {
+      let service = service.clone();
+      async move {
+        use hyper::service::Service;
+        service.call(req).await
+      }
+    });
+
+  let router = axum::Router::new()
+    .fallback_service(tower_service)
+    .layer(axum::middleware::from_fn(api_key_middleware));
+
+  let addr: std::net::SocketAddr = ([127, 0, 0, 1], 3000).into();
+  let listener = TcpListener::bind(addr).await?;
+
+  println!("Listening on {}", addr);
+  axum::serve(listener, router).await
 }
