@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/twine-protocol/twine-rs/compare/twine_http_store-v0.1.2...twine_http_store-v0.1.3) - 2025-04-18
+
+### Added
+
+- *(twine_http_store)* add spool version header
+- *(twine_http_store)* saving with api server
+- *(twine_http_store)* add options to server feature
+- http store has server functionality
+
+### Fixed
+
+- *(twine_http_store)* fix max body size check
+
+### Other
+
+- *(twine_http_store)* update tests and examples for server
+- change http store server to use hyper
+- Update Cargo.toml
+- *(twine_http_store)* update server example
+- Merge branch 'main' of https://github.com/twine-protocol/twine-rs
+- separate out response parse functions
+
 ## [0.1.2](https://github.com/twine-protocol/twine-rs/compare/twine_http_store-v0.1.1...twine_http_store-v0.1.2) - 2025-03-26
 
 ### Fixed
