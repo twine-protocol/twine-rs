@@ -11,6 +11,10 @@ pub struct ApiOptions {
 
   /// If true (default), the API will not allow any write operations
   pub read_only: bool,
+
+  /// The maximum size of the request body
+  /// Default: 1MB
+  pub max_body_size: usize,
 }
 
 impl Default for ApiOptions {
@@ -18,6 +22,7 @@ impl Default for ApiOptions {
     Self {
       max_query_length: 1000,
       read_only: true,
+      max_body_size: 1024 * 1024, // 1MB
     }
   }
 }
@@ -52,7 +57,29 @@ mod api {
 
   use twine_lib::errors::{ConversionError, ResolutionError, StoreError, VerificationError};
 
-  const MAX_BODY_SIZE: u64 = 1024 * 1024; // 1MB
+  async fn collect_limited_body<B>(mut body: B, limit: usize) -> Result<Bytes, ApiError>
+  where
+    B: http_body::Body<Data = Bytes> + Unpin,
+    B::Error: std::fmt::Display,
+  {
+    let mut collected = Vec::new();
+
+    while let Some(frame) = body.frame().await {
+      let frame = frame.map_err(|e| {
+        ApiError::BadRequestData(format!("Failed to read body: {}", e))
+      })?;
+
+      if let Some(data) = frame.data_ref() {
+        collected.extend_from_slice(data);
+
+        if collected.len() > limit {
+          return Err(ApiError::PayloadTooLarge);
+        }
+      }
+    }
+
+    Ok(Bytes::from(collected))
+  }
 
   fn mk_response<C: Into<Bytes>>(content: C, status_code: StatusCode) -> Response<BoxBody<Bytes, Infallible>> {
     Response::builder()
@@ -147,7 +174,7 @@ mod api {
     }
   }
 
-  impl<S, B: Body + Send + 'static> Service<Request<B>> for ApiService<S> where S: Store + Resolver + 'static, <B as http_body::Body>::Error: Send, <B as http_body::Body>::Data: Send {
+  impl<S, B: Body<Data=Bytes> + Unpin + Send + 'static> Service<Request<B>> for ApiService<S> where S: Store + Resolver + 'static, <B as http_body::Body>::Error: Send + std::fmt::Display, <B as http_body::Body>::Data: Send {
     type Response = Response<BoxBody<Bytes, Infallible>>;
     type Error = Infallible;
     #[cfg(target_arch = "wasm32")]
@@ -156,6 +183,7 @@ mod api {
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
     fn call(&self, req: Request<B>) -> Self::Future {
+      let max_body_size = self.options.max_body_size;
       let as_car = wants_car(&req.headers());
       let route: (Method, String) = (req.method().clone(), req.uri().path().to_string());
       let store = self.store.clone();
@@ -172,17 +200,11 @@ mod api {
         }
       };
 
-      let get_body_bytes = |req: Request<B>| {
-        let max = req.body().size_hint().upper().unwrap_or(u64::MAX);
+      let get_body_bytes = move |req: Request<B>| {
         async move {
-          if max > MAX_BODY_SIZE as u64 {
-            return Err(ApiError::PayloadTooLarge);
-          }
-          let body = req
-            .collect()
-            .await
-            .map_err(|_| ApiError::BadRequestData("Failed to read body".to_string()))?;
-          Ok(body.to_bytes())
+          // collect the stream until limit is reached
+          let bytes = collect_limited_body(req.into_body(), max_body_size).await?;
+          Ok(bytes)
         }
       };
 
