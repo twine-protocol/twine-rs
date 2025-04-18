@@ -46,4 +46,4 @@ jobs:
 
       - name: Run Tests
         if: matrix.target != 'wasm32-unknown-unknown'
-        run: cargo test --workspace --target ${{ matrix.target }}
+        run: cargo test --workspace --target ${{ matrix.target }} --all-features
