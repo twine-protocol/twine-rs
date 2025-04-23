@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/twine-protocol/twine-rs/compare/twine_http_store-v0.1.3...twine_http_store-v0.1.4) - 2025-04-23
+
+### Other
+
+- Merge branch 'main' of https://github.com/twine-protocol/twine-rs
+- *(docs)* add documentation for http store server
+
 ## [0.1.3](https://github.com/twine-protocol/twine-rs/compare/twine_http_store-v0.1.2...twine_http_store-v0.1.3) - 2025-04-18
 
 ### Added
