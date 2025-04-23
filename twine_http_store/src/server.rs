@@ -30,6 +30,9 @@ impl Default for ApiOptions {
 pub use api::ApiService;
 
 /// Create a hyper service for the Twine API
+///
+/// # Example
+/// See the `examples/server.rs` file for an example of how to use this function.
 pub fn api<S> (
   store: S,
   options: ApiOptions,
