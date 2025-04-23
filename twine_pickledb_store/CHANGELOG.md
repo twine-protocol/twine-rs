@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/twine-protocol/twine-rs/compare/twine_pickledb_store-v0.1.2...twine_pickledb_store-v0.1.3) - 2025-04-18
+
+### Other
+
+- updated the following local packages: twine_lib, twine_builder
+
 ## [0.1.2](https://github.com/twine-protocol/twine-rs/compare/twine_pickledb_store-v0.1.1...twine_pickledb_store-v0.1.2) - 2025-03-26
 
 ### Other
