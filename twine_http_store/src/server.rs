@@ -1,3 +1,6 @@
+// TODO: handle cache headers
+// TODO: add DELETE method
+
 //! This module provides an v2 HTTP API backed by a Twine store.
 use twine_lib::{store::Store, resolver::Resolver};
 
