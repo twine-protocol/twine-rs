@@ -54,6 +54,13 @@ ring.workspace = true
 workspace = true
 features = ["wasm32_unknown_unknown_js"]
 
+# Browser wasm needs an explicit getrandom backend. getrandom 0.3 is pulled in
+# transitively (quick_cache -> ahash); enabling the feature here, together with
+# the `--cfg getrandom_backend="wasm_js"` rustflag (see .cargo/config.toml),
+# selects the JS-based source. Required to build for wasm32-unknown-unknown.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
 [dev-dependencies]
 tokio.workspace = true
 rs-car = "0.5"

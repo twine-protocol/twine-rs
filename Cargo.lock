@@ -4543,6 +4543,7 @@ dependencies = [
  "either",
  "elliptic-curve",
  "futures",
+ "getrandom 0.3.4",
  "ipld-core",
  "log",
  "multihash",
