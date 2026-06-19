@@ -327,3 +327,320 @@ mod test {
     dbg!(tixel);
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::{RingSigner, TwineBuilder};
+  use twine_lib::ipld_core::ipld;
+
+  fn ed25519_builder() -> TwineBuilder<2, RingSigner> {
+    TwineBuilder::new(RingSigner::generate_ed25519().unwrap())
+  }
+
+  // ── Strand property tests ─────────────────────────────────────────────────
+
+  #[test]
+  fn test_strand_default_properties() {
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().done().unwrap();
+
+    assert_eq!(strand.radix(), 32);
+    assert_eq!(strand.version().major, 2);
+    assert!(strand.subspec().is_none());
+  }
+
+  #[test]
+  fn test_strand_custom_radix() {
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().radix(4).done().unwrap();
+    assert_eq!(strand.radix(), 4);
+  }
+
+  #[test]
+  fn test_strand_custom_hasher() {
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().hasher(Code::Sha3_256).done().unwrap();
+    assert_eq!(strand.hasher(), Code::Sha3_256);
+  }
+
+  #[test]
+  fn test_strand_details() {
+    let builder = ed25519_builder();
+    let strand = builder
+      .build_strand()
+      .details(ipld!({ "env": "test", "version": 1 }))
+      .done()
+      .unwrap();
+    assert_eq!(strand.details(), &ipld!({ "env": "test", "version": 1 }));
+  }
+
+  #[test]
+  fn test_strand_subspec() {
+    let builder = ed25519_builder();
+    let strand = builder
+      .build_strand()
+      .subspec("myapp/1.2.0".to_string())
+      .done()
+      .unwrap();
+    let subspec = strand.subspec().expect("subspec should be present");
+    assert_eq!(subspec.semver().to_string(), "1.2.0");
+  }
+
+  // ── Tixel index tests ─────────────────────────────────────────────────────
+
+  #[test]
+  fn test_tixel_sequential_indices() {
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().done().unwrap();
+
+    let t0 = builder.build_first(strand).done().unwrap();
+    let t1 = builder.build_next(&t0).done().unwrap();
+    let t2 = builder.build_next(&t1).done().unwrap();
+
+    assert_eq!(t0.index(), 0);
+    assert_eq!(t1.index(), 1);
+    assert_eq!(t2.index(), 2);
+  }
+
+  #[test]
+  fn test_tixel_strand_cid_matches() {
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().done().unwrap();
+    let strand_cid = strand.cid();
+
+    let t0 = builder.build_first(strand).done().unwrap();
+    let t1 = builder.build_next(&t0).done().unwrap();
+
+    assert_eq!(t0.strand_cid(), strand_cid);
+    assert_eq!(t1.strand_cid(), strand_cid);
+  }
+
+  // ── Signature verification ────────────────────────────────────────────────
+
+  #[test]
+  fn test_signature_verification() {
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().done().unwrap();
+
+    let t0 = builder.build_first(strand.clone()).payload(42i64).done().unwrap();
+    let t1 = builder.build_next(&t0).done().unwrap();
+
+    strand.verify_tixel(t0.tixel()).expect("t0 signature should verify");
+    strand.verify_tixel(t1.tixel()).expect("t1 signature should verify");
+  }
+
+  #[test]
+  fn test_signature_verification_long_chain() {
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().radix(4).done().unwrap();
+
+    let mut prev = builder.build_first(strand.clone()).done().unwrap();
+    for i in 1u64..20 {
+      prev = builder.build_next(&prev).payload(i).done().unwrap();
+      strand.verify_tixel(prev.tixel()).expect("signature should verify at each step");
+    }
+  }
+
+  // ── Back stitch tests ─────────────────────────────────────────────────────
+
+  #[test]
+  fn test_first_tixel_no_back_stitches() {
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().done().unwrap();
+    let t0 = builder.build_first(strand).done().unwrap();
+
+    assert_eq!(t0.back_stitches().len(), 0);
+    assert!(t0.previous().is_none());
+  }
+
+  #[test]
+  fn test_back_stitches_radix_0_linear() {
+    // radix=0 means no skip links: each tixel has exactly one back stitch
+    // pointing at the immediately previous tixel
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().radix(0).done().unwrap();
+
+    let t0 = builder.build_first(strand).done().unwrap();
+    let t1 = builder.build_next(&t0).done().unwrap();
+    let t2 = builder.build_next(&t1).done().unwrap();
+    let t3 = builder.build_next(&t2).done().unwrap();
+
+    assert_eq!(t0.back_stitches().len(), 0);
+    assert_eq!(t1.back_stitches().len(), 1);
+    assert_eq!(t2.back_stitches().len(), 1);
+    assert_eq!(t3.back_stitches().len(), 1);
+
+    assert_eq!(t1.back_stitches().get(0).unwrap().tixel, t0.cid());
+    assert_eq!(t2.back_stitches().get(0).unwrap().tixel, t1.cid());
+    assert_eq!(t3.back_stitches().get(0).unwrap().tixel, t2.cid());
+  }
+
+  #[test]
+  fn test_back_stitches_radix_2_lengths() {
+    // For radix=2, back stitch list length grows as ceil(log2(index)).
+    // Specifically, the list grows at each new power of 2 in the previous index.
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().radix(2).done().unwrap();
+
+    let t0 = builder.build_first(strand).done().unwrap();
+    let t1 = builder.build_next(&t0).done().unwrap(); // prev index 0 → early return
+    let t2 = builder.build_next(&t1).done().unwrap(); // prev index 1
+    let t3 = builder.build_next(&t2).done().unwrap(); // prev index 2 (=2^1) → grows
+    let t4 = builder.build_next(&t3).done().unwrap(); // prev index 3
+    let t5 = builder.build_next(&t4).done().unwrap(); // prev index 4 (=2^2) → grows
+    let t6 = builder.build_next(&t5).done().unwrap(); // prev index 5
+    let t7 = builder.build_next(&t6).done().unwrap(); // prev index 6
+    let t8 = builder.build_next(&t7).done().unwrap(); // prev index 7
+
+    assert_eq!(t0.back_stitches().len(), 0);
+    assert_eq!(t1.back_stitches().len(), 1);
+    assert_eq!(t2.back_stitches().len(), 1);
+    assert_eq!(t3.back_stitches().len(), 2);
+    assert_eq!(t4.back_stitches().len(), 2);
+    assert_eq!(t5.back_stitches().len(), 3);
+    assert_eq!(t6.back_stitches().len(), 3);
+    assert_eq!(t7.back_stitches().len(), 3);
+    assert_eq!(t8.back_stitches().len(), 3);
+  }
+
+  #[test]
+  fn test_back_stitches_radix_2_skip_pointers() {
+    // Verify the actual skip pointer targets for radix=2:
+    //   t4  back_stitches = [t3, t2]          (skip 1, skip 2)
+    //   t8  back_stitches = [t7, t6, t4]      (skip 1, skip 2, skip 4)
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().radix(2).done().unwrap();
+
+    let t0 = builder.build_first(strand).done().unwrap();
+    let t1 = builder.build_next(&t0).done().unwrap();
+    let t2 = builder.build_next(&t1).done().unwrap();
+    let t3 = builder.build_next(&t2).done().unwrap();
+    let t4 = builder.build_next(&t3).done().unwrap();
+    let t5 = builder.build_next(&t4).done().unwrap();
+    let t6 = builder.build_next(&t5).done().unwrap();
+    let t7 = builder.build_next(&t6).done().unwrap();
+    let t8 = builder.build_next(&t7).done().unwrap();
+
+    // t4: immediate previous is t3, skip pointer to t2
+    assert_eq!(t4.back_stitches().get(0).unwrap().tixel, t3.cid());
+    assert_eq!(t4.back_stitches().get(1).unwrap().tixel, t2.cid());
+
+    // t8: immediate previous is t7, skip to t6, skip to t4
+    assert_eq!(t8.back_stitches().get(0).unwrap().tixel, t7.cid());
+    assert_eq!(t8.back_stitches().get(1).unwrap().tixel, t6.cid());
+    assert_eq!(t8.back_stitches().get(2).unwrap().tixel, t4.cid());
+
+    // `previous()` should always be the immediate prior
+    assert_eq!(t1.previous().unwrap().tixel, t0.cid());
+    assert_eq!(t8.previous().unwrap().tixel, t7.cid());
+  }
+
+  #[test]
+  fn test_tixel_includes_back_stitches() {
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().radix(2).done().unwrap();
+
+    let t0 = builder.build_first(strand).done().unwrap();
+    let t1 = builder.build_next(&t0).done().unwrap();
+    let t2 = builder.build_next(&t1).done().unwrap();
+    let t3 = builder.build_next(&t2).done().unwrap();
+    let t4 = builder.build_next(&t3).done().unwrap();
+    let t5 = builder.build_next(&t4).done().unwrap();
+
+    // t5 back_stitches = [t4, t4, t4] (all point to t4)
+    assert!(t5.includes(&t4));
+    // t5 does not directly include t3 (it's not in any stitch list)
+    assert!(!t5.includes(&t3));
+    // t4 includes t2 as a skip pointer
+    assert!(t4.includes(&t2));
+  }
+
+  // ── Payload tests ─────────────────────────────────────────────────────────
+
+  #[test]
+  fn test_payload_round_trip_struct() {
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct Record {
+      label: String,
+      value: u64,
+    }
+
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().done().unwrap();
+    let record = Record { label: "hello".into(), value: 99 };
+
+    let t0 = builder.build_first(strand).payload(&record).done().unwrap();
+    let extracted: Record = t0.extract_payload().unwrap();
+
+    assert_eq!(extracted, record);
+  }
+
+  #[test]
+  fn test_payload_round_trip_ipld() {
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().done().unwrap();
+    let data = ipld!({ "x": 1, "y": 2 });
+
+    let t0 = builder.build_first(strand).payload(data.clone()).done().unwrap();
+    assert_eq!(t0.payload(), &data);
+  }
+
+  #[test]
+  fn test_build_payload_then_done() {
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().done().unwrap();
+
+    let t0 = builder
+      .build_first(strand)
+      .build_payload_then_done(|_strand, _prev| Ok("from_builder".to_string()))
+      .unwrap();
+
+    assert_eq!(t0.extract_payload::<String>().unwrap(), "from_builder");
+  }
+
+  #[test]
+  fn test_build_payload_then_done_with_prev() {
+    let builder = ed25519_builder();
+    let strand = builder.build_strand().done().unwrap();
+
+    let t0 = builder.build_first(strand).payload(0u64).done().unwrap();
+    let t1 = builder
+      .build_next(&t0)
+      .build_payload_then_done(|_strand, prev| {
+        let i: u64 = prev.unwrap().extract_payload()?;
+        Ok(i + 1)
+      })
+      .unwrap();
+
+    assert_eq!(t1.extract_payload::<u64>().unwrap(), 1);
+  }
+
+  // ── Signer algorithm tests ────────────────────────────────────────────────
+
+  #[test]
+  fn test_ring_signer_p256() {
+    let signer = RingSigner::generate_p256().unwrap();
+    let builder = TwineBuilder::new(signer);
+    let strand = builder.build_strand().done().unwrap();
+    let t0 = builder.build_first(strand.clone()).done().unwrap();
+    let t1 = builder.build_next(&t0).done().unwrap();
+
+    strand.verify_tixel(t0.tixel()).expect("p256 t0 should verify");
+    strand.verify_tixel(t1.tixel()).expect("p256 t1 should verify");
+  }
+
+  #[test]
+  fn test_ring_signer_p384() {
+    let signer = RingSigner::generate_p384().unwrap();
+    let builder = TwineBuilder::new(signer);
+    let strand = builder.build_strand().done().unwrap();
+    let t0 = builder.build_first(strand.clone()).done().unwrap();
+    let t1 = builder.build_next(&t0).done().unwrap();
+
+    strand.verify_tixel(t0.tixel()).expect("p384 t0 should verify");
+    strand.verify_tixel(t1.tixel()).expect("p384 t1 should verify");
+  }
+}

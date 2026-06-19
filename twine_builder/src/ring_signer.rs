@@ -400,28 +400,31 @@ mod test {
     let signer2 = RingSigner::from_pem(&pem).unwrap();
     assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
 
-    let signer = RingSigner::generate_rs256(2048).unwrap();
-    let pem = signer
-      .pkcs8()
-      .to_pem("PRIVATE_KEY", pkcs8::LineEnding::LF)
-      .unwrap();
-    let signer2 = RingSigner::from_pem(&pem).unwrap();
-    assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
+    #[cfg(feature = "rsa")]
+    {
+      let signer = RingSigner::generate_rs256(2048).unwrap();
+      let pem = signer
+        .pkcs8()
+        .to_pem("PRIVATE_KEY", pkcs8::LineEnding::LF)
+        .unwrap();
+      let signer2 = RingSigner::from_pem(&pem).unwrap();
+      assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
 
-    let signer = RingSigner::generate_rs384(2048).unwrap();
-    let pem = signer
-      .pkcs8()
-      .to_pem("PRIVATE_KEY", pkcs8::LineEnding::LF)
-      .unwrap();
-    let signer2 = RingSigner::from_pem(&pem).unwrap();
-    assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
+      let signer = RingSigner::generate_rs384(2048).unwrap();
+      let pem = signer
+        .pkcs8()
+        .to_pem("PRIVATE_KEY", pkcs8::LineEnding::LF)
+        .unwrap();
+      let signer2 = RingSigner::from_pem(&pem).unwrap();
+      assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
 
-    let signer = RingSigner::generate_rs512(2048).unwrap();
-    let pem = signer
-      .pkcs8()
-      .to_pem("PRIVATE_KEY", pkcs8::LineEnding::LF)
-      .unwrap();
-    let signer2 = RingSigner::from_pem(&pem).unwrap();
-    assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
+      let signer = RingSigner::generate_rs512(2048).unwrap();
+      let pem = signer
+        .pkcs8()
+        .to_pem("PRIVATE_KEY", pkcs8::LineEnding::LF)
+        .unwrap();
+      let signer2 = RingSigner::from_pem(&pem).unwrap();
+      assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
+    }
   }
 }
