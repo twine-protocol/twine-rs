@@ -374,6 +374,58 @@ impl Signer for RingSigner {
 mod test {
   use super::*;
 
+  /// End-to-end: sign with `RingSigner`, verify with the RustCrypto-backed
+  /// `PublicKey::verify`. This is the contract that matters — the signer's
+  /// public-key byte format (raw Ed25519 / SEC1 ECDSA / PKCS#1 RSA) must be
+  /// exactly what the verifier parses.
+  #[test]
+  fn test_sign_verify_roundtrip() {
+    use crate::Signer;
+    const MESSAGE: &[u8] = b"the quick brown fox jumps over the lazy dog";
+
+    let signers = vec![
+      RingSigner::generate_ed25519().unwrap(),
+      RingSigner::generate_p256().unwrap(),
+      RingSigner::generate_p384().unwrap(),
+    ];
+
+    for signer in signers {
+      let sig = signer.sign(MESSAGE).unwrap();
+      let pk = signer.public_key();
+      pk.verify(sig.clone(), MESSAGE)
+        .unwrap_or_else(|e| panic!("verify failed for {}: {}", pk.alg, e));
+      // a tampered message must be rejected
+      assert!(
+        pk.verify(sig, b"a different message").is_err(),
+        "{} accepted a bad message",
+        pk.alg
+      );
+    }
+  }
+
+  /// RSA across modulus sizes, including 4096-bit SHA-512 — the case that the
+  /// old per-bitsize verification table rejected with `UnsupportedKeyAlgorithm`
+  /// even though the key could sign. (Slow: generates fresh RSA keys.)
+  #[cfg(feature = "rsa")]
+  #[test]
+  fn test_sign_verify_roundtrip_rsa() {
+    use crate::Signer;
+    const MESSAGE: &[u8] = b"the quick brown fox jumps over the lazy dog";
+
+    let signers = vec![
+      RingSigner::generate_rs256(2048).unwrap(),
+      RingSigner::generate_rs384(3072).unwrap(),
+      RingSigner::generate_rs512(4096).unwrap(),
+    ];
+
+    for signer in signers {
+      let sig = signer.sign(MESSAGE).unwrap();
+      let pk = signer.public_key();
+      pk.verify(sig, MESSAGE)
+        .unwrap_or_else(|e| panic!("verify failed for {}: {}", pk.alg, e));
+    }
+  }
+
   #[test]
   fn test_all_pem_roundtrip() {
     let signer = RingSigner::generate_ed25519().unwrap();

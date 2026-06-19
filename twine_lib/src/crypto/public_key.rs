@@ -102,54 +102,82 @@ impl PublicKey {
   }
 
   fn verify_rsa(&self, signature: &Signature, message: &[u8]) -> Result<(), VerificationError> {
-    // Verify the RSA signature
-    let alg = match self.alg {
-      SignatureAlgorithm::Sha256Rsa(bitsize) => match bitsize {
-        2048 => &ring::signature::RSA_PKCS1_2048_8192_SHA256,
-        _ => return Err(VerificationError::UnsupportedKeyAlgorithm),
-      },
-      SignatureAlgorithm::Sha384Rsa(bitsize) => match bitsize {
-        2048 => &ring::signature::RSA_PKCS1_2048_8192_SHA384,
-        3072 => &ring::signature::RSA_PKCS1_3072_8192_SHA384,
-        _ => return Err(VerificationError::UnsupportedKeyAlgorithm),
-      },
-      SignatureAlgorithm::Sha512Rsa(bitsize) => match bitsize {
-        2048 => &ring::signature::RSA_PKCS1_2048_8192_SHA512,
-        _ => return Err(VerificationError::UnsupportedKeyAlgorithm),
-      },
+    use rsa::pkcs1::DecodeRsaPublicKey;
+    use rsa::Pkcs1v15Sign;
+    use sha2::{Digest, Sha256, Sha384, Sha512};
+
+    // The stored key is a PKCS#1 RSAPublicKey. Any modulus size verifies, so
+    // there is no per-bitsize table to keep in sync — 2048/3072/4096/… all work.
+    let public_key = rsa::RsaPublicKey::from_pkcs1_der(&self.key)
+      .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
+
+    let (scheme, hashed) = match self.alg {
+      SignatureAlgorithm::Sha256Rsa(_) => {
+        (Pkcs1v15Sign::new::<Sha256>(), Sha256::digest(message).to_vec())
+      }
+      SignatureAlgorithm::Sha384Rsa(_) => {
+        (Pkcs1v15Sign::new::<Sha384>(), Sha384::digest(message).to_vec())
+      }
+      SignatureAlgorithm::Sha512Rsa(_) => {
+        (Pkcs1v15Sign::new::<Sha512>(), Sha512::digest(message).to_vec())
+      }
       _ => unreachable!(),
     };
 
-    let public_key = ring::signature::UnparsedPublicKey::new(alg, &self.key);
     public_key
-      .verify(message, signature)
+      .verify(scheme, &hashed, signature.as_ref())
       .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
 
     Ok(())
   }
 
   fn verify_ecdsa(&self, signature: &Signature, message: &[u8]) -> Result<(), VerificationError> {
-    let alg = match self.alg {
-      SignatureAlgorithm::EcdsaP256 => &ring::signature::ECDSA_P256_SHA256_ASN1,
-      SignatureAlgorithm::EcdsaP384 => &ring::signature::ECDSA_P384_SHA384_ASN1,
+    // `VerifyingKey::verify` hashes the message with the curve's associated
+    // digest (SHA-256 / SHA-384). The stored key is an uncompressed SEC1 point;
+    // the signature is ASN.1 DER.
+    use p256::ecdsa::signature::Verifier;
+    match self.alg {
+      SignatureAlgorithm::EcdsaP256 => {
+        use p256::ecdsa::{Signature as EcSignature, VerifyingKey};
+        let key = VerifyingKey::from_sec1_bytes(&self.key)
+          .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
+        let sig = EcSignature::from_der(signature.as_ref())
+          .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
+        key
+          .verify(message, &sig)
+          .map_err(|e| VerificationError::BadSignature(e.to_string()))
+      }
+      SignatureAlgorithm::EcdsaP384 => {
+        use p384::ecdsa::{Signature as EcSignature, VerifyingKey};
+        let key = VerifyingKey::from_sec1_bytes(&self.key)
+          .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
+        let sig = EcSignature::from_der(signature.as_ref())
+          .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
+        key
+          .verify(message, &sig)
+          .map_err(|e| VerificationError::BadSignature(e.to_string()))
+      }
       _ => unreachable!(),
-    };
-
-    let public_key = ring::signature::UnparsedPublicKey::new(alg, &self.key);
-    public_key
-      .verify(message, signature)
-      .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
-
-    Ok(())
+    }
   }
 
   fn verify_ed25519(&self, signature: &Signature, message: &[u8]) -> Result<(), VerificationError> {
-    let public_key = ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, &self.key);
-    public_key
-      .verify(message, signature)
+    use ed25519_dalek::{Signature as EdSignature, Verifier, VerifyingKey};
+
+    // The stored key is the raw 32-byte Ed25519 public key.
+    let key_bytes: [u8; 32] = self
+      .key
+      .as_ref()
+      .try_into()
+      .map_err(|_| VerificationError::BadSignature("invalid ed25519 public key length".into()))?;
+    let public_key = VerifyingKey::from_bytes(&key_bytes)
+      .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
+    let sig = EdSignature::from_slice(signature.as_ref())
       .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
 
-    Ok(())
+    public_key
+      .verify(message, &sig)
+      .map_err(|e| VerificationError::BadSignature(e.to_string()))
   }
 }
 
@@ -215,24 +243,38 @@ impl From<JWK<()>> for PublicKey {
 #[cfg(test)]
 mod test {
   use super::*;
-  use ring::signature::KeyPair;
 
   #[test]
   fn test_signature_ed25519_roundtrip() {
-    // Generate a key pair in PKCS#8 (v2) format.
-    let rng = ring::rand::SystemRandom::new();
-    let pkcs8_bytes = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
-    let key_pair = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
+    use ed25519_dalek::{Signer, SigningKey};
 
-    // Sign the message "hello, world".
+    // Deterministic key from a fixed seed so the test needs no RNG dependency.
+    let signing_key = SigningKey::from_bytes(&[7u8; 32]);
+
     const MESSAGE: &[u8] = b"hello, world";
-    let sig = key_pair.sign(MESSAGE);
-    let sig_bytes = sig.as_ref().into();
+    let sig = signing_key.sign(MESSAGE);
 
     let pk = PublicKey::new(
       SignatureAlgorithm::Ed25519,
-      Bytes::from(key_pair.public_key().as_ref()),
+      Bytes::from(signing_key.verifying_key().to_bytes().as_slice()),
     );
-    pk.verify(sig_bytes, MESSAGE).unwrap();
+    pk.verify(Bytes::from(sig.to_bytes().as_slice()), MESSAGE)
+      .unwrap();
+  }
+
+  #[test]
+  fn test_ed25519_rejects_bad_signature() {
+    use ed25519_dalek::{Signer, SigningKey};
+
+    let signing_key = SigningKey::from_bytes(&[7u8; 32]);
+    let sig = signing_key.sign(b"hello, world");
+    let pk = PublicKey::new(
+      SignatureAlgorithm::Ed25519,
+      Bytes::from(signing_key.verifying_key().to_bytes().as_slice()),
+    );
+    // wrong message must fail
+    assert!(pk
+      .verify(Bytes::from(sig.to_bytes().as_slice()), b"goodbye, world")
+      .is_err());
   }
 }
