@@ -1,5 +1,4 @@
 use ipld_core::{codec::Codec, ipld};
-use serde::Serialize;
 use serde_ipld_dagjson::codec::DagJsonCodec;
 
 use super::*;
