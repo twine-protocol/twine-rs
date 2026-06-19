@@ -4,6 +4,13 @@ use biscuit::jwk::JWK;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Display, str::FromStr};
 
+/// The minimum RSA modulus size (in bits) accepted for signing and verification.
+///
+/// Smaller moduli are considered cryptographically weak. Keeping this floor in
+/// one place means a non-expert can neither generate nor accept a weak RSA key
+/// without deliberately bypassing the library.
+pub const MIN_RSA_KEY_BITS: usize = 2048;
+
 /// Digital signature algorithms used by Twine
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[non_exhaustive]
@@ -103,6 +110,7 @@ impl PublicKey {
 
   fn verify_rsa(&self, signature: &Signature, message: &[u8]) -> Result<(), VerificationError> {
     use rsa::pkcs1::DecodeRsaPublicKey;
+    use rsa::traits::PublicKeyParts;
     use rsa::Pkcs1v15Sign;
     use sha2::{Digest, Sha256, Sha384, Sha512};
 
@@ -110,6 +118,15 @@ impl PublicKey {
     // there is no per-bitsize table to keep in sync — 2048/3072/4096/… all work.
     let public_key = rsa::RsaPublicKey::from_pkcs1_der(&self.key)
       .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
+
+    // Reject undersized moduli regardless of what the strand declares, so a
+    // weak RSA strand can never produce a passing verification.
+    let bits = public_key.n().bits();
+    if bits < MIN_RSA_KEY_BITS {
+      return Err(VerificationError::WeakKey(format!(
+        "RSA modulus is {bits} bits; minimum is {MIN_RSA_KEY_BITS}"
+      )));
+    }
 
     let (scheme, hashed) = match self.alg {
       SignatureAlgorithm::Sha256Rsa(_) => {

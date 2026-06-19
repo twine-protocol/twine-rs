@@ -1,7 +1,7 @@
 use pkcs8::{der::Encode, DecodePrivateKey, SecretDocument};
 use std::vec;
 use thiserror::Error;
-use twine_lib::crypto::{PublicKey, Signature, SignatureAlgorithm};
+use twine_lib::crypto::{PublicKey, Signature, SignatureAlgorithm, MIN_RSA_KEY_BITS};
 
 use crate::{Signer, SigningError};
 
@@ -9,6 +9,8 @@ use crate::{Signer, SigningError};
 pub enum RingSignerError {
   #[error("Unsupported algorithm")]
   UnsupportedAlgorithm,
+  #[error("RSA key size {0} bits is below the {1}-bit minimum")]
+  WeakKey(usize, usize),
   #[error("Key rejected: {0}")]
   KeyRejected(String),
   #[error("pkcs8 error: {0}")]
@@ -57,6 +59,16 @@ impl RingSigner {
   ///
   /// It is likely more convenient to use the `from_pem` method to create a signer
   pub fn new(alg: SignatureAlgorithm, pkcs8: SecretDocument) -> Result<Self, RingSignerError> {
+    // Reject undersized RSA keys here so the floor also covers PEM imports
+    // (`from_pem` routes through `new`), not just freshly generated keys.
+    if let SignatureAlgorithm::Sha256Rsa(bits)
+    | SignatureAlgorithm::Sha384Rsa(bits)
+    | SignatureAlgorithm::Sha512Rsa(bits) = alg
+    {
+      if bits < MIN_RSA_KEY_BITS {
+        return Err(RingSignerError::WeakKey(bits, MIN_RSA_KEY_BITS));
+      }
+    }
     let signer = match alg {
       SignatureAlgorithm::Ed25519 => {
         let keypair = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_bytes())?;
@@ -240,31 +252,38 @@ impl RingSigner {
     Ok(pkcs8)
   }
 
-  /// Generate a new signer with a random RSA keypair using the given bitsize
+  /// Generate a new signer with a random RSA keypair of the given size.
+  ///
+  /// Returns [`RingSignerError::WeakKey`] if `bitsize` is below
+  /// [`MIN_RSA_KEY_BITS`].
   #[cfg(feature = "rsa")]
-  pub fn generate_rs256(bitsize: usize) -> rsa::Result<Self> {
-    let keypair = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), bitsize)?;
+  fn generate_rsa(alg: SignatureAlgorithm, bitsize: usize) -> Result<Self, RingSignerError> {
+    if bitsize < MIN_RSA_KEY_BITS {
+      return Err(RingSignerError::WeakKey(bitsize, MIN_RSA_KEY_BITS));
+    }
     use rsa::pkcs8::EncodePrivateKey;
+    let keypair = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), bitsize)
+      .map_err(|e| RingSignerError::KeyRejected(e.to_string()))?;
     let pkcs8 = keypair.to_pkcs8_der()?;
-    Ok(Self::new(SignatureAlgorithm::Sha256Rsa(bitsize), pkcs8).unwrap())
+    Self::new(alg, pkcs8)
   }
 
   /// Generate a new signer with a random RSA keypair using the given bitsize
   #[cfg(feature = "rsa")]
-  pub fn generate_rs384(bitsize: usize) -> rsa::Result<Self> {
-    let keypair = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), bitsize)?;
-    use rsa::pkcs8::EncodePrivateKey;
-    let pkcs8 = keypair.to_pkcs8_der()?;
-    Ok(Self::new(SignatureAlgorithm::Sha384Rsa(bitsize), pkcs8).unwrap())
+  pub fn generate_rs256(bitsize: usize) -> Result<Self, RingSignerError> {
+    Self::generate_rsa(SignatureAlgorithm::Sha256Rsa(bitsize), bitsize)
   }
 
   /// Generate a new signer with a random RSA keypair using the given bitsize
   #[cfg(feature = "rsa")]
-  pub fn generate_rs512(bitsize: usize) -> rsa::Result<Self> {
-    let keypair = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), bitsize)?;
-    use rsa::pkcs8::EncodePrivateKey;
-    let pkcs8 = keypair.to_pkcs8_der()?;
-    Ok(Self::new(SignatureAlgorithm::Sha512Rsa(bitsize), pkcs8).unwrap())
+  pub fn generate_rs384(bitsize: usize) -> Result<Self, RingSignerError> {
+    Self::generate_rsa(SignatureAlgorithm::Sha384Rsa(bitsize), bitsize)
+  }
+
+  /// Generate a new signer with a random RSA keypair using the given bitsize
+  #[cfg(feature = "rsa")]
+  pub fn generate_rs512(bitsize: usize) -> Result<Self, RingSignerError> {
+    Self::generate_rsa(SignatureAlgorithm::Sha512Rsa(bitsize), bitsize)
   }
 
   /// Generate a new signer with a random ECDSA P-256 keypair
@@ -424,6 +443,38 @@ mod test {
       pk.verify(sig, MESSAGE)
         .unwrap_or_else(|e| panic!("verify failed for {}: {}", pk.alg, e));
     }
+  }
+
+  /// Generation refuses an undersized RSA key rather than silently making a
+  /// weak one.
+  #[cfg(feature = "rsa")]
+  #[test]
+  fn test_generate_rejects_weak_rsa() {
+    assert!(matches!(
+      RingSigner::generate_rs256(1024),
+      Err(RingSignerError::WeakKey(1024, MIN_RSA_KEY_BITS))
+    ));
+  }
+
+  /// Verification refuses an undersized RSA key even if someone hand-builds the
+  /// strand around it — the check happens before the signature is examined.
+  #[cfg(feature = "rsa")]
+  #[test]
+  fn test_verify_rejects_weak_rsa() {
+    use rsa::pkcs1::EncodeRsaPublicKey;
+    use twine_lib::errors::VerificationError;
+    use twine_lib::Bytes;
+
+    let priv_key = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 1024).unwrap();
+    let der = priv_key.to_public_key().to_pkcs1_der().unwrap();
+    let pk = PublicKey::new(
+      SignatureAlgorithm::Sha256Rsa(1024),
+      Bytes::from(der.as_bytes()),
+    );
+    let err = pk
+      .verify(Bytes::from(vec![0u8; 128].as_slice()), b"message")
+      .unwrap_err();
+    assert!(matches!(err, VerificationError::WeakKey(_)));
   }
 
   #[test]

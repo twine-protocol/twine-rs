@@ -26,6 +26,9 @@ pub enum VerificationError {
   /// Indicates that a strand's key algorithm is unsupported for verification
   #[error("Unsupported key algorithm")]
   UnsupportedKeyAlgorithm,
+  /// Indicates that a key is too weak to be trusted (e.g. an undersized RSA modulus)
+  #[error("Key does not meet minimum strength requirements: {0}")]
+  WeakKey(String),
   /// Indicates incorrectly formatted JWK in Twine v1 specification
   #[error("Malformed JWK")]
   MalformedJwk(#[from] anyhow::Error),

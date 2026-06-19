@@ -287,10 +287,12 @@ impl StrandSchemaVersion {
     }
     match self {
       Self::V1(v) => {
-        v.verify_signature(
-          String::from_utf8(tixel.signature().into()).unwrap(),
-          tixel.content_hash(),
-        )?;
+        // v1 signatures are JWS compact strings; reject (don't panic on)
+        // non-UTF-8 bytes from crafted input.
+        let sig = String::from_utf8(tixel.signature().into()).map_err(|_| {
+          VerificationError::BadSignature("v1 signature is not valid UTF-8".into())
+        })?;
+        v.verify_signature(sig, tixel.content_hash())?;
       }
       Self::V2(_) => {
         self
