@@ -1,6 +1,12 @@
 //! Schema definitions for the Twine protocol data structures.
 //!
 //! These are internal to the library and should not be used directly.
+// Each schema version is a concrete container type (in v1/v2) that
+// implements the version-agnostic read trait (StrandSchema / TixelSchema).
+// The StrandSchemaVersion / TixelSchemaVersion enums hold one of the known
+// versions and forward every accessor to the active version via static dispatch
+// (see forward_schema!). Version-absent fields are expressed as trait default
+// methods, so older versions inherit the right answer without per-method boilerplate.
 use std::sync::Arc;
 
 use crate::{
@@ -18,6 +24,210 @@ use serde_ipld_dagcbor::codec::DagCborCodec;
 
 pub mod v1;
 pub mod v2;
+
+/// The version-agnostic read surface of a Strand.
+// Implemented once per schema version. Fields that do not exist in every
+// version are provided as default methods so older versions inherit the
+// historically-correct value (e.g. v1 strands have no expiry).
+pub trait StrandSchema {
+  /// Get the CID of the data structure
+  fn cid(&self) -> &Cid;
+  /// Get the version of the data structure
+  fn version(&self) -> Version;
+  /// Get the spec string of the data structure
+  fn spec_str(&self) -> &str;
+  /// Get the subspec of the data structure if it exists
+  fn subspec(&self) -> Option<Subspec>;
+  /// Get the public key of the data structure
+  fn key(&self) -> PublicKey;
+  /// Get the radix value of the skiplist
+  fn radix(&self) -> u8;
+  /// Get the details of the data structure
+  fn details(&self) -> &Ipld;
+  /// Get the expiry date of the data structure if it exists
+  fn expiry(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+    None
+  }
+}
+
+/// The version-agnostic read surface of a Tixel.
+// Implemented once per schema version. Version-absent fields are default
+// methods (e.g. v1 tixels have no subspec or drop index).
+pub trait TixelSchema {
+  /// Get the CID
+  fn cid(&self) -> &Cid;
+  /// Get the index
+  fn index(&self) -> u64;
+  /// Get the strand CID
+  fn strand_cid(&self) -> &Cid;
+  /// Get the spec string
+  fn spec_str(&self) -> &str;
+  /// Get the version
+  fn version(&self) -> Version;
+  /// Get the subspec if it exists
+  fn subspec(&self) -> Option<Subspec> {
+    None
+  }
+  /// Get the cross stitches
+  fn cross_stitches(&self) -> CrossStitches;
+  /// Get the back stitches
+  fn back_stitches(&self) -> BackStitches;
+  /// Get the drop index
+  fn drop_index(&self) -> u64 {
+    0
+  }
+  /// Access the payload as an IPLD object
+  fn payload(&self) -> &Ipld;
+  /// Get the signature
+  fn signature(&self) -> Signature;
+}
+
+// --- per-version implementations ---------------------------------------------
+
+impl StrandSchema for v1::ContainerV1<v1::ChainContentV1> {
+  fn cid(&self) -> &Cid {
+    self.cid()
+  }
+  fn version(&self) -> Version {
+    self.version()
+  }
+  fn spec_str(&self) -> &str {
+    self.spec_str()
+  }
+  fn subspec(&self) -> Option<Subspec> {
+    self.subspec()
+  }
+  fn key(&self) -> PublicKey {
+    self.key().into()
+  }
+  fn radix(&self) -> u8 {
+    self.radix()
+  }
+  fn details(&self) -> &Ipld {
+    self.details()
+  }
+  // expiry: v1 strands have none -> trait default (None)
+}
+
+impl StrandSchema for v2::StrandContainerV2 {
+  fn cid(&self) -> &Cid {
+    self.cid()
+  }
+  fn version(&self) -> Version {
+    self.version()
+  }
+  fn spec_str(&self) -> &str {
+    self.spec_str()
+  }
+  fn subspec(&self) -> Option<Subspec> {
+    self.subspec()
+  }
+  fn key(&self) -> PublicKey {
+    self.key().clone()
+  }
+  fn radix(&self) -> u8 {
+    self.radix()
+  }
+  fn details(&self) -> &Ipld {
+    self.details()
+  }
+  fn expiry(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+    self.expiry()
+  }
+}
+
+impl TixelSchema for v1::ContainerV1<v1::PulseContentV1> {
+  fn cid(&self) -> &Cid {
+    self.cid()
+  }
+  fn index(&self) -> u64 {
+    self.index()
+  }
+  fn strand_cid(&self) -> &Cid {
+    self.strand_cid()
+  }
+  fn spec_str(&self) -> &str {
+    self.spec_str()
+  }
+  fn version(&self) -> Version {
+    // v1 pulses do not carry a version field
+    Version::new(1, 0, 0)
+  }
+  // subspec: v1 tixels have none -> trait default (None)
+  fn cross_stitches(&self) -> CrossStitches {
+    self.cross_stitches()
+  }
+  fn back_stitches(&self) -> BackStitches {
+    self.back_stitches()
+  }
+  // drop_index: v1 tixels have none -> trait default (0)
+  fn payload(&self) -> &Ipld {
+    self.payload()
+  }
+  fn signature(&self) -> Signature {
+    self.signature().as_bytes().to_vec().into()
+  }
+}
+
+impl TixelSchema for v2::TixelContainerV2 {
+  fn cid(&self) -> &Cid {
+    self.cid()
+  }
+  fn index(&self) -> u64 {
+    self.index()
+  }
+  fn strand_cid(&self) -> &Cid {
+    self.strand_cid()
+  }
+  fn spec_str(&self) -> &str {
+    self.spec_str()
+  }
+  fn version(&self) -> Version {
+    self.version()
+  }
+  fn subspec(&self) -> Option<Subspec> {
+    self.subspec()
+  }
+  fn cross_stitches(&self) -> CrossStitches {
+    self.cross_stitches()
+  }
+  fn back_stitches(&self) -> BackStitches {
+    self.back_stitches()
+  }
+  fn drop_index(&self) -> u64 {
+    self.drop_index()
+  }
+  fn payload(&self) -> &Ipld {
+    self.payload()
+  }
+  fn signature(&self) -> Signature {
+    self.signature()
+  }
+}
+
+// Generate the enum's accessor surface by forwarding each method to the active
+// version's trait implementation. The variants are fixed, so a single `match`
+// per method is enough — no nested repetition, and dispatch stays static
+// (inlinable, no vtable). `$trait::$m(v)` is unambiguous UFCS, so it always
+// selects the trait method even when the container also has an inherent one.
+macro_rules! forward_schema {
+  ($enum:ident : $trait:ident { $( fn $m:ident(&self) -> $r:ty; )* }) => {
+    impl $enum {
+      $(
+        #[doc = concat!(
+          "Forwards [`", stringify!($trait), "::", stringify!($m),
+          "`] to the active schema version."
+        )]
+        pub fn $m(&self) -> $r {
+          match self {
+            $enum::V1(v) => $trait::$m(v),
+            $enum::V2(v) => $trait::$m(v),
+          }
+        }
+      )*
+    }
+  };
+}
 
 /// The different Strand schema versions
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
@@ -39,83 +249,27 @@ impl Verifiable for StrandSchemaVersion {
   }
 }
 
+forward_schema!(StrandSchemaVersion: StrandSchema {
+  fn cid(&self) -> &Cid;
+  fn version(&self) -> Version;
+  fn spec_str(&self) -> &str;
+  fn subspec(&self) -> Option<Subspec>;
+  fn key(&self) -> PublicKey;
+  fn radix(&self) -> u8;
+  fn details(&self) -> &Ipld;
+  fn expiry(&self) -> Option<chrono::DateTime<chrono::Utc>>;
+});
+
 impl StrandSchemaVersion {
-  /// Compute the CID of the data structure
-  ///
-  /// This was necessary for v1 schemas since the hash algorithm
-  /// for the CID was not stored in the schema.
-  ///
-  /// Is not implemented for v2
+  /// Compute and assign the CID using the given hasher.
+  // v1 schemas don't store the hash algorithm in the schema, so the CID must
+  // be computed externally. Not implemented for v2.
   pub fn compute_cid(&mut self, hasher: Code) {
     match self {
       StrandSchemaVersion::V1(v) => {
         v.compute_cid(hasher);
       }
       StrandSchemaVersion::V2(_) => unimplemented!(),
-    }
-  }
-
-  /// Get the CID of the data structure
-  pub fn cid(&self) -> &Cid {
-    match self {
-      StrandSchemaVersion::V1(v) => v.cid(),
-      StrandSchemaVersion::V2(v) => v.cid(),
-    }
-  }
-
-  /// Get the version of the data structure
-  pub fn version(&self) -> Version {
-    match self {
-      StrandSchemaVersion::V1(v) => v.version(),
-      StrandSchemaVersion::V2(v) => v.version(),
-    }
-  }
-
-  /// Get the spec string of the data structure
-  pub fn spec_str(&self) -> &str {
-    match self {
-      StrandSchemaVersion::V1(v) => v.spec_str(),
-      StrandSchemaVersion::V2(v) => v.spec_str(),
-    }
-  }
-
-  /// Get the subspec of the data structure if it exists
-  pub fn subspec(&self) -> Option<Subspec> {
-    match self {
-      StrandSchemaVersion::V1(v) => v.subspec(),
-      StrandSchemaVersion::V2(v) => v.subspec(),
-    }
-  }
-
-  /// Get the public key of the data structure
-  pub fn key(&self) -> PublicKey {
-    match self {
-      StrandSchemaVersion::V1(v) => v.key().into(),
-      StrandSchemaVersion::V2(v) => v.key().clone(),
-    }
-  }
-
-  /// Get the radix value of the skiplist
-  pub fn radix(&self) -> u8 {
-    match self {
-      StrandSchemaVersion::V1(v) => v.radix(),
-      StrandSchemaVersion::V2(v) => v.radix(),
-    }
-  }
-
-  /// Get the details of the data structure
-  pub fn details(&self) -> &Ipld {
-    match self {
-      StrandSchemaVersion::V1(v) => v.details(),
-      StrandSchemaVersion::V2(v) => v.details(),
-    }
-  }
-
-  /// Get the expiry date of the data structure if it exists
-  pub fn expiry(&self) -> Option<chrono::DateTime<chrono::Utc>> {
-    match self {
-      StrandSchemaVersion::V1(_) => None,
-      StrandSchemaVersion::V2(v) => v.expiry(),
     }
   }
 
@@ -198,6 +352,20 @@ impl Verifiable for TixelSchemaVersion {
   }
 }
 
+forward_schema!(TixelSchemaVersion: TixelSchema {
+  fn cid(&self) -> &Cid;
+  fn index(&self) -> u64;
+  fn strand_cid(&self) -> &Cid;
+  fn spec_str(&self) -> &str;
+  fn version(&self) -> Version;
+  fn subspec(&self) -> Option<Subspec>;
+  fn cross_stitches(&self) -> CrossStitches;
+  fn back_stitches(&self) -> BackStitches;
+  fn drop_index(&self) -> u64;
+  fn payload(&self) -> &Ipld;
+  fn signature(&self) -> Signature;
+});
+
 impl TixelSchemaVersion {
   /// Compute the CID
   pub fn compute_cid(&mut self, hasher: Code) {
@@ -206,93 +374,6 @@ impl TixelSchemaVersion {
         v.compute_cid(hasher);
       }
       TixelSchemaVersion::V2(_) => unimplemented!(),
-    }
-  }
-  /// Get the CID
-  pub fn cid(&self) -> &Cid {
-    match self {
-      TixelSchemaVersion::V1(v) => v.cid(),
-      TixelSchemaVersion::V2(v) => v.cid(),
-    }
-  }
-
-  /// Get the index
-  pub fn index(&self) -> u64 {
-    match self {
-      TixelSchemaVersion::V1(v) => v.index(),
-      TixelSchemaVersion::V2(v) => v.index(),
-    }
-  }
-
-  /// Get the strand CID
-  pub fn strand_cid(&self) -> &Cid {
-    match self {
-      TixelSchemaVersion::V1(v) => v.strand_cid(),
-      TixelSchemaVersion::V2(v) => v.strand_cid(),
-    }
-  }
-
-  /// Get the spec string
-  pub fn spec_str(&self) -> &str {
-    match self {
-      TixelSchemaVersion::V1(v) => v.spec_str(),
-      TixelSchemaVersion::V2(v) => v.spec_str(),
-    }
-  }
-
-  /// Get the version
-  pub fn version(&self) -> Version {
-    match self {
-      TixelSchemaVersion::V1(_) => Version::new(1, 0, 0),
-      TixelSchemaVersion::V2(v) => v.version(),
-    }
-  }
-
-  /// Get the subspec if it exists
-  pub fn subspec(&self) -> Option<Subspec> {
-    match self {
-      TixelSchemaVersion::V1(_) => None,
-      TixelSchemaVersion::V2(v) => v.subspec(),
-    }
-  }
-
-  /// Get the cross stitches
-  pub fn cross_stitches(&self) -> CrossStitches {
-    match self {
-      TixelSchemaVersion::V1(v) => v.cross_stitches(),
-      TixelSchemaVersion::V2(v) => v.cross_stitches(),
-    }
-  }
-
-  /// Get the back stitches
-  pub fn back_stitches(&self) -> BackStitches {
-    match self {
-      TixelSchemaVersion::V1(v) => v.back_stitches(),
-      TixelSchemaVersion::V2(v) => v.back_stitches(),
-    }
-  }
-
-  /// Get the drop index
-  pub fn drop_index(&self) -> u64 {
-    match self {
-      TixelSchemaVersion::V1(_) => 0,
-      TixelSchemaVersion::V2(v) => v.drop_index(),
-    }
-  }
-
-  /// Access the payload as an IPLD object
-  pub fn payload(&self) -> &Ipld {
-    match self {
-      TixelSchemaVersion::V1(v) => v.payload(),
-      TixelSchemaVersion::V2(v) => v.payload(),
-    }
-  }
-
-  /// Get the signature
-  pub fn signature(&self) -> Signature {
-    match self {
-      TixelSchemaVersion::V1(v) => v.signature().as_bytes().to_vec().into(),
-      TixelSchemaVersion::V2(v) => v.signature(),
     }
   }
 

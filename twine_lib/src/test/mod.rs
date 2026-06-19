@@ -273,3 +273,4 @@ pub(crate) const TIXEL_V2_JSON: &'static str = r#"
 "#;
 
 mod serialization;
+mod parity;
