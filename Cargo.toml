@@ -31,7 +31,7 @@ members = [
 [workspace.package]
 authors = ["Jasper Palfree <jasper.palfree@colordo.edu>"]
 edition = "2021"
-rust-version = "1.78"
+rust-version = "1.85"
 license = "MIT"
 repository = "https://github.com/twine-protocol/twine-rs"
 categories = ['data-structures', 'cryptography']

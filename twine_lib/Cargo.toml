@@ -28,7 +28,7 @@ serde_ipld_dagcbor = { version = ">=0.6.1" }
 serde_ipld_dagjson = "0.2.0"
 serde_bytes.workspace = true
 multihash = "0.19"
-multihash-codetable = { version = "0.1", features = ["sha2"] }
+multihash-codetable = { version = "0.2", features = ["sha2"] }
 multihash-derive = "0.9"
 serde_json.workspace = true
 thiserror.workspace = true
