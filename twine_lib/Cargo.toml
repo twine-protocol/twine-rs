@@ -39,7 +39,7 @@ anyhow = "1.0"
 futures.workspace = true
 async-trait.workspace = true
 quick_cache = "0.6"
-rs-car-sync = "0.4"
+rs-car-sync = "0.5"
 chrono.workspace = true
 rsa = { workspace = true }
 elliptic-curve = { version = "0.13", features = ["alloc", "jwk", "pkcs8"] }
@@ -54,5 +54,5 @@ features = ["wasm32_unknown_unknown_js"]
 
 [dev-dependencies]
 tokio.workspace = true
-rs-car = "0.4"
+rs-car = "0.5"
 # twine_builder = { path = "../twine_builder" }
