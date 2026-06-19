@@ -282,3 +282,243 @@ impl Verifiable for TixelContainerV2 {
     Ok(())
   }
 }
+
+#[cfg(test)]
+mod test {
+  use super::*;
+  use crate::{
+    test::{STRAND_V2_JSON, TIXEL_V2_JSON},
+    twine::{Strand, Tixel, TwineBlock},
+  };
+  use semver::Version;
+
+  // --- helpers -----------------------------------------------------------
+
+  fn strand_v2() -> Strand {
+    Strand::from_tagged_dag_json(STRAND_V2_JSON).unwrap()
+  }
+  fn tixel_v2() -> Tixel {
+    Tixel::from_tagged_dag_json(TIXEL_V2_JSON).unwrap()
+  }
+
+  // Get the raw StrandContainerV2 from a loaded strand
+  fn strand_container_v2() -> StrandContainerV2 {
+    use crate::schemas::StrandSchemaVersion;
+    let strand = strand_v2();
+    match &**strand.0 {
+      StrandSchemaVersion::V2(c) => c.clone(),
+      _ => panic!("expected V2 strand"),
+    }
+  }
+
+  // Get the raw TixelContainerV2 from a loaded tixel
+  fn tixel_container_v2() -> TixelContainerV2 {
+    use crate::schemas::TixelSchemaVersion;
+    let tixel = tixel_v2();
+    match &**tixel.0 {
+      TixelSchemaVersion::V2(c) => c.clone(),
+      _ => panic!("expected V2 tixel"),
+    }
+  }
+
+  // --- ContainerV2 CID derivation ----------------------------------------
+
+  #[test]
+  fn strand_container_v2_cid_is_derived_from_content() {
+    // CID is computed at deserialize time from the content; must be non-default.
+    let c = strand_container_v2();
+    assert_ne!(c.cid(), &Cid::default(), "CID must be derived, not default");
+    // Re-serializing and re-loading gives the same CID (round-trip)
+    let strand = strand_v2();
+    let json = strand.tagged_dag_json();
+    let strand2 = Strand::from_tagged_dag_json(&json).unwrap();
+    assert_eq!(strand.cid(), strand2.cid());
+  }
+
+  #[test]
+  fn tixel_container_v2_cid_is_derived_from_content() {
+    let c = tixel_container_v2();
+    assert_ne!(c.cid(), &Cid::default(), "CID must be derived, not default");
+    let tixel = tixel_v2();
+    let json = tixel.tagged_dag_json();
+    let tixel2 = Tixel::from_tagged_dag_json(&json).unwrap();
+    assert_eq!(tixel.cid(), tixel2.cid());
+  }
+
+  // --- StrandContainerV2::verify (self-signature) ------------------------
+
+  #[test]
+  fn strand_container_v2_verify_passes_for_valid_fixture() {
+    let c = strand_container_v2();
+    assert!(
+      c.verify().is_ok(),
+      "valid StrandContainerV2 must pass self-verification"
+    );
+  }
+
+  #[test]
+  fn strand_container_v2_verify_fails_for_tampered_signature() {
+    // Tamper the signature by replacing it with zeros in the JSON and
+    // then verifying the container. Strand deserialization calls verify(),
+    // so a bad signature is caught either during deserialization or on an
+    // explicit verify() call.
+    //
+    // The ED25519 signature in STRAND_V2_JSON is base64-encoded in the "s"
+    // field. We replace it with 64 zero bytes (encoded as base64) to simulate
+    // a forged / corrupted signature.
+    let zero_sig_b64 =
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    let tampered = STRAND_V2_JSON.replace(
+      "hN5hlT+3+zwJzgmrej8LvtPrAnRsf0c2Qo8xZE0Bj0uY0Tudhi9CbBx/5AjPmceyYGifWb0uw5SZRLMDS15YBA",
+      zero_sig_b64,
+    );
+    // Either deserialization fails (Verifiable catches it) or if the JSON
+    // format happens to be accepted, the container's verify() must fail.
+    let strand_result = Strand::from_tagged_dag_json(&tampered);
+    match strand_result {
+      Err(_) => {
+        // Deserialization itself rejected the tampered fixture — correct.
+      }
+      Ok(strand) => {
+        use crate::schemas::StrandSchemaVersion;
+        match &**strand.0 {
+          StrandSchemaVersion::V2(c) => {
+            let result = c.verify();
+            assert!(result.is_err(), "tampered v2 strand must fail verification");
+          }
+          _ => panic!("expected V2 strand variant"),
+        }
+      }
+    }
+  }
+
+  // --- TixelContainerV2::verify ------------------------------------------
+
+  #[test]
+  fn tixel_container_v2_verify_returns_ok() {
+    // TixelContainerV2::verify has no checks of its own; must return Ok.
+    let c = tixel_container_v2();
+    assert!(c.verify().is_ok());
+  }
+
+  // --- StrandContainerV2 accessors ---------------------------------------
+
+  #[test]
+  fn strand_v2_key_accessible() {
+    let c = strand_container_v2();
+    let _ = c.key();
+  }
+
+  #[test]
+  fn strand_v2_radix_32() {
+    let c = strand_container_v2();
+    assert_eq!(c.radix(), 32);
+  }
+
+  #[test]
+  fn strand_v2_details_accessible() {
+    let c = strand_container_v2();
+    let _ = c.details();
+  }
+
+  #[test]
+  fn strand_v2_expiry_none_for_null_fixture() {
+    let c = strand_container_v2();
+    assert_eq!(c.expiry(), None);
+  }
+
+  #[test]
+  fn strand_v2_version_is_2_0_0() {
+    let c = strand_container_v2();
+    assert_eq!(c.version(), Version::new(2, 0, 0));
+  }
+
+  #[test]
+  fn strand_v2_spec_str_contains_twine() {
+    let c = strand_container_v2();
+    assert!(c.spec_str().starts_with("twine/"));
+  }
+
+  #[test]
+  fn strand_v2_subspec_some() {
+    let c = strand_container_v2();
+    assert!(c.subspec().is_some());
+  }
+
+  #[test]
+  fn strand_v2_signature_nonempty() {
+    let c = strand_container_v2();
+    assert!(!c.signature().is_empty());
+  }
+
+  #[test]
+  fn strand_v2_content_bytes_nonempty() {
+    let c = strand_container_v2();
+    assert!(c.content_bytes().is_ok());
+    assert!(!c.content_bytes().unwrap().is_empty());
+  }
+
+  // --- TixelContainerV2 accessors ----------------------------------------
+
+  #[test]
+  fn tixel_v2_index_0() {
+    let c = tixel_container_v2();
+    assert_eq!(c.index(), 0);
+  }
+
+  #[test]
+  fn tixel_v2_strand_cid_non_default() {
+    let c = tixel_container_v2();
+    assert_ne!(c.strand_cid(), &Cid::default());
+  }
+
+  #[test]
+  fn tixel_v2_cross_stitches_empty() {
+    let c = tixel_container_v2();
+    // fixture has no cross-stitches
+    assert_eq!(c.cross_stitches().len(), 0);
+  }
+
+  #[test]
+  fn tixel_v2_back_stitches_empty() {
+    let c = tixel_container_v2();
+    // first tixel (index 0) has no back-stitches
+    assert_eq!(c.back_stitches().len(), 0);
+  }
+
+  #[test]
+  fn tixel_v2_drop_index_0() {
+    let c = tixel_container_v2();
+    assert_eq!(c.drop_index(), 0);
+  }
+
+  #[test]
+  fn tixel_v2_payload_accessible() {
+    let c = tixel_container_v2();
+    let _ = c.payload();
+  }
+
+  #[test]
+  fn tixel_v2_version_is_2_0_0() {
+    let c = tixel_container_v2();
+    assert_eq!(c.version(), Version::new(2, 0, 0));
+  }
+
+  #[test]
+  fn tixel_v2_spec_str_nonempty() {
+    let c = tixel_container_v2();
+    assert!(!c.spec_str().is_empty());
+  }
+
+  #[test]
+  fn tixel_v2_subspec_some() {
+    let c = tixel_container_v2();
+    assert!(c.subspec().is_some());
+  }
+
+  #[test]
+  fn tixel_v2_signature_nonempty() {
+    let c = tixel_container_v2();
+    assert!(!c.signature().is_empty());
+  }
+}

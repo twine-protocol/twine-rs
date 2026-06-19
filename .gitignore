@@ -13,3 +13,5 @@
 /playground/
 
 .worktrees/
+# Claude Code local worktrees / agent state
+.claude/
