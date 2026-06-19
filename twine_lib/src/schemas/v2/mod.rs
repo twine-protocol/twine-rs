@@ -76,27 +76,21 @@ impl From<HashCode> for u64 {
   }
 }
 
-/// The container fields for a version 2 schema
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ContainerFields<C: Clone + Send + Verifiable> {
-  #[serde(rename = "c")]
-  content: Verified<ContentV2<C>>,
-  #[serde(rename = "s")]
-  signature: Bytes,
-}
-
 /// General container for a version 2 schema
 ///
-/// This uses [`ContainerFields`] to store the content and signature
-/// and computes and stores the CID when deserialized
+/// Stores the content and signature, and computes and stores the CID
+/// when deserialized. The `cid` is derived, not transmitted: serializing
+/// a container yields exactly the wire form `{ "c": content, "s": signature }`,
+/// which is what the CID commits to.
 #[derive(Debug, Serialize, Clone)]
-#[serde(deny_unknown_fields)]
 pub struct ContainerV2<C: Clone + Send + Verifiable> {
   #[serde(skip)]
   cid: Cid,
 
-  #[serde(flatten)]
-  fields: ContainerFields<C>,
+  #[serde(rename = "c")]
+  content: Verified<ContentV2<C>>,
+  #[serde(rename = "s")]
+  signature: Bytes,
 }
 
 impl<C> ContainerV2<C>
@@ -105,11 +99,14 @@ where
 {
   /// Create a new container from its parts
   pub fn new_from_parts(content: Verified<ContentV2<C>>, signature: Signature) -> Self {
-    let fields = ContainerFields { content, signature };
-
-    let cid = fields.content.code().get_cid(&fields).unwrap();
-
-    ContainerV2 { cid, fields }
+    let mut container = ContainerV2 {
+      cid: Cid::default(),
+      content,
+      signature,
+    };
+    // cid commits to the serialized container (cid field is skipped)
+    container.cid = container.content.code().get_cid(&container).unwrap();
+    container
   }
 }
 
@@ -124,27 +121,27 @@ where
 
   /// Get the version
   pub fn version(&self) -> Version {
-    self.fields.content.specification.semver()
+    self.content.specification.semver()
   }
 
   /// Get the spec string
   pub fn spec_str(&self) -> &str {
-    self.fields.content.specification.0.as_str()
+    self.content.specification.0.as_str()
   }
 
   /// Get the subspec if it exists
   pub fn subspec(&self) -> Option<crate::specification::Subspec> {
-    self.fields.content.specification.subspec()
+    self.content.specification.subspec()
   }
 
   /// Get the signature
   pub fn signature(&self) -> Signature {
-    self.fields.signature.clone()
+    self.signature.clone()
   }
 
   /// Get the serialized content as bytes
   pub fn content_bytes(&self) -> Result<Bytes, VerificationError> {
-    crypto_serialize(&self.fields.content)
+    crypto_serialize(&self.content)
       .map_err(|e| VerificationError::General(e.to_string()))
       .map(Bytes)
   }
@@ -160,17 +157,6 @@ where
 }
 
 impl<C> Eq for ContainerV2<C> where C: Clone + Send + Verifiable {}
-
-impl<C> Deref for ContainerV2<C>
-where
-  C: Clone + Send + Verifiable,
-{
-  type Target = ContainerFields<C>;
-
-  fn deref(&self) -> &Self::Target {
-    &self.fields
-  }
-}
 
 impl<C> Hash for ContainerV2<C>
 where
@@ -189,15 +175,29 @@ where
   where
     D: Deserializer<'de>,
   {
-    let fields = ContainerFields::<T>::deserialize(deserializer)?;
-    // now use the content code to create the cid
-    let cid = fields
-      .content
+    // The wire shape; `cid` is derived below, not transmitted.
+    #[derive(Serialize, Deserialize)]
+    #[serde(bound(deserialize = "T: Serialize + for<'a> Deserialize<'a>"))]
+    #[serde(deny_unknown_fields)]
+    struct Wire<T: Clone + Send + Verifiable> {
+      #[serde(rename = "c")]
+      content: Verified<ContentV2<T>>,
+      #[serde(rename = "s")]
+      signature: Bytes,
+    }
+    let wire = Wire::<T>::deserialize(deserializer)?;
+    let cid = wire.content
       .code()
-      .get_cid(&fields)
+      .get_cid(&wire)
       .map_err(|e| serde::de::Error::custom(format!("Failed to create CID: {:?}", e)))?;
 
-    Ok(ContainerV2 { cid, fields })
+    let Wire { content, signature } = wire;
+    let container = ContainerV2 {
+      cid,
+      content,
+      signature,
+    };
+    Ok(container)
   }
 }
 
@@ -209,22 +209,22 @@ pub type TixelContainerV2 = ContainerV2<TixelFields>;
 impl StrandContainerV2 {
   /// Get the public key of the strand
   pub fn key(&self) -> &PublicKey {
-    &self.fields.content.key
+    &self.content.key
   }
 
   /// Get the radix of the strand
   pub fn radix(&self) -> u8 {
-    self.fields.content.radix
+    self.content.radix
   }
 
   /// Get the details of the strand
   pub fn details(&self) -> &Ipld {
-    &self.fields.content.details
+    &self.content.details
   }
 
   /// Get the expiry date of the strand if it is set
   pub fn expiry(&self) -> Option<DateTime<Utc>> {
-    self.fields.content.expiry
+    self.content.expiry
   }
 }
 
@@ -241,17 +241,17 @@ impl Verifiable for StrandContainerV2 {
 impl TixelContainerV2 {
   /// Get the index of the tixel
   pub fn index(&self) -> u64 {
-    self.fields.content.index
+    self.content.index
   }
 
   /// Get the strand CID of the tixel
   pub fn strand_cid(&self) -> &Cid {
-    &self.fields.content.strand
+    &self.content.strand
   }
 
   /// Get the cross stitches of the tixel
   pub fn cross_stitches(&self) -> CrossStitches {
-    (*self.fields.content.cross_stitches).clone()
+    (*self.content.cross_stitches).clone()
   }
 
   /// Get the back stitches of the tixel
@@ -259,19 +259,19 @@ impl TixelContainerV2 {
     // checked in verify method
     BackStitches::try_new_from_condensed(
       *self.strand_cid(),
-      self.fields.content.back_stitches.clone(),
+      self.content.back_stitches.clone(),
     )
     .unwrap()
   }
 
   /// Get the drop index of the tixel
   pub fn drop_index(&self) -> u64 {
-    self.fields.content.drop
+    self.content.drop
   }
 
   /// Get the payload of the tixel
   pub fn payload(&self) -> &Ipld {
-    &self.fields.content.payload
+    &self.content.payload
   }
 }
 
