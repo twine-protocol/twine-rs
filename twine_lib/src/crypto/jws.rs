@@ -161,4 +161,100 @@ mod test {
     let err = verify_signature(&wrong_jwk, &token, payload).unwrap_err();
     assert!(matches!(err, VerificationError::BadSignature(_)));
   }
+
+  // -----------------------------------------------------------------------
+  // Algorithm-confusion / downgrade attacks against a real RSA strand key
+  //
+  // These probe the classic JWS pitfalls: an attacker who knows the public
+  // key (it's published in the strand) tries to forge a signature by
+  // changing the header `alg`. If verification trusts the token's `alg`
+  // instead of the JWK's, the log's authenticity guarantee collapses.
+  // -----------------------------------------------------------------------
+
+  /// The real RSA public-key JWK published in the v1 strand fixture.
+  fn strand_rsa_jwk() -> JWK<()> {
+    let v: serde_json::Value = serde_json::from_str(crate::test::STRANDJSON).unwrap();
+    serde_json::from_value(v["data"]["content"]["key"].clone()).unwrap()
+  }
+
+  #[test]
+  fn rejects_alg_none_token_against_rsa_key() {
+    let jwk = strand_rsa_jwk();
+    let payload = b"content hash bytes";
+
+    // Forge an unsecured (alg:"none") token carrying the target payload.
+    let header = Header::<Empty>::from(RegisteredHeader {
+      algorithm: JwaAlg::None,
+      ..Default::default()
+    });
+    let token: Compact<Vec<u8>, Empty> = Compact::new_decoded(header, payload.to_vec());
+    let forged = match token.encode(&Secret::None).unwrap() {
+      Compact::Encoded(c) => c.encode(),
+      _ => panic!("expected encoded token"),
+    };
+
+    // Must NOT verify: an RSA strand key must never accept an unsigned token.
+    let res = verify_signature(&jwk, &forged, payload);
+    assert!(
+      res.is_err(),
+      "alg:none token was accepted against an RSA key -- auth bypass!"
+    );
+  }
+
+  #[test]
+  fn rejects_hs256_confusion_using_public_modulus_as_secret() {
+    let jwk = strand_rsa_jwk();
+    let payload = b"content hash bytes";
+
+    // The attacker uses the public RSA modulus (known to everyone) as an
+    // HMAC secret and signs an HS256 token over the target payload.
+    let modulus = match &jwk.algorithm {
+      AlgorithmParameters::RSA(params) => params.n.to_bytes_be(),
+      _ => panic!("expected RSA key params"),
+    };
+    let forged = sign_hs256(payload, &modulus);
+
+    // Must NOT verify: HS256-with-public-key confusion must be rejected.
+    let res = verify_signature(&jwk, &forged, payload);
+    assert!(
+      res.is_err(),
+      "HS256 confusion token verified against RSA key -- auth bypass!"
+    );
+  }
+
+  #[test]
+  fn rejects_confusion_even_when_jwk_omits_alg() {
+    // A strand could publish an RSA key without the optional `alg` member.
+    // If verification then trusts the token header's `alg`, alg:none and
+    // HS256-confusion forgeries become possible. Pin behaviour with a test.
+    let mut jwk = strand_rsa_jwk();
+    jwk.common.algorithm = None;
+    let payload = b"content hash bytes";
+
+    // alg:none
+    let header = Header::<Empty>::from(RegisteredHeader {
+      algorithm: JwaAlg::None,
+      ..Default::default()
+    });
+    let token: Compact<Vec<u8>, Empty> = Compact::new_decoded(header, payload.to_vec());
+    let none_token = match token.encode(&Secret::None).unwrap() {
+      Compact::Encoded(c) => c.encode(),
+      _ => panic!("expected encoded token"),
+    };
+    assert!(
+      verify_signature(&jwk, &none_token, payload).is_err(),
+      "alg:none accepted for an RSA key with no `alg` -- auth bypass!"
+    );
+
+    // HS256 confusion with the public modulus as secret
+    let modulus = match &jwk.algorithm {
+      AlgorithmParameters::RSA(params) => params.n.to_bytes_be(),
+      _ => panic!("expected RSA key params"),
+    };
+    let hs_token = sign_hs256(payload, &modulus);
+    assert!(
+      verify_signature(&jwk, &hs_token, payload).is_err(),
+      "HS256 confusion accepted for an RSA key with no `alg` -- auth bypass!"
+    );
+  }
 }
