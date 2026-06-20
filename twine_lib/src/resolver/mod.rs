@@ -640,4 +640,154 @@ mod test {
     assert_eq!(res.strand().cid(), strand_cid);
     assert_eq!(res.tixel().cid(), tixel_cid);
   }
+
+  fn loaded_store() -> (MemoryStore, Cid, Cid) {
+    let store = MemoryStore::default();
+    let strand = Strand::from_tagged_dag_json(crate::test::STRAND_V2_JSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(crate::test::TIXEL_V2_JSON).unwrap();
+    let (strand_cid, tixel_cid) = (strand.cid(), tixel.cid());
+    store.save_sync(strand.into()).unwrap();
+    store.save_sync(tixel.into()).unwrap();
+    (store, strand_cid, tixel_cid)
+  }
+
+  #[tokio::test]
+  async fn resolver_default_methods_single_tixel() {
+    let (store, strand_cid, tixel_cid) = loaded_store();
+
+    // resolve(): every SingleQuery variant lands on index 0.
+    assert_eq!(
+      store.resolve(SingleQuery::Latest(strand_cid)).await.unwrap().tixel().cid(),
+      tixel_cid
+    );
+    assert_eq!(
+      store.resolve((strand_cid, 0u64)).await.unwrap().tixel().cid(),
+      tixel_cid
+    );
+    // Relative -1 resolves to latest.
+    assert_eq!(
+      store.resolve(SingleQuery::Index(strand_cid, -1)).await.unwrap().index(),
+      0
+    );
+    // Stitch query.
+    assert_eq!(
+      store
+        .resolve(SingleQuery::Stitch((strand_cid, tixel_cid).into()))
+        .await
+        .unwrap()
+        .tixel()
+        .cid(),
+      tixel_cid
+    );
+
+    // resolve_* helpers.
+    assert_eq!(store.resolve_latest(strand_cid).await.unwrap().index(), 0);
+    assert_eq!(store.resolve_index(strand_cid, 0).await.unwrap().index(), 0);
+    assert_eq!(
+      store.resolve_stitch(strand_cid, tixel_cid).await.unwrap().tixel().cid(),
+      tixel_cid
+    );
+    assert_eq!(store.resolve_strand(strand_cid).await.unwrap().cid(), strand_cid);
+    assert_eq!(store.latest_index(&strand_cid).await.unwrap(), 0);
+  }
+
+  #[tokio::test]
+  async fn resolver_has_reports_presence() {
+    let (store, strand_cid, tixel_cid) = loaded_store();
+    let missing = Cid::default();
+
+    assert!(store.has(SingleQuery::Latest(strand_cid)).await.unwrap());
+    assert!(store.has((strand_cid, 0u64)).await.unwrap());
+    assert!(store.has(SingleQuery::Index(strand_cid, -1)).await.unwrap());
+    assert!(store
+      .has(SingleQuery::Stitch((strand_cid, tixel_cid).into()))
+      .await
+      .unwrap());
+
+    // Absent data reports false rather than erroring.
+    assert!(!store.has((strand_cid, 5u64)).await.unwrap());
+    assert!(!store.has(SingleQuery::Latest(missing)).await.unwrap());
+    assert!(!store.has(SingleQuery::Index(missing, -1)).await.unwrap());
+  }
+
+  #[tokio::test]
+  async fn resolver_resolve_range_single_and_empty() {
+    let (store, strand_cid, _) = loaded_store();
+
+    // A length-1 range yields exactly the one tixel.
+    let stream = store.resolve_range((strand_cid, 0, 0)).await.unwrap();
+    let items: Vec<Twine> = stream.try_collect().await.unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].index(), 0);
+
+    // A range beyond the latest index resolves to an empty stream.
+    let stream = store.resolve_range((strand_cid, 5..)).await.unwrap();
+    let items: Vec<Twine> = stream.try_collect().await.unwrap();
+    assert!(items.is_empty());
+  }
+
+  #[tokio::test]
+  async fn resolver_strands_lists_available() {
+    let (store, strand_cid, _) = loaded_store();
+    let strands: Vec<Strand> = store.strands().await.unwrap().try_collect().await.unwrap();
+    assert_eq!(strands.len(), 1);
+    assert_eq!(strands[0].cid(), strand_cid);
+  }
+
+  #[tokio::test]
+  async fn empty_resolver_set_returns_not_found() {
+    let resolver: ResolverSetSeries<MemoryStore> = ResolverSetSeries::default();
+    let res = resolver.resolve_strand(Cid::default()).await;
+    assert!(matches!(res, Err(ResolutionError::NotFound)));
+    assert!(!resolver.has_strand(&Cid::default()).await.unwrap());
+  }
+
+  #[tokio::test]
+  async fn resolver_set_series_falls_back_across_stores() {
+    // store_a holds only the strand; store_b holds both strand and tixel.
+    let strand = Strand::from_tagged_dag_json(crate::test::STRAND_V2_JSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(crate::test::TIXEL_V2_JSON).unwrap();
+    let (strand_cid, tixel_cid) = (strand.cid(), tixel.cid());
+
+    let store_a = MemoryStore::default();
+    store_a.save_sync(strand.clone().into()).unwrap();
+
+    let store_b = MemoryStore::default();
+    store_b.save_sync(strand.clone().into()).unwrap();
+    store_b.save_sync(tixel.clone().into()).unwrap();
+
+    let resolver = ResolverSetSeries::new(vec![store_a, store_b]);
+
+    // fetch_strand short-circuits on the first store that has it.
+    assert_eq!(resolver.resolve_strand(strand_cid).await.unwrap().cid(), strand_cid);
+    // fetch_latest takes the max index found across all stores.
+    assert_eq!(resolver.resolve_latest(strand_cid).await.unwrap().index(), 0);
+    // fetch_index falls through to store_b.
+    assert_eq!(resolver.resolve_index(strand_cid, 0).await.unwrap().index(), 0);
+    // fetch_tixel falls through to store_b.
+    assert_eq!(
+      resolver.resolve_stitch(strand_cid, tixel_cid).await.unwrap().tixel().cid(),
+      tixel_cid
+    );
+
+    // has_* aggregate across the series.
+    assert!(resolver.has_strand(&strand_cid).await.unwrap());
+    assert!(resolver.has_index(&strand_cid, 0).await.unwrap());
+    assert!(resolver.has_twine(&strand_cid, &tixel_cid).await.unwrap());
+    assert!(!resolver.has_index(&strand_cid, 99).await.unwrap());
+
+    // range_stream is served by whichever store has the index.
+    let items: Vec<Twine> = resolver
+      .resolve_range((strand_cid, 0, 0))
+      .await
+      .unwrap()
+      .try_collect()
+      .await
+      .unwrap();
+    assert_eq!(items.len(), 1);
+
+    // strands() deduplicates the strand present in both stores.
+    let strands: Vec<Strand> = resolver.strands().await.unwrap().try_collect().await.unwrap();
+    assert_eq!(strands.len(), 1);
+  }
 }

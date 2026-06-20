@@ -38,3 +38,47 @@ pub mod dag_json {
     Deserialize::deserialize(de)
   }
 }
+
+#[cfg(test)]
+mod test {
+  use crate::Ipld;
+  use serde::{Deserialize, Serialize};
+
+  #[derive(Debug, PartialEq, Serialize, Deserialize)]
+  struct Wrapper {
+    #[serde(with = "crate::serde::dag_json")]
+    some_obj: Ipld,
+  }
+
+  #[test]
+  fn round_trips_ipld_through_serde_json() {
+    let original = Wrapper {
+      some_obj: Ipld::List(vec![
+        Ipld::Integer(42),
+        Ipld::String("hello".into()),
+        Ipld::Bool(true),
+      ]),
+    };
+
+    // serde_json drives the wrapper, but the inner field is encoded as DAG-JSON.
+    let json = serde_json::to_string(&original).unwrap();
+    let decoded: Wrapper = serde_json::from_str(&json).unwrap();
+    assert_eq!(original, decoded);
+  }
+
+  #[test]
+  fn encodes_bytes_as_dag_json_link_form() {
+    // DAG-JSON encodes byte strings specially (`{"/": {"bytes": ...}}`),
+    // which is the whole point of routing through serde_ipld_dagjson.
+    let original = Wrapper {
+      some_obj: Ipld::Bytes(vec![1, 2, 3, 4]),
+    };
+    let json = serde_json::to_string(&original).unwrap();
+    assert!(
+      json.contains("bytes"),
+      "expected DAG-JSON bytes encoding, got: {json}"
+    );
+    let decoded: Wrapper = serde_json::from_str(&json).unwrap();
+    assert_eq!(original, decoded);
+  }
+}

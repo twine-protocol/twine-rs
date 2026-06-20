@@ -273,3 +273,160 @@ impl Display for AnyTwine {
     }
   }
 }
+
+#[cfg(test)]
+mod test {
+  use super::*;
+  use crate::test::{STRANDJSON, STRAND_V2_JSON, TIXELJSON, TIXEL_V2_JSON};
+
+  fn strand() -> Strand {
+    Strand::from_tagged_dag_json(STRANDJSON).unwrap()
+  }
+
+  fn tixel() -> Tixel {
+    Tixel::from_tagged_dag_json(TIXELJSON).unwrap()
+  }
+
+  #[test]
+  fn cid_and_strand_cid_dispatch() {
+    let s: AnyTwine = strand().into();
+    let t: AnyTwine = tixel().into();
+
+    assert_eq!(s.cid(), strand().cid());
+    assert_eq!(t.cid(), tixel().cid());
+
+    // A strand's strand_cid is its own cid; a tixel's is the strand it links to.
+    assert_eq!(s.strand_cid(), strand().cid());
+    assert_eq!(t.strand_cid(), tixel().strand_cid());
+    assert_eq!(t.strand_cid(), strand().cid());
+
+    assert_eq!(s.content_hash(), strand().content_hash());
+    assert_eq!(t.content_hash(), tixel().content_hash());
+  }
+
+  #[test]
+  fn variant_predicates_and_unwraps() {
+    let s: AnyTwine = strand().into();
+    let t: AnyTwine = tixel().into();
+
+    assert!(s.is_strand() && !s.is_tixel());
+    assert!(t.is_tixel() && !t.is_strand());
+
+    assert_eq!(s.unwrap_strand().cid(), strand().cid());
+    assert_eq!(t.unwrap_tixel().cid(), tixel().cid());
+  }
+
+  #[test]
+  #[should_panic(expected = "Expected Tixel")]
+  fn unwrap_tixel_on_strand_panics() {
+    let s: AnyTwine = strand().into();
+    s.unwrap_tixel();
+  }
+
+  #[test]
+  #[should_panic(expected = "Expected Strand")]
+  fn unwrap_strand_on_tixel_panics() {
+    let t: AnyTwine = tixel().into();
+    t.unwrap_strand();
+  }
+
+  #[test]
+  fn cross_type_equality() {
+    let s: AnyTwine = strand().into();
+    let t: AnyTwine = tixel().into();
+
+    assert_eq!(s, strand());
+    assert_eq!(strand(), s);
+    assert_eq!(t, tixel());
+    assert_eq!(tixel(), t);
+
+    // Mismatched variants are not equal.
+    assert_ne!(s, tixel());
+    assert_ne!(t, strand());
+  }
+
+  #[test]
+  fn tryfrom_success_and_wrong_type() {
+    let s: AnyTwine = strand().into();
+    let t: AnyTwine = tixel().into();
+
+    assert!(Tixel::try_from(t.clone()).is_ok());
+    assert!(Strand::try_from(s.clone()).is_ok());
+
+    let err = Tixel::try_from(s).unwrap_err();
+    assert!(matches!(
+      err,
+      VerificationError::WrongType { expected, found }
+        if expected == "Tixel" && found == "Strand"
+    ));
+    let err = Strand::try_from(t).unwrap_err();
+    assert!(matches!(
+      err,
+      VerificationError::WrongType { expected, found }
+        if expected == "Strand" && found == "Tixel"
+    ));
+  }
+
+  #[test]
+  fn conversions_from_twine_and_into_cid_and_as_cid() {
+    let twine = Twine::try_new(strand(), tixel()).unwrap();
+    let any: AnyTwine = twine.clone().into();
+    assert!(any.is_tixel());
+    assert_eq!(any.cid(), twine.tixel().cid());
+
+    let any_strand: AnyTwine = strand().into();
+    assert_eq!(any_strand.as_cid(), &strand().cid());
+    let cid: Cid = any_strand.into();
+    assert_eq!(cid, strand().cid());
+  }
+
+  #[test]
+  fn from_tagged_dag_json_detects_both_and_rejects_garbage() {
+    assert!(AnyTwine::from_tagged_dag_json(TIXELJSON).unwrap().is_tixel());
+    assert!(AnyTwine::from_tagged_dag_json(STRANDJSON)
+      .unwrap()
+      .is_strand());
+
+    let err = AnyTwine::from_tagged_dag_json("{\"not\": \"twine\"}").unwrap_err();
+    assert!(matches!(err, VerificationError::InvalidTwineFormat(_)));
+  }
+
+  #[test]
+  fn from_tagged_dag_json_array_unpacks_v2_pair() {
+    let json = format!("[{},{}]", STRAND_V2_JSON, TIXEL_V2_JSON);
+    let arr = AnyTwine::from_tagged_dag_json_array(json).unwrap();
+    assert_eq!(arr.len(), 2);
+    assert!(arr[0].is_strand());
+    assert!(arr[1].is_tixel());
+  }
+
+  #[test]
+  fn from_block_round_trips_and_detects_cid_mismatch() {
+    let any: AnyTwine = tixel().into();
+    let bytes = any.bytes();
+    let cid = any.cid();
+
+    let decoded = AnyTwine::from_block(cid, &bytes).unwrap();
+    assert_eq!(decoded, any);
+
+    // Using a strand's cid with a tixel's bytes must fail the CID check.
+    let wrong_cid = strand().cid();
+    let err = AnyTwine::from_block(wrong_cid, &bytes).unwrap_err();
+    assert!(matches!(err, VerificationError::CidMismatch { .. }));
+  }
+
+  #[test]
+  fn tagged_dag_json_and_content_bytes_dispatch() {
+    let s: AnyTwine = strand().into();
+    let t: AnyTwine = tixel().into();
+
+    assert_eq!(s.tagged_dag_json(), strand().tagged_dag_json());
+    assert_eq!(t.tagged_dag_json(), tixel().tagged_dag_json());
+    assert_eq!(s.content_bytes(), strand().content_bytes());
+    assert_eq!(t.content_bytes(), tixel().content_bytes());
+
+    // Display dispatches per-variant too.
+    assert_eq!(s.to_string(), strand().to_string());
+    assert_eq!(t.to_string(), tixel().to_string());
+  }
+}

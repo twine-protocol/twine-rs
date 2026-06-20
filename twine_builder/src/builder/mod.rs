@@ -445,6 +445,69 @@ mod testv1 {
       "payload".to_string()
     );
   }
+
+  fn es256_signer() -> BiscuitSigner {
+    let key = ec_key(&ECDSA_P256_SHA256_FIXED_SIGNING);
+    let secret = Secret::EcdsaKeyPair(Arc::new(key));
+    BiscuitSigner::new(secret, "ES256".to_string())
+  }
+
+  #[test]
+  fn strand_subspec_and_radix_setters() {
+    let builder = TwineBuilder::new(es256_signer());
+    let strand = builder
+      .build_strand()
+      .subspec("foo/1.0.0".to_string())
+      .radix(4)
+      .done()
+      .unwrap();
+    assert_eq!(strand.radix(), 4);
+    assert_eq!(strand.subspec().map(|s| s.to_string()), Some("foo/1.0.0".to_string()));
+  }
+
+  #[test]
+  fn cross_stitch_propagation_is_enforced() {
+    use twine_lib::twine::Stitch;
+    let builder = TwineBuilder::new(es256_signer());
+
+    // A second strand to cross-stitch into.
+    let strand_b = builder.build_strand().done().unwrap();
+    let tixel_b = builder.build_first(strand_b.clone()).done().unwrap();
+    let stitch_b: Stitch = tixel_b.into();
+
+    let strand_a = builder.build_strand().done().unwrap();
+    let first = builder
+      .build_first(strand_a.clone())
+      .cross_stitches(vec![stitch_b])
+      .done()
+      .unwrap();
+    assert_eq!(first.cross_stitches().len(), 1);
+
+    // A next tixel that drops the inherited cross stitch must be rejected.
+    let err = builder
+      .build_next(&first)
+      .cross_stitches(Vec::<Stitch>::new())
+      .done();
+    assert!(matches!(err, Err(BuildError::BadData(_))));
+
+    // Keeping the cross stitch (the default) succeeds.
+    assert!(builder.build_next(&first).done().is_ok());
+  }
+
+  #[test]
+  fn deprecated_source_setters_still_build() {
+    let builder = TwineBuilder::new(es256_signer());
+    let strand = builder
+      .build_strand()
+      .source("strand-source".to_string())
+      .done()
+      .unwrap();
+    let tixel = builder
+      .build_first(strand)
+      .source("tixel-source".to_string())
+      .done();
+    assert!(tixel.is_ok());
+  }
 }
 
 #[allow(deprecated)]

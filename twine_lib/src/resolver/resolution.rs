@@ -154,3 +154,73 @@ impl AsCid for StrandResolution {
     self.strand.as_cid()
   }
 }
+
+#[cfg(test)]
+mod test {
+  use super::*;
+  use crate::twine::TwineBlock;
+
+  fn twine() -> Twine {
+    let strand = Strand::from_tagged_dag_json(crate::test::STRAND_V2_JSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(crate::test::TIXEL_V2_JSON).unwrap();
+    Twine::try_new(strand, tixel).unwrap()
+  }
+
+  fn strand() -> Strand {
+    Strand::from_tagged_dag_json(crate::test::STRAND_V2_JSON).unwrap()
+  }
+
+  #[test]
+  fn twine_resolution_accepts_matching_query() {
+    let twine = twine();
+    let query = SingleQuery::Latest(twine.strand_cid());
+    let res = TwineResolution::try_new(query, twine.clone()).unwrap();
+
+    assert_eq!(res.query(), &query);
+    assert_eq!(res.twine(), &twine);
+    assert_eq!(res.as_cid(), twine.as_cid());
+
+    // Deref + cross-type equality + conversions.
+    assert_eq!(res.index(), twine.index());
+    assert_eq!(res, twine);
+    assert_eq!(twine, res);
+    assert_eq!(res, *twine.tixel());
+    assert_eq!(*twine.tixel(), res);
+    assert_eq!(Twine::from(res.clone()), twine);
+    assert_eq!(res.unpack(), twine);
+  }
+
+  #[test]
+  fn twine_resolution_rejects_mismatched_query() {
+    let twine = twine();
+    // Wrong index for this twine.
+    let query = SingleQuery::Index(twine.strand_cid(), twine.index() as i64 + 1);
+    let err = TwineResolution::try_new(query, twine).unwrap_err();
+    assert!(matches!(err, ResolutionError::QueryMismatch(_)));
+  }
+
+  #[test]
+  fn strand_resolution_accepts_matching_cid() {
+    let strand = strand();
+    let res = StrandResolution::try_new(strand.cid(), strand.clone()).unwrap();
+
+    assert_eq!(res.requested_cid(), &strand.cid());
+    assert_eq!(res.strand(), &strand);
+    assert_eq!(res.as_cid(), strand.as_cid());
+    assert_eq!(res.version(), strand.version()); // via Deref
+    assert_eq!(res, strand);
+    assert_eq!(strand, res);
+    assert_eq!(Strand::from(res.clone()), strand);
+    assert_eq!(res.unpack(), strand);
+  }
+
+  #[test]
+  fn strand_resolution_rejects_cid_mismatch() {
+    let strand = strand();
+    let err = StrandResolution::try_new(Cid::default(), strand).unwrap_err();
+    assert!(matches!(
+      err,
+      ResolutionError::Invalid(VerificationError::CidMismatch { .. })
+    ));
+  }
+}

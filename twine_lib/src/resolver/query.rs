@@ -1130,4 +1130,161 @@ mod test {
       assert_eq!(cid.to_string(), s);
     }
   }
+
+  fn twine() -> Twine {
+    use crate::twine::TwineBlock;
+    let strand = Strand::from_tagged_dag_json(crate::test::STRAND_V2_JSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(crate::test::TIXEL_V2_JSON).unwrap();
+    Twine::try_new(strand, tixel).unwrap()
+  }
+
+  #[test]
+  fn single_query_strand_cid_for_all_variants() {
+    let strand = Cid::default();
+    let tixel = "bafyrmibrw2iojkmsnyaffhaqwujqriumkk6whnd3bc6rdob7le7zquslp4"
+      .parse()
+      .unwrap();
+    assert_eq!(
+      SingleQuery::Stitch((strand, tixel).into()).strand_cid(),
+      &strand
+    );
+    assert_eq!(SingleQuery::Index(strand, 3).strand_cid(), &strand);
+    assert_eq!(SingleQuery::Latest(strand).strand_cid(), &strand);
+  }
+
+  #[test]
+  fn single_query_unwrap_index_and_panic() {
+    assert_eq!(SingleQuery::Index(Cid::default(), 7).unwrap_index(), 7);
+  }
+
+  #[test]
+  #[should_panic(expected = "not an index query")]
+  fn single_query_unwrap_index_panics_on_latest() {
+    SingleQuery::Latest(Cid::default()).unwrap_index();
+  }
+
+  #[test]
+  fn single_query_matches_each_variant() {
+    let twine = twine();
+    let strand = twine.strand_cid();
+    let other = Cid::default();
+
+    // Stitch: must match strand + tixel cid.
+    let stitch: Stitch = twine.clone().into();
+    assert!(SingleQuery::Stitch(stitch).matches(&twine));
+    let bad_stitch: Stitch = (strand, Cid::default()).into();
+    assert!(!SingleQuery::Stitch(bad_stitch).matches(&twine));
+
+    // Absolute index: matches when index + strand line up.
+    assert!(SingleQuery::Index(strand, twine.index() as i64).matches(&twine));
+    assert!(!SingleQuery::Index(strand, twine.index() as i64 + 1).matches(&twine));
+    assert!(!SingleQuery::Index(other, twine.index() as i64).matches(&twine));
+
+    // Relative (negative) index ignores the index, only checks the strand.
+    assert!(SingleQuery::Index(strand, -5).matches(&twine));
+    assert!(!SingleQuery::Index(other, -5).matches(&twine));
+
+    // Latest only checks the strand.
+    assert!(SingleQuery::Latest(strand).matches(&twine));
+    assert!(!SingleQuery::Latest(other).matches(&twine));
+  }
+
+  #[test]
+  fn single_query_from_tuple_conversions() {
+    let cid = Cid::default();
+    assert_eq!(SingleQuery::from((cid, 3u64)), SingleQuery::Index(cid, 3));
+    assert_eq!(SingleQuery::from((cid, 3i32)), SingleQuery::Index(cid, 3));
+    assert_eq!(SingleQuery::from((cid, 3u32)), SingleQuery::Index(cid, 3));
+    assert_eq!(SingleQuery::from((cid, 3usize)), SingleQuery::Index(cid, 3));
+    assert_eq!(SingleQuery::from((cid, 3i16)), SingleQuery::Index(cid, 3));
+    assert_eq!(SingleQuery::from((cid, 3u16)), SingleQuery::Index(cid, 3));
+    // -1 collapses to Latest.
+    assert_eq!(SingleQuery::from((cid, -1i64)), SingleQuery::Latest(cid));
+    assert_eq!(SingleQuery::from((cid, 2i64)), SingleQuery::Index(cid, 2));
+    // (C, C) becomes a stitch query.
+    assert!(matches!(SingleQuery::from((cid, cid)), SingleQuery::Stitch(_)));
+    // Cid alone is a latest query.
+    assert_eq!(SingleQuery::from(cid), SingleQuery::Latest(cid));
+  }
+
+  #[test]
+  fn single_query_from_str_errors() {
+    // Single component (no colon) is not a valid SingleQuery.
+    assert!("not-a-cid".parse::<SingleQuery>().is_err());
+    // Too many components.
+    let cid = Cid::default().to_string();
+    assert!(format!("{cid}:1:2").parse::<SingleQuery>().is_err());
+  }
+
+  #[test]
+  fn absolute_range_geometry() {
+    let cid = Cid::default();
+    let inc = AbsoluteRange::new(cid, 2, 5);
+    assert!(inc.is_increasing() && !inc.is_decreasing());
+    assert_eq!(inc.lower(), 2);
+    assert_eq!(inc.upper(), 5);
+    assert_eq!(inc.len(), 4);
+    assert_eq!(inc.strand_cid(), &cid);
+
+    let dec = AbsoluteRange::new(cid, 5, 2);
+    assert!(dec.is_decreasing() && !dec.is_increasing());
+    assert_eq!(dec.lower(), 2);
+    assert_eq!(dec.upper(), 5);
+    assert_eq!(dec.len(), 4);
+
+    // iter() agrees with into_iter().
+    assert_eq!(inc.iter().count(), 4);
+    assert_eq!(format!("{}", inc), format!("{}:2:=5", cid));
+  }
+
+  #[test]
+  #[should_panic(expected = "Batch size must be greater than 0")]
+  fn absolute_range_batches_zero_size_panics() {
+    AbsoluteRange::new(Cid::default(), 0, 10).batches(0);
+  }
+
+  #[test]
+  fn range_query_accessors_and_display() {
+    let cid = Cid::default();
+    let abs: RangeQuery = AbsoluteRange::new(cid, 0, 4).into();
+    assert!(abs.is_absolute());
+    assert_eq!(abs.strand_cid(), &cid);
+
+    let rel: RangeQuery = (cid, 1i64, 5i64).into();
+    assert!(!rel.is_absolute());
+    assert_eq!(rel.strand_cid(), &cid);
+    assert!(matches!(rel, RangeQuery::Relative(_, _, _)));
+
+    // Display of a relative range with included bounds.
+    assert_eq!(rel.to_string(), format!("{cid}:1:=5"));
+  }
+
+  #[test]
+  fn any_query_predicates_reduce_and_conversions() {
+    let cid = Cid::default();
+
+    let strand: AnyQuery = cid.into();
+    assert!(strand.is_strand());
+    assert_eq!(strand.strand_cid(), &cid);
+
+    let one: AnyQuery = SingleQuery::Latest(cid).into();
+    assert!(one.is_one());
+    assert_eq!(one.strand_cid(), &cid);
+
+    // A range of length 1 reduces to a single (index) query.
+    let many: AnyQuery = RangeQuery::Absolute(AbsoluteRange::new(cid, 3, 3)).into();
+    assert!(many.is_one());
+    assert!(matches!(many, AnyQuery::One(SingleQuery::Index(_, 3))));
+
+    // A wider range stays Many.
+    let wide: AnyQuery = (cid, 0i64, 9i64).into();
+    assert!(wide.is_many());
+
+    // Tuple conversions.
+    assert!(matches!(AnyQuery::from((cid, 4i64)), AnyQuery::One(_)));
+    assert!(matches!(AnyQuery::from((cid, cid)), AnyQuery::One(_)));
+
+    // FromStr with too many parts errors.
+    assert!("a:b:c:d".parse::<AnyQuery>().is_err());
+  }
 }
