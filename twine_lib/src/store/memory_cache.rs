@@ -443,4 +443,54 @@ mod test {
     // Streaming cached the strand, so a subsequent has_strand hits locally.
     assert!(cache.has_strand(&strand.cid()).await.unwrap());
   }
+
+  #[tokio::test]
+  async fn cache_range_stream_caches_tixels() {
+    use crate::resolver::AbsoluteRange;
+
+    let cache = MemoryCache::new(dummy());
+    let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
+    let strand_cid = tixel.strand_cid();
+    let tixel_cid = tixel.cid();
+    let idx = tixel.index();
+
+    // Call range_stream directly (BaseResolver impl) to exercise lines 187-202.
+    // DummyResolver::range_stream (lines 334-341) is exercised as the inner resolver.
+    let range = AbsoluteRange::new(strand_cid, idx, idx);
+    let results: Vec<_> = cache
+      .range_stream(range)
+      .await
+      .unwrap()
+      .collect::<Vec<_>>()
+      .await;
+
+    assert_eq!(results.len(), 1, "range_stream should return one tixel");
+    assert_eq!(
+      results[0].as_ref().unwrap().cid(),
+      tixel_cid,
+      "range_stream should yield the expected tixel"
+    );
+
+    // After range_stream the tixel must be in the local cache.
+    assert!(
+      cache.has_twine(&strand_cid, &tixel_cid).await.unwrap(),
+      "tixel should be cached after range_stream"
+    );
+  }
+
+  // range_stream for an unknown strand propagates NotFound from the resolver.
+  #[tokio::test]
+  async fn cache_range_stream_unknown_strand_returns_error() {
+    use crate::errors::ResolutionError;
+    use crate::resolver::AbsoluteRange;
+
+    let cache = MemoryCache::new(dummy());
+    let unknown_cid = Cid::default();
+    let range = AbsoluteRange::new(unknown_cid, 0, 0);
+    let err = cache.range_stream(range).await;
+    assert!(
+      matches!(err, Err(ResolutionError::NotFound)),
+      "expected NotFound for unknown strand"
+    );
+  }
 }

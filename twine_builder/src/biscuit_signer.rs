@@ -159,6 +159,17 @@ mod test {
     );
   }
 
+  #[test]
+  #[should_panic(expected = "Unsupported key type")]
+  #[allow(deprecated)]
+  fn test_public_key_panics_for_unsupported_secret_variant() {
+    let signer = BiscuitSigner::new(
+      biscuit::jws::Secret::Bytes(b"hmac-secret-key".to_vec()),
+      "HS256".to_string(),
+    );
+    let _ = Signer::public_key(&signer);
+  }
+
   /// Document the behavior of `From<EcdsaKeyPair>` for `BiscuitSigner`.
   ///
   /// `From<EcdsaKeyPair>` sets the algorithm string to "PS256" (RSA-PSS),

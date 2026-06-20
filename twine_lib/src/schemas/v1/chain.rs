@@ -163,4 +163,37 @@ mod test {
 
     assert!(chain.verify().is_err());
   }
+
+  #[test]
+  fn chain_content_v1_rsa_private_key_rejected() {
+    // An RSA key with `d` present must be rejected with InvalidTwineFormat
+    // (lines 54-56 in chain.rs).
+    let rsa_private: JWK<()> = serde_json::from_value(json! {
+      {
+        "kty": "RSA",
+        "alg": "RS256",
+        "n": "zI7ywpS55pGdNZ3NwaWmFNVnYMeaxwNdAtfc8nTewwvkKJ4LE1wzYcWXebZjt_D9NtoB2BS9Lo_HYSIwfsIdTLymCdEn9iJvBANRU6ZjO_OeOIFTeCzBb-nZ7_XFXLUl8Xv2GGYFl1yZoKwWVwypcfWVKKDsUz9OxXKWZ4sq9ACwrLjY-w9U_EgqTbRSZvfZQOk1c6CbORjXNRaoVCgEU6_jzgHzWMMiDZIgTf_lRWy5vIiJJV-fd0c0XAJpAZjO1ZqzwaBMUe64KLjcLNxIV2VdeOrJbiis9s8QGVGZAYw40sk74B-OMssrftXD-_cRORR8FP4FMAaybuyQvDB8w0pqw5lHOZ3_2WkmS8tDm6X_CKFxBI6ZzO3Z4m8yEaSTK2-YrWchWlmQ4ADiGdpGCymoowEnv366zi86_Plqqla8e8vcCLkq9KGMOICVZsL4juvptOD_wEdLYBiHrSL8kLCyK7fJj2dT7eJ1S5H2UJ_SaI1jb5Y0zTY0fgHfatzmc2ZG8T0tobaC_1RtM4Y5bzm7eMqXt3S0vFlXdZhySw1_2bxW-rA1WcM2PUiIYqvaXtrHbAXDJCvZ_pLUdi98JA1TCzUuemKwu3kbROuwNiakev8vq7NDWBipo_cIOYs4GaXb3FhElzC7W4F22jHiNI_uT_wERSlQhzXnSxqIRYc",
+        "e": "AQAB",
+        "d": "AQAB"
+      }
+    }).unwrap();
+    let chain = ChainContentV1 {
+      specification: V1::from_string("twine/1.0.0").unwrap(),
+      key: rsa_private,
+      meta: Ipld::Null,
+      mixins: vec![],
+      source: "test".into(),
+      links_radix: 0,
+    };
+    let result = chain.verify();
+    assert!(
+      result.is_err(),
+      "RSA key with private component must be rejected, got Ok"
+    );
+    assert!(
+      matches!(result, Err(VerificationError::InvalidTwineFormat(_))),
+      "expected InvalidTwineFormat, got {:?}",
+      result
+    );
+  }
 }

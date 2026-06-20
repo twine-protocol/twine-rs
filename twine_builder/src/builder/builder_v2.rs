@@ -645,4 +645,61 @@ mod tests {
     strand.verify_tixel(t0.tixel()).expect("p384 t0 should verify");
     strand.verify_tixel(t1.tixel()).expect("p384 t1 should verify");
   }
+
+  #[test]
+  fn strand_builder_unsupported_version_returns_err() {
+    let signer = RustCryptoSigner::generate_ed25519();
+    let mut builder = StrandBuilder::new(&signer);
+    builder.version = twine_lib::semver::Version::new(9, 0, 0);
+    let err = builder.done();
+    assert!(
+      matches!(err, Err(BuildError::BadSpecification(_))),
+      "version major != 2 must return BadSpecification"
+    );
+  }
+
+  #[cfg(feature = "v1")]
+  #[test]
+  #[allow(deprecated)]
+  fn tixel_builder_unsupported_strand_version_returns_err() {
+    use crate::BiscuitSigner;
+    use biscuit::jws::Secret;
+    use ring::signature::{EcdsaKeyPair, ECDSA_P256_SHA256_FIXED_SIGNING};
+    use std::sync::Arc;
+    let rng = ring::rand::SystemRandom::new();
+    let pkcs = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, &rng).unwrap();
+    let key =
+      EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, pkcs.as_ref(), &rng).unwrap();
+    let v1_signer = BiscuitSigner::new(Secret::EcdsaKeyPair(Arc::new(key)), "ES256".to_string());
+    let v1_strand = super::builder_v1::StrandBuilder::new(&v1_signer).done().unwrap();
+    assert_eq!(v1_strand.version().major, 1);
+    let v2_signer = RustCryptoSigner::generate_ed25519();
+    let err = TixelBuilder::new_first(&v2_signer, v1_strand).done();
+    assert!(
+      matches!(err, Err(BuildError::BadSpecification(_))),
+      "v1 strand given to v2 TixelBuilder must return BadSpecification"
+    );
+  }
+
+  #[test]
+  fn build_payload_then_done_propagates_error_v2() {
+    let signer = RustCryptoSigner::generate_ed25519();
+    let strand = StrandBuilder::new(&signer).done().unwrap();
+    let err = TixelBuilder::new_first(&signer, strand).build_payload_then_done(
+      |_, _| Err::<String, _>(BuildError::PayloadConstruction("v2-fail".into())),
+    );
+    assert!(
+      matches!(err, Err(BuildError::PayloadConstruction(_))),
+      "payload builder error must propagate"
+    );
+  }
+
+  #[test]
+  fn strand_builder_genesis_is_stored() {
+    use chrono::TimeZone;
+    let signer = RustCryptoSigner::generate_ed25519();
+    let genesis = chrono::Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+    let strand = StrandBuilder::new(&signer).genesis(genesis).done().unwrap();
+    assert_eq!(strand.version().major, 2);
+  }
 }

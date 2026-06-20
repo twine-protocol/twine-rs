@@ -790,4 +790,105 @@ mod test {
     let strands: Vec<Strand> = resolver.strands().await.unwrap().try_collect().await.unwrap();
     assert_eq!(strands.len(), 1);
   }
+
+  #[tokio::test]
+  async fn resolver_set_series_new_boxed_constructor() {
+    let (store_a, strand_cid, tixel_cid) = loaded_store();
+    let resolver = ResolverSetSeries::new_boxed(vec![store_a]);
+    assert_eq!(resolver.len(), 1);
+    let res = resolver.resolve(strand_cid).await.unwrap();
+    assert_eq!(res.tixel().cid(), tixel_cid);
+  }
+
+  #[tokio::test]
+  async fn blanket_base_resolver_via_boxed_resolver() {
+    let strand = Strand::from_tagged_dag_json(crate::test::STRAND_V2_JSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(crate::test::TIXEL_V2_JSON).unwrap();
+    let (strand_cid, tixel_cid) = (strand.cid(), tixel.cid());
+
+    let store = MemoryStore::default();
+    store.save_sync(strand.into()).unwrap();
+    store.save_sync(tixel.into()).unwrap();
+
+    // Box as dyn BaseResolver so the blanket impl (lines 335-373) is the
+    // dispatch target for every BaseResolver method.
+    let boxed: Box<dyn unchecked_base::BaseResolver> = Box::new(store);
+    let resolver = ResolverSetSeries::new(vec![boxed]);
+
+    assert!(resolver.has_strand(&strand_cid).await.unwrap());
+    assert!(resolver.has_index(&strand_cid, 0).await.unwrap());
+    assert!(resolver.has_twine(&strand_cid, &tixel_cid).await.unwrap());
+
+    assert_eq!(resolver.resolve_strand(strand_cid).await.unwrap().cid(), strand_cid);
+    assert_eq!(resolver.resolve_latest(strand_cid).await.unwrap().index(), 0);
+    assert_eq!(resolver.resolve_index(strand_cid, 0).await.unwrap().index(), 0);
+
+    let strands: Vec<Strand> =
+      resolver.strands().await.unwrap().try_collect().await.unwrap();
+    assert_eq!(strands.len(), 1);
+
+    // range_stream via blanket impl (len==1 path, lines 268-291).
+    let items: Vec<Twine> = resolver
+      .resolve_range((strand_cid, 0, 0))
+      .await
+      .unwrap()
+      .try_collect()
+      .await
+      .unwrap();
+    assert_eq!(items.len(), 1);
+  }
+
+  #[tokio::test]
+  async fn resolver_set_series_has_methods_absent_data() {
+    let (store, strand_cid, tixel_cid) = loaded_store();
+    let resolver = ResolverSetSeries::new(vec![store]);
+
+    assert!(!resolver.has_index(&strand_cid, 99).await.unwrap());
+    assert!(!resolver.has_twine(&strand_cid, &Cid::default()).await.unwrap());
+    assert!(!resolver.has_strand(&Cid::default()).await.unwrap());
+
+    assert!(resolver.has_index(&strand_cid, 0).await.unwrap());
+    assert!(resolver.has_twine(&strand_cid, &tixel_cid).await.unwrap());
+    assert!(resolver.has_strand(&strand_cid).await.unwrap());
+  }
+
+  #[tokio::test]
+  async fn resolver_set_series_fetch_latest_not_found() {
+    let empty: ResolverSetSeries<MemoryStore> = ResolverSetSeries::default();
+    assert!(matches!(
+      empty.fetch_latest(&Cid::default()).await,
+      Err(ResolutionError::NotFound)
+    ));
+  }
+
+  #[tokio::test]
+  async fn resolver_set_series_range_stream_not_found() {
+    let (store, strand_cid, _) = loaded_store();
+    let resolver = ResolverSetSeries::new(vec![store]);
+    // Index 99 does not exist, so range_stream returns NotFound.
+    let result = resolver.range_stream(AbsoluteRange::new(strand_cid, 99, 99)).await;
+    assert!(matches!(result, Err(ResolutionError::NotFound)));
+  }
+
+  #[tokio::test]
+  async fn resolver_set_series_fetch_strands_dedup() {
+    let strand = Strand::from_tagged_dag_json(crate::test::STRAND_V2_JSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(crate::test::TIXEL_V2_JSON).unwrap();
+    let strand_cid = strand.cid();
+
+    let s1 = MemoryStore::default();
+    s1.save_sync(strand.clone().into()).unwrap();
+    s1.save_sync(tixel.clone().into()).unwrap();
+
+    let s2 = MemoryStore::default();
+    s2.save_sync(strand.clone().into()).unwrap();
+    s2.save_sync(tixel.clone().into()).unwrap();
+
+    let resolver = ResolverSetSeries::new(vec![s1, s2]);
+    let strands: Vec<Strand> =
+      resolver.strands().await.unwrap().try_collect().await.unwrap();
+    // Although both stores have the same strand, it appears only once.
+    assert_eq!(strands.len(), 1);
+    assert_eq!(strands[0].cid(), strand_cid);
+  }
 }

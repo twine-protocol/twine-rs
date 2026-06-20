@@ -160,3 +160,62 @@ fn test_deserialize_strand_v2() {
   assert!(res.is_ok(), "Failed to deserialize Strand: {:?}", res.err());
   println!("{}", res.unwrap().tagged_dag_json_pretty());
 }
+
+#[test]
+fn test_deserialize_tixel_from_block_cid_mismatch_errors() {
+  let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
+  let other_tixel = Tixel::from_tagged_dag_json(INVALID_SIGNATURE_TIXELJSON).unwrap();
+  // Use other_tixel's CID with tixel's bytes — CID will not match.
+  let res = Tixel::from_block(other_tixel.cid(), tixel.bytes());
+  assert!(
+    res.is_err(),
+    "from_block should error when CID does not match bytes, got Ok"
+  );
+}
+
+#[test]
+fn test_deserialize_strand_from_block_cid_mismatch_errors() {
+  let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
+  let strand_v2 = Strand::from_tagged_dag_json(STRAND_V2_JSON).unwrap();
+  // Use strand's CID with strand_v2's bytes — CID will not match.
+  let res = Strand::from_block(strand.cid(), strand_v2.bytes());
+  assert!(
+    res.is_err(),
+    "from_block should error when CID does not match bytes, got Ok"
+  );
+}
+
+#[test]
+fn test_deserialize_generic_tixel_json() {
+  let twine = AnyTwine::from_tagged_dag_json(TIXELJSON);
+  assert!(
+    twine.is_ok(),
+    "Failed to deserialize Tixel as AnyTwine: {:?}",
+    twine.err()
+  );
+  assert!(twine.unwrap().is_tixel(), "AnyTwine should be a Tixel");
+}
+
+#[test]
+fn test_deserialize_tixel_v2_bytes() {
+  let tixel = Tixel::from_tagged_dag_json(TIXEL_V2_JSON).unwrap();
+  let res = Tixel::from_block(tixel.cid(), tixel.bytes());
+  assert!(
+    res.is_ok(),
+    "Failed to deserialize v2 Tixel from bytes: {:?}",
+    res.err()
+  );
+  assert_eq!(res.unwrap().cid(), tixel.cid());
+}
+
+#[test]
+fn test_deserialize_strand_v2_bytes() {
+  let strand = Strand::from_tagged_dag_json(STRAND_V2_JSON).unwrap();
+  let res = Strand::from_block(strand.cid(), strand.bytes());
+  assert!(
+    res.is_ok(),
+    "Failed to deserialize v2 Strand from bytes: {:?}",
+    res.err()
+  );
+  assert_eq!(res.unwrap().cid(), strand.cid());
+}

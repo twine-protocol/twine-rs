@@ -335,3 +335,64 @@ impl<'a, S: Signer<Key = JWK<()>>> StrandBuilder<'a, S> {
     Ok(Strand::try_new(container)?)
   }
 }
+
+#[cfg(feature = "v1")]
+#[allow(deprecated)]
+#[cfg(test)]
+mod test_builder_v1 {
+  use super::*;
+  use crate::BiscuitSigner;
+  use biscuit::jws::Secret;
+  use ring::signature::{EcdsaKeyPair, ECDSA_P256_SHA256_FIXED_SIGNING};
+  use std::sync::Arc;
+
+  fn make_es256_signer() -> BiscuitSigner {
+    let rng = ring::rand::SystemRandom::new();
+    let pkcs = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, &rng).unwrap();
+    let key =
+      EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, pkcs.as_ref(), &rng).unwrap();
+    BiscuitSigner::new(Secret::EcdsaKeyPair(Arc::new(key)), "ES256".to_string())
+  }
+
+  #[test]
+  fn strand_builder_unsupported_version_returns_err() {
+    let signer = make_es256_signer();
+    let mut builder = StrandBuilder::new(&signer);
+    builder.version = twine_lib::semver::Version::new(9, 0, 0);
+    let err = builder.done();
+    assert!(
+      matches!(err, Err(BuildError::BadSpecification(_))),
+      "version major != 1 must return BadSpecification"
+    );
+  }
+
+  #[cfg(feature = "rustcrypto-signer")]
+  #[test]
+  fn tixel_builder_unsupported_strand_version_returns_err() {
+    use crate::RustCryptoSigner;
+    let rust_signer = RustCryptoSigner::generate_ed25519();
+    let v2_strand = super::super::builder_v2::StrandBuilder::new(&rust_signer)
+      .done()
+      .unwrap();
+    assert_eq!(v2_strand.version().major, 2);
+    let v1_signer = make_es256_signer();
+    let err = TixelBuilder::new_first(&v1_signer, v2_strand).done();
+    assert!(
+      matches!(err, Err(BuildError::BadSpecification(_))),
+      "v2 strand given to v1 TixelBuilder must return BadSpecification"
+    );
+  }
+
+  #[test]
+  fn build_payload_then_done_propagates_error() {
+    let signer = make_es256_signer();
+    let strand = StrandBuilder::new(&signer).done().unwrap();
+    let err = TixelBuilder::new_first(&signer, strand).build_payload_then_done(
+      |_, _| Err::<String, _>(BuildError::PayloadConstruction("fail".into())),
+    );
+    assert!(
+      matches!(err, Err(BuildError::PayloadConstruction(_))),
+      "payload builder error must propagate"
+    );
+  }
+}

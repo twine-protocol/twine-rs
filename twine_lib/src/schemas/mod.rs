@@ -740,4 +740,14 @@ mod test {
     let inner: &TixelSchemaVersion = &tixel.0;
     assert!(inner.verify().is_ok());
   }
+
+  #[test]
+  fn tsv_v1_compute_cid_works() {
+    use multihash_codetable::Code;
+    let tixel = tixel_v1();
+    let mut inner = (**tixel.0).clone();
+    // Only V1 supports compute_cid; confirm it executes without panic.
+    inner.compute_cid(Code::Sha2_256);
+    assert_ne!(inner.cid(), &Cid::default());
+  }
 }
