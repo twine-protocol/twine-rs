@@ -17,6 +17,10 @@ server = ["hyper", "hyper-util", "http-body", "http-body-util"]
 # against the platform's OpenSSL instead.
 rustls-tls = ["reqwest/rustls-tls"]
 native-tls = ["reqwest/native-tls"]
+# Opt-in gzip response decoding. Some Twine HTTP APIs gzip-encode responses
+# (e.g. random.colorado.edu); without this the client receives raw gzip bytes
+# and fails to parse. Left off by default so it stays the caller's choice.
+gzip = ["reqwest/gzip"]
 
 [[example]]
 name = "server"
@@ -44,4 +48,4 @@ futures-time = "3.0"
 axum = { version = "0.8", default-features = false, features = ["tokio", "http1"]}
 tower = "0.5.2"
 tower-service = "0.3"
-twine_builder.workspace = true
+twine_builder = { workspace = true, features = ["rustcrypto-signer"] }

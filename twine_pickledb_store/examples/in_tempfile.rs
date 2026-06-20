@@ -1,7 +1,7 @@
 //! Example of using the PickleDbStore in a temporary file
 use futures::TryStreamExt;
 use tempfile::TempDir;
-use twine_builder::{RingSigner, TwineBuilder};
+use twine_builder::{RustCryptoSigner, TwineBuilder};
 use twine_lib::{ipld_core::ipld, multihash_codetable::Code, resolver::Resolver, store::Store};
 use twine_pickledb_store::PickleDbStore;
 
@@ -11,7 +11,7 @@ async fn main() {
   let filename = dir.path().join("tmp.db");
   println!("filename: {}", filename.to_string_lossy());
 
-  let signer = RingSigner::generate_ed25519().unwrap();
+  let signer = RustCryptoSigner::generate_ed25519();
   let builder = TwineBuilder::new(signer);
   let strand = builder
     .build_strand()

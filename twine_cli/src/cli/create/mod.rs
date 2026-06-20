@@ -7,7 +7,7 @@ use std::{
   collections::HashMap,
   path::{Path, PathBuf},
 };
-use twine_builder::RingSigner;
+use twine_builder::RustCryptoSigner;
 use twine_lib::ipld_core::ipld;
 use twine_lib::{multihash_codetable::Code, twine::TwineBlock};
 
@@ -43,10 +43,10 @@ impl CreateCommand {
     }
 
     let pem = tokio::fs::read_to_string(&self.key).await?;
-    let signer =
-      RingSigner::from_pem(&pem).map_err(|e| anyhow::anyhow!("Failed to load key. {}", e))?;
+    let signer = RustCryptoSigner::from_pkcs8_pem(&pem)
+      .map_err(|e| anyhow::anyhow!("Failed to load key. {}", e))?;
 
-    log::info!("Using key with algorithm: {}", signer.alg());
+    log::info!("Using key with algorithm: {}", signer.algorithm());
 
     let builder = twine_builder::TwineBuilder::new(signer);
 

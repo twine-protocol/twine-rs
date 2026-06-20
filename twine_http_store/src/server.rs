@@ -448,13 +448,13 @@ mod test {
   use super::*;
   use http_body_util::combinators::BoxBody;
   use hyper::{service::Service, StatusCode};
-  use twine_builder::{RingSigner, TwineBuilder};
+  use twine_builder::{RustCryptoSigner, TwineBuilder};
   use twine_lib::{ipld_core::ipld, store::MemoryStore, Cid, twine::AnyTwine};
 
   async fn make_strand<S: Store + Resolver>(
     store: &S,
   ) -> Result<Cid, Box<dyn std::error::Error>> {
-    let signer = RingSigner::generate_ed25519().unwrap();
+    let signer = RustCryptoSigner::generate_ed25519();
     let builder = TwineBuilder::new(signer);
     let strand = builder.build_strand().done()?;
     store.save(strand.clone()).await?;

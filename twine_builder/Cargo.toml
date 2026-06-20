@@ -55,3 +55,7 @@ optional = true
 rsa = "0.9"
 rand.workspace = true
 tokio.workspace = true
+
+[[example]]
+name = "simple"
+required-features = ["rustcrypto-signer"]

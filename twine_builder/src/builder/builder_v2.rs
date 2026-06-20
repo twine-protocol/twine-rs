@@ -114,9 +114,10 @@ impl<'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
   /// # Example
   ///
   /// ```rust
+  /// # #[cfg(feature = "rustcrypto-signer")] {
   /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code, twine::CrossStitches};
-  /// use twine_builder::{TwineBuilder, RingSigner};
-  /// # let signer = RingSigner::generate_ed25519().unwrap();
+  /// use twine_builder::{TwineBuilder, RustCryptoSigner};
+  /// # let signer = RustCryptoSigner::generate_ed25519();
   /// let builder = TwineBuilder::new(signer);
   /// # let strand = builder.build_strand().done().unwrap();
   /// // ...
@@ -127,6 +128,7 @@ impl<'a, 'b, S: Signer<Key = PublicKey>> TixelBuilder<'a, 'b, S> {
   ///     }))
   ///   })
   ///   .unwrap();
+  /// # }
   /// ```
   pub fn build_payload_then_done<F, P>(mut self, build_fn: F) -> Result<Twine, BuildError>
   where

@@ -18,7 +18,9 @@ use pkcs8::{
 };
 use rand_core::OsRng;
 use thiserror::Error;
-use twine_lib::crypto::{PublicKey, Signature, SignatureAlgorithm, MIN_RSA_KEY_BITS};
+use twine_lib::crypto::{PublicKey, Signature, SignatureAlgorithm};
+#[cfg(feature = "rsa")]
+use twine_lib::crypto::MIN_RSA_KEY_BITS;
 use zeroize::Zeroizing;
 
 /// Errors produced when constructing or exporting a [`RustCryptoSigner`].
@@ -27,7 +29,7 @@ pub enum RustCryptoSignerError {
   /// The private key's algorithm is not supported by Twine.
   #[error("unsupported algorithm")]
   UnsupportedAlgorithm,
-  /// The RSA modulus is below [`MIN_RSA_KEY_BITS`].
+  /// The RSA modulus is below [`twine_lib::crypto::MIN_RSA_KEY_BITS`].
   #[error("RSA key size {0} bits is below the {1}-bit minimum")]
   WeakKey(usize, usize),
   /// A key could not be parsed or constructed.
@@ -74,9 +76,27 @@ enum SecretKey {
   },
 }
 
-/// A RustCrypto-backed [`Signer`] for Twine data. See the [module docs].
+/// A RustCrypto-backed [`Signer`] for Twine data — the recommended signer for
+/// Twine v2.
 ///
-/// [module docs]: crate::rustcrypto_signer
+/// Supports Ed25519, ECDSA P-256 / P-384, and (with the `rsa` feature) RSA, and
+/// is designed to make safe key handling the path of least resistance:
+///
+/// Begin by creating a signer. This can be done by importing a private key as a
+/// PEM file. For example:
+///
+/// ```rust
+/// use twine_builder::{RustCryptoSigner, Signer};
+/// const PRIVATE_KEY_ED25519_PEM: &'static str = r#"
+/// -----BEGIN PRIVATE KEY-----
+/// MFECAQEwBQYDK2VwBCIEIJHCvDsbaia6M9aMlRXjdIMVbMyeGLwj/2crnzzoJnmH
+/// gSEALX8wMpAh1EA0zraJTfEUx8F2uQBCvBmFkYpmvpX+jDc=
+/// -----END PRIVATE KEY-----
+/// "#;
+///
+/// let signer = RustCryptoSigner::from_pkcs8_pem(PRIVATE_KEY_ED25519_PEM).unwrap();
+/// // print the public key
+/// println!("{:?}", signer.public_key());
 pub struct RustCryptoSigner(SecretKey);
 
 impl RustCryptoSigner {
@@ -105,7 +125,7 @@ impl RustCryptoSigner {
   /// Generate a new RSA (RS256) signer of the given modulus size.
   ///
   /// Returns [`RustCryptoSignerError::WeakKey`] if `bits` is below
-  /// [`MIN_RSA_KEY_BITS`].
+  /// [`twine_lib::crypto::MIN_RSA_KEY_BITS`].
   #[cfg(feature = "rsa")]
   pub fn generate_rsa(bits: usize) -> Result<Self, RustCryptoSignerError> {
     if bits < MIN_RSA_KEY_BITS {

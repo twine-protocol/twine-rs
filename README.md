@@ -59,12 +59,12 @@ fn main(){
 ```rust,no_run
 use twine_protocol::prelude::*;
 use twine_lib::{ipld_core::ipld, multihash_codetable::Code};
-use twine_builder::{TwineBuilder, RingSigner};
+use twine_builder::{TwineBuilder, RustCryptoSigner};
 
 fn main() {
   // generate a signer from a newly generated key
-  let signer = RingSigner::generate_ed25519().unwrap();
-  println!("Private key (PEM):\n{}", signer.private_key_pem().unwrap());
+  let signer = RustCryptoSigner::generate_ed25519();
+  println!("Private key (PEM):\n{}", &*signer.to_pkcs8_pem().unwrap());
 
   let builder = TwineBuilder::new(signer);
   let strand = builder

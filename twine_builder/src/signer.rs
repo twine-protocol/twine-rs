@@ -15,27 +15,13 @@ impl Display for SigningError {
 }
 
 /// Constructing Twine data requires the ability to create digital signatures. Types
-/// that provide this functionality should implement the [`Signer`] trait. There are two
-/// signers included in this library:
+/// that provide this functionality should implement the [`Signer`] trait. The
+/// signers included in this library are:
 ///
-/// - [`crate::RingSigner`] for v2 data, that uses [`ring`](https://docs.rs/ring/latest/ring/).
+/// - [`crate::RustCryptoSigner`] for v2 data, the recommended pure-Rust signer
+///   (enable the `rustcrypto-signer` feature).
 /// - [`crate::BiscuitSigner`] for v1 data, that uses [`biscuit`](https://docs.rs/biscuit/0.7.0/biscuit/).
 ///
-/// Begin by creating a signer. For RingSigner, this can be done by importing a
-/// private key as a PEM file. For example:
-///
-/// ```rust
-/// use twine_builder::{RingSigner, Signer};
-/// const PRIVATE_KEY_ED25519_PEM: &'static str = r#"
-/// -----BEGIN PRIVATE KEY-----
-/// MFECAQEwBQYDK2VwBCIEIJHCvDsbaia6M9aMlRXjdIMVbMyeGLwj/2crnzzoJnmH
-/// gSEALX8wMpAh1EA0zraJTfEUx8F2uQBCvBmFkYpmvpX+jDc=
-/// -----END PRIVATE KEY-----
-/// "#;
-///
-/// let signer = RingSigner::from_pem(PRIVATE_KEY_ED25519_PEM).unwrap();
-/// // print the public key
-/// println!("{:?}", signer.public_key());
 /// ```
 pub trait Signer {
   /// The type of public key that this signer produces.

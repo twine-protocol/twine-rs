@@ -24,4 +24,4 @@ zerocopy = { version = "0.8.23", features = ["derive"] }
 [dev-dependencies]
 tokio.workspace = true
 tempfile = "3.2"
-twine_builder.workspace = true
+twine_builder = { workspace = true, features = ["rustcrypto-signer"] }

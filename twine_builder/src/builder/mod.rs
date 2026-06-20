@@ -40,8 +40,9 @@ pub enum BuildError {
 /// # Example
 ///
 /// ```no_run
-/// use twine_builder::{TwineBuilder, RingSigner};
-/// let signer = RingSigner::generate_ed25519().unwrap();
+/// # #[cfg(feature = "rustcrypto-signer")] {
+/// use twine_builder::{TwineBuilder, RustCryptoSigner};
+/// let signer = RustCryptoSigner::generate_ed25519();
 /// let builder = TwineBuilder::new(signer);
 ///
 /// // build a simple test strand
@@ -53,6 +54,7 @@ pub enum BuildError {
 /// // build the next tixel
 /// let next = builder.build_next(&first).done().unwrap();
 /// println!("{}", next);
+/// # }
 /// ```
 pub struct TwineBuilder<const V: u8, S: Signer> {
   signer: S,
@@ -188,9 +190,10 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
   /// # Example
   ///
   /// ```no_run
+  /// # #[cfg(feature = "rustcrypto-signer")] {
   /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code};
-  /// use twine_builder::{TwineBuilder, RingSigner};
-  /// let signer = RingSigner::generate_ed25519().unwrap();
+  /// use twine_builder::{TwineBuilder, RustCryptoSigner};
+  /// let signer = RustCryptoSigner::generate_ed25519();
   /// let builder = TwineBuilder::new(signer);
   /// let strand = builder.build_strand()
   ///   .details(ipld!({
@@ -198,6 +201,7 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
   ///   }))
   ///   .done()
   ///   .unwrap();
+  /// # }
   /// ```
   pub fn build_strand<'a>(&'a self) -> builder_v2::StrandBuilder<'a, S> {
     builder_v2::StrandBuilder::new(&self.signer)
@@ -211,9 +215,10 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
   /// # Example
   ///
   /// ```no_run
+  /// # #[cfg(feature = "rustcrypto-signer")] {
   /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code, twine::CrossStitches};
-  /// use twine_builder::{TwineBuilder, RingSigner};
-  /// let signer = RingSigner::generate_ed25519().unwrap();
+  /// use twine_builder::{TwineBuilder, RustCryptoSigner};
+  /// let signer = RustCryptoSigner::generate_ed25519();
   /// let builder = TwineBuilder::new(signer);
   /// let strand = builder.build_strand().done().unwrap();
   /// let first = builder.build_first(strand)
@@ -223,6 +228,7 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
   ///    }))
   ///    .done()
   ///    .unwrap();
+  /// # }
   /// ```
   pub fn build_first<'a>(&'a self, strand: Strand) -> builder_v2::TixelBuilder<'a, 'a, S> {
     builder_v2::TixelBuilder::new_first(&self.signer, strand)
@@ -236,9 +242,10 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
   /// # Example
   ///
   /// ```no_run
+  /// # #[cfg(feature = "rustcrypto-signer")] {
   /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code, twine::CrossStitches};
-  /// use twine_builder::{TwineBuilder, RingSigner};
-  /// let signer = RingSigner::generate_ed25519().unwrap();
+  /// use twine_builder::{TwineBuilder, RustCryptoSigner};
+  /// let signer = RustCryptoSigner::generate_ed25519();
   /// let builder = TwineBuilder::new(signer);
   /// let strand = builder.build_strand().done().unwrap();
   /// let prev = builder.build_first(strand).done().unwrap();
@@ -249,6 +256,7 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
   ///    }))
   ///    .done()
   ///    .unwrap();
+  /// # }
   /// ```
   pub fn build_next<'a, 'b>(&'a self, prev: &'b Twine) -> builder_v2::TixelBuilder<'a, 'b, S> {
     builder_v2::TixelBuilder::new_next(&self.signer, prev)
