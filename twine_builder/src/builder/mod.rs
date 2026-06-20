@@ -511,10 +511,10 @@ mod testv1 {
 }
 
 #[allow(deprecated)]
-#[cfg(test)]
+#[cfg(all(test, feature = "rustcrypto-signer"))]
 mod testv2 {
   use super::*;
-  use ring::signature::Ed25519KeyPair;
+  use crate::RustCryptoSigner;
   use twine_lib::{
     ipld_core::ipld,
     store::MemoryStore,
@@ -523,10 +523,7 @@ mod testv2 {
 
   #[test]
   fn test_v2() {
-    let rng = ring::rand::SystemRandom::new();
-    let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
-    let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
-    let builder = TwineBuilder::new(key);
+    let builder = TwineBuilder::new(RustCryptoSigner::generate_ed25519());
     let strand = builder
       .build_strand()
       .details(ipld!({
@@ -564,7 +561,7 @@ mod testv2 {
   #[tokio::test]
   async fn test_entwining() {
     fn make_strand(
-      builder: &TwineBuilder<2, Ed25519KeyPair>,
+      builder: &TwineBuilder<2, RustCryptoSigner>,
       store: MemoryStore,
     ) -> (Strand, Twine) {
       let strand = builder.build_strand().done().unwrap();
@@ -596,10 +593,7 @@ mod testv2 {
     }
 
     let store = MemoryStore::new();
-    let rng = ring::rand::SystemRandom::new();
-    let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
-    let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
-    let builder = TwineBuilder::new(key);
+    let builder = TwineBuilder::new(RustCryptoSigner::generate_ed25519());
 
     let first = make_strand(&builder, store.clone());
     let second = make_strand(&builder, store.clone());
@@ -630,10 +624,7 @@ mod testv2 {
 
   #[test]
   fn test_payload_builder_v2() {
-    let rng = ring::rand::SystemRandom::new();
-    let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
-    let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
-    let builder = TwineBuilder::new(key);
+    let builder = TwineBuilder::new(RustCryptoSigner::generate_ed25519());
     let strand = builder
       .build_strand()
       .details(ipld!({
@@ -658,10 +649,7 @@ mod testv2 {
 
   #[test]
   fn test_deny_stitches_to_self() {
-    let rng = ring::rand::SystemRandom::new();
-    let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
-    let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
-    let builder = TwineBuilder::new(key);
+    let builder = TwineBuilder::new(RustCryptoSigner::generate_ed25519());
     let strand = builder
       .build_strand()
       .details("a".to_string())
@@ -685,10 +673,7 @@ mod testv2 {
 
   #[test]
   fn test_dropped_stitch() {
-    let rng = ring::rand::SystemRandom::new();
-    let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
-    let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
-    let builder = TwineBuilder::new(key);
+    let builder = TwineBuilder::new(RustCryptoSigner::generate_ed25519());
     let strand_a = builder
       .build_strand()
       .details("a".to_string())

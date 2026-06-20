@@ -153,6 +153,16 @@ impl PublicKey {
     // `VerifyingKey::verify` hashes the message with the curve's associated
     // digest (SHA-256 / SHA-384). The stored key is an uncompressed SEC1 point;
     // the signature is ASN.1 DER.
+    //
+    // We additionally require the signature to be in canonical **low-S** form.
+    // ECDSA is malleable: for any valid `(r, s)`, `(r, n - s)` also verifies,
+    // and because a Twine CID is hashed over content *and* signature, a high-S
+    // twin would have the same content but a different CID. Rejecting high-S
+    // here makes each (key, content) pair map to exactly one valid CID.
+    //
+    // This is reached only by the v2 verification path; v1 signatures are
+    // checked via biscuit JWS (see `crypto::jws`) and remain permissive for
+    // backward compatibility with already-deployed v1 chains.
     use p256::ecdsa::signature::Verifier;
     match self.alg {
       SignatureAlgorithm::EcdsaP256 => {
@@ -161,6 +171,11 @@ impl PublicKey {
           .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
         let sig = EcSignature::from_der(signature.as_ref())
           .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
+        if sig.normalize_s().is_some() {
+          return Err(VerificationError::BadSignature(
+            "non-canonical (high-S) ECDSA signature".into(),
+          ));
+        }
         key
           .verify(message, &sig)
           .map_err(|e| VerificationError::BadSignature(e.to_string()))
@@ -171,6 +186,11 @@ impl PublicKey {
           .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
         let sig = EcSignature::from_der(signature.as_ref())
           .map_err(|e| VerificationError::BadSignature(e.to_string()))?;
+        if sig.normalize_s().is_some() {
+          return Err(VerificationError::BadSignature(
+            "non-canonical (high-S) ECDSA signature".into(),
+          ));
+        }
         key
           .verify(message, &sig)
           .map_err(|e| VerificationError::BadSignature(e.to_string()))
@@ -600,7 +620,9 @@ mod test {
 
     let signing_key = SigningKey::from_bytes((&[3u8; 32]).into()).unwrap();
     let message = b"test message p256";
+    // ECDSA's raw `sign` may emit high-S; v2 requires canonical low-S.
     let sig: p256::ecdsa::Signature = signing_key.sign(message);
+    let sig = sig.normalize_s().unwrap_or(sig);
     let der_sig = sig.to_der();
 
     let pk = PublicKey::new(
@@ -608,6 +630,37 @@ mod test {
       Bytes::from(signing_key.verifying_key().to_sec1_bytes().as_ref()),
     );
     pk.verify(Bytes::from(der_sig.as_bytes()), message).unwrap();
+  }
+
+  #[test]
+  fn ecdsa_p256_rejects_high_s_signature() {
+    use p256::ecdsa::{signature::Signer, SigningKey};
+
+    let signing_key = SigningKey::from_bytes((&[3u8; 32]).into()).unwrap();
+    let message = b"test message p256";
+    // Start from the canonical low-S signature, then build the malleable
+    // high-S twin (r, n - s), which is mathematically valid but must be rejected.
+    let sig: p256::ecdsa::Signature = signing_key.sign(message);
+    let sig = sig.normalize_s().unwrap_or(sig);
+    let neg_s = -*sig.s();
+    let high = p256::ecdsa::Signature::from_scalars(sig.r().to_bytes(), neg_s.to_bytes()).unwrap();
+    assert!(
+      high.normalize_s().is_some(),
+      "twin must actually be high-S"
+    );
+
+    let pk = PublicKey::new(
+      SignatureAlgorithm::EcdsaP256,
+      Bytes::from(signing_key.verifying_key().to_sec1_bytes().as_ref()),
+    );
+    // The canonical signature verifies...
+    pk.verify(Bytes::from(sig.to_der().as_bytes()), message)
+      .unwrap();
+    // ...but its high-S twin is rejected.
+    let err = pk
+      .verify(Bytes::from(high.to_der().as_bytes()), message)
+      .unwrap_err();
+    assert!(matches!(err, VerificationError::BadSignature(_)));
   }
 
   #[test]

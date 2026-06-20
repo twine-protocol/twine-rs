@@ -1,7 +1,8 @@
 //! Defines the `Signer` trait for creating digital signatures
-use ring::signature::Ed25519KeyPair;
 use std::fmt::Display;
-use twine_lib::crypto::{PublicKey, Signature, SignatureAlgorithm};
+use twine_lib::crypto::Signature;
+#[cfg(feature = "ring-signer")]
+use twine_lib::crypto::{PublicKey, SignatureAlgorithm};
 
 /// An error that occurs when signing data.
 #[derive(Debug, thiserror::Error)]
@@ -47,7 +48,8 @@ pub trait Signer {
   fn public_key(&self) -> Self::Key;
 }
 
-impl Signer for Ed25519KeyPair {
+#[cfg(feature = "ring-signer")]
+impl Signer for ring::signature::Ed25519KeyPair {
   type Key = PublicKey;
 
   fn sign<T: AsRef<[u8]>>(&self, data: T) -> Result<Signature, SigningError> {
@@ -62,7 +64,7 @@ impl Signer for Ed25519KeyPair {
   }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "ring-signer"))]
 mod test {
   use super::*;
 

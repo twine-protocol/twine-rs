@@ -1,3 +1,6 @@
+// This whole module implements the deprecated RingSigner; silence the
+// self-referential deprecation warnings.
+#![allow(deprecated)]
 use pkcs8::{der::Encode, DecodePrivateKey, SecretDocument};
 use std::vec;
 use thiserror::Error;
@@ -31,22 +34,23 @@ enum Keys {
   Rsa(ring::signature::RsaKeyPair),
 }
 
-/// A signer that uses the `ring` crate to sign data
+/// A signer that uses the `ring` crate to sign data.
 ///
-/// This is a v2 signer, and is intended to be used with twine/2.0.0.
+/// **Deprecated:** use [`crate::RustCryptoSigner`] instead. `RingSigner` emits
+/// non-canonical (high-S) ECDSA signatures, which v2 verification now rejects,
+/// and keeps the heavy `ring` dependency. It remains behind the `ring-signer`
+/// feature for backward compatibility only.
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,ignore
 /// use twine_builder::{RingSigner, Signer};
 /// let signer = RingSigner::generate_ed25519().unwrap();
-/// let pem = signer
-///   .pkcs8()
-///   .to_pem("PRIVATE_KEY", pkcs8::LineEnding::LF)
-///   .unwrap();
-/// let signer2 = RingSigner::from_pem(&pem).unwrap();
-/// assert_eq!(signer.pkcs8().as_bytes(), signer2.pkcs8().as_bytes());
 /// ```
+#[deprecated(
+  since = "0.2.0",
+  note = "use RustCryptoSigner; RingSigner emits high-S ECDSA signatures rejected by v2 verification"
+)]
 pub struct RingSigner {
   alg: SignatureAlgorithm,
   keypair: Keys,

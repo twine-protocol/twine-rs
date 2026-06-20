@@ -301,17 +301,17 @@ impl<'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
   }
 }
 
-#[cfg(feature = "rsa")]
+#[cfg(all(feature = "rsa", feature = "rustcrypto-signer"))]
 #[cfg(test)]
 mod test {
   use super::*;
-  use crate::RingSigner;
+  use crate::RustCryptoSigner;
 
   const TEST_KEY: &str = include_str!("../../test_data/test_rsa_key.pem");
 
   #[test]
   fn test_rsa() {
-    let signer = RingSigner::from_pem(TEST_KEY).unwrap();
+    let signer = RustCryptoSigner::from_pkcs8_pem(TEST_KEY).unwrap();
     let strand = StrandBuilder::new(&signer)
       .hasher(Code::Sha3_512)
       .details("test")
@@ -328,14 +328,14 @@ mod test {
   }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "rustcrypto-signer"))]
 mod tests {
   use super::*;
-  use crate::{RingSigner, TwineBuilder};
+  use crate::{RustCryptoSigner, TwineBuilder};
   use twine_lib::ipld_core::ipld;
 
-  fn ed25519_builder() -> TwineBuilder<2, RingSigner> {
-    TwineBuilder::new(RingSigner::generate_ed25519().unwrap())
+  fn ed25519_builder() -> TwineBuilder<2, RustCryptoSigner> {
+    TwineBuilder::new(RustCryptoSigner::generate_ed25519())
   }
 
   // ── Strand property tests ─────────────────────────────────────────────────
@@ -621,8 +621,8 @@ mod tests {
   // ── Signer algorithm tests ────────────────────────────────────────────────
 
   #[test]
-  fn test_ring_signer_p256() {
-    let signer = RingSigner::generate_p256().unwrap();
+  fn test_signer_p256() {
+    let signer = RustCryptoSigner::generate_p256();
     let builder = TwineBuilder::new(signer);
     let strand = builder.build_strand().done().unwrap();
     let t0 = builder.build_first(strand.clone()).done().unwrap();
@@ -633,8 +633,8 @@ mod tests {
   }
 
   #[test]
-  fn test_ring_signer_p384() {
-    let signer = RingSigner::generate_p384().unwrap();
+  fn test_signer_p384() {
+    let signer = RustCryptoSigner::generate_p384();
     let builder = TwineBuilder::new(signer);
     let strand = builder.build_strand().done().unwrap();
     let t0 = builder.build_first(strand.clone()).done().unwrap();
