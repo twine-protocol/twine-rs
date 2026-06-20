@@ -846,7 +846,6 @@ mod test {
     // For speed, just create a small RsaPublicKey directly from known small n/e.
     // n = a small 512-bit composite (not actually secure, just for testing).
     // We use 64 bytes of 0xff for n as a placeholder big integer.
-    // Actually, let's use rsa crate to build a valid (but tiny) public key.
     let n = rsa::BigUint::from_bytes_be(&[0xffu8; 64]); // 512 bits
     let e = rsa::BigUint::from(65537u32);
     let pub_key = rsa::RsaPublicKey::new(n, e).unwrap();
@@ -865,13 +864,6 @@ mod test {
       err
     );
   }
-
-  // -----------------------------------------------------------------------
-  // From<JWK<()>> for PublicKey — v1 path
-  //
-  // We deserialise JWK values from JSON strings so that we don't need to
-  // depend on num-bigint directly (it is only a transitive dep).
-  // -----------------------------------------------------------------------
 
   #[test]
   fn from_jwk_ec_p256_has_correct_alg() {
@@ -900,13 +892,6 @@ mod test {
     let jwk: JWK<()> = serde_json::from_str(&jwk_json).unwrap();
     let pk: PublicKey = jwk.into();
     assert!(matches!(pk.alg, SignatureAlgorithm::EcdsaP256));
-
-    // Note: From<JWK<()>> stores the key as SubjectPublicKeyInfo DER
-    // (via to_public_key_der()), but verify_ecdsa calls from_sec1_bytes which
-    // expects an uncompressed SEC1 point — so verification of JWK-derived EC
-    // keys currently fails.  We only assert the alg here; a separate test
-    // exercises the verify path using a key built in the correct SEC1 format.
-    let _key_bytes = pk.key.as_ref(); // key is stored in SPKI DER
   }
 
   #[test]

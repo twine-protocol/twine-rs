@@ -10,9 +10,6 @@ keywords.workspace = true
 description = "Twine protocol rust library functionality for building Twine data structures"
 
 [features]
-# No signer is enabled by default: callers must explicitly opt into the signer
-# backend(s) they want. This keeps `ring` (and other heavy deps) out of the
-# default graph and makes the choice of cryptographic backend deliberate.
 default = []
 # RustCrypto-backed signer (recommended for v2). No `ring`.
 rustcrypto-signer = ["dep:ed25519-dalek", "dep:p256", "dep:p384", "dep:rand_core", "dep:zeroize"]

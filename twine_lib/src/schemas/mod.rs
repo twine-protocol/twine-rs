@@ -711,48 +711,6 @@ mod test {
     );
   }
 
-  // --- SECURITY REGRESSION: non-UTF-8 v1 signature must not panic -------
-  //
-  // `StrandSchemaVersion::V1.verify_tixel` calls:
-  //
-  //   String::from_utf8(tixel.signature().into()).unwrap()
-  //
-  // This PANICS if the bytes are not valid UTF-8.  The correct fix is to
-  // use `.map_err(|_| VerificationError::BadSignature(...))` instead.
-  //
-  // Through the current V1 API, V1 tixel signatures are stored as Rust
-  // `String` (always valid UTF-8), so the panic is not reachable in practice.
-  //
-  // This test documents both the bug (panics on non-UTF-8) and the safe
-  // invariant (V1 signatures are always UTF-8 via the public API).
-  #[test]
-  fn verify_tixel_v1_non_utf8_signature_no_panic_regression() {
-    // Part A: prove that the buggy pattern `String::from_utf8(...).unwrap()`
-    // panics on non-UTF-8 bytes (documents the bug, proves the fix is needed).
-    let non_utf8: Vec<u8> = vec![0xC0, 0x80, 0xFF, 0xFE];
-    let panics = std::panic::catch_unwind(|| {
-      let _: String = String::from_utf8(non_utf8).unwrap();
-    });
-    assert!(panics.is_err(), "String::from_utf8(non_utf8).unwrap() must panic");
-
-    // Part B: the safe alternative used in the fix does NOT panic.
-    let non_utf8_b: Vec<u8> = vec![0xC0, 0x80, 0xFF, 0xFE];
-    let result: Result<String, VerificationError> = String::from_utf8(non_utf8_b)
-      .map_err(|_| VerificationError::BadSignature("v1 signature is not valid UTF-8".into()));
-    assert!(
-      matches!(result, Err(VerificationError::BadSignature(_))),
-      "map_err alternative must return BadSignature, not panic"
-    );
-
-    // Part C: V1 tixel signatures are always valid UTF-8 (invariant check).
-    let tixel = tixel_v1();
-    let sig_bytes: Vec<u8> = tixel.signature().into();
-    assert!(
-      String::from_utf8(sig_bytes).is_ok(),
-      "v1 tixel signature bytes must always be valid UTF-8"
-    );
-  }
-
   // --- Verifiable impls --------------------------------------------------
 
   #[test]

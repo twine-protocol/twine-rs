@@ -701,17 +701,6 @@ mod test {
   }
 
   // ---------------------------------------------------------------------------
-  // ERROR PATH: `new` with an unsupported `SignatureAlgorithm` variant
-  //
-  // Note: `SignatureAlgorithm` is `#[non_exhaustive]` so we can only test
-  // variants that currently exist but are not handled.  The wildcard arm in
-  // `new` catches them; for RSA we already have the WeakKey guard.  The only
-  // reachable unsupported path via `new` today would be a future variant.
-  // We document this limitation and instead exercise the guard via the
-  // generate_rs* path which is the public API surface for weak-key checking.
-  // ---------------------------------------------------------------------------
-
-  // ---------------------------------------------------------------------------
   // WEAK-KEY GUARD: `generate_rs{256,384,512}(1024)` must return WeakKey
   // ---------------------------------------------------------------------------
 

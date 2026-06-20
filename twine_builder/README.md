@@ -23,9 +23,7 @@ and [`Store`](https://docs.rs/twine_lib/latest/twine_lib/store/trait.Store.html)
 No signer is enabled by default — pick a backend via a feature flag:
 
 - `rustcrypto-signer` provides `RustCryptoSigner`, the recommended pure-Rust
-  signer for v2 data. It emits canonical low-S ECDSA signatures, zeroizes key
-  material on drop, and supports PKCS#8 (and, with the `encryption` feature,
-  password-encrypted PKCS#8) key import/export.
+  signer for v2 data.
 - `ring-signer` provides the **deprecated** `RingSigner`. It emits non-canonical
   high-S ECDSA signatures that v2 verification rejects; prefer `RustCryptoSigner`.
 - `rsa` adds RSA support to whichever signer backend is enabled.
