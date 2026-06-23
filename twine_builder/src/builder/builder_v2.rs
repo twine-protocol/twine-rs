@@ -208,6 +208,7 @@ pub struct StrandBuilder<'a, S: Signer<Key = PublicKey>> {
   version: Version,
   details: Ipld,
   genesis: Option<chrono::DateTime<chrono::Utc>>,
+  expiry: Option<chrono::DateTime<chrono::Utc>>,
   subspec: Option<Subspec>,
   radix: u8,
 }
@@ -220,6 +221,7 @@ impl<'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
       version: Version::new(2, 0, 0),
       details: Ipld::Map(Default::default()),
       genesis: None,
+      expiry: None,
       subspec: None,
       radix: 32,
     }
@@ -249,6 +251,12 @@ impl<'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
   /// If not set, the current time when `done()` is called will be used.
   pub fn genesis(mut self, genesis: chrono::DateTime<chrono::Utc>) -> Self {
     self.genesis = Some(genesis);
+    self
+  }
+
+  /// Set the expiry time for this strand
+  pub fn expiry(mut self, expiry: chrono::DateTime<chrono::Utc>) -> Self {
+    self.expiry = Some(expiry);
     self
   }
 
@@ -285,7 +293,7 @@ impl<'a, S: Signer<Key = PublicKey>> StrandBuilder<'a, S> {
           details: self.details,
           key,
           genesis: self.genesis.unwrap_or_else(|| chrono::Utc::now()),
-          expiry: None,
+          expiry: self.expiry,
         })?,
       },
       _ => {
