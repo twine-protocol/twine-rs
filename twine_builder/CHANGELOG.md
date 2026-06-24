@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/twine-protocol/twine-rs/compare/twine_builder-v0.1.3...twine_builder-v0.1.4) - 2026-06-24
+
+### Added
+
+- add expiry setter for v2 builder
+- conform packages to use new RustCryptoSigner
+- *(builder)* add RustCryptoSigner; enforce low-S for v2 ECDSA
+
+### Fixed
+
+- add tests
+
+### Other
+
+- add more tests
+- cleanup documentation and tests
+- expand coverage of resolver, twine types, stitches, and errors
+- substantially expand coverage of crypto, schemas, and signers
+- reject weak RSA keys and stop v1 verify panicking
+- move verification off ring to RustCrypto
+
 ## [0.1.3](https://github.com/twine-protocol/twine-rs/compare/twine_builder-v0.1.2...twine_builder-v0.1.3) - 2025-04-18
 
 ### Other
