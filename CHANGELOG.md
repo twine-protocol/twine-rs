@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/twine-protocol/twine-rs/compare/twine_protocol-v0.1.3...twine_protocol-v0.1.4) - 2026-06-24
+
+### Added
+
+- conform packages to use new RustCryptoSigner
+- *(builder)* add RustCryptoSigner; enforce low-S for v2 ECDSA
+
+### Other
+
+- trial rtk
+- substantially expand coverage of crypto, schemas, and signers
+- make twine_lib and twine_builder buildable for wasm32-unknown-unknown
+- move verification off ring to RustCrypto
+- add claude.md
+- bump multihash-codetable 0.1 -> 0.2, drop yanked core2
+- default reqwest to rustls, commit lockfile, update deps
+
 ## [0.1.3](https://github.com/twine-protocol/twine-rs/compare/twine_protocol-v0.1.2...twine_protocol-v0.1.3) - 2025-04-18
 
 ### Added

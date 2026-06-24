@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3](https://github.com/twine-protocol/twine-rs/compare/twine_lib-v0.2.2...twine_lib-v0.2.3) - 2026-06-24
+
+### Added
+
+- *(builder)* add RustCryptoSigner; enforce low-S for v2 ECDSA
+
+### Other
+
+- add more tests
+- remove unneeded tests
+- cleanup documentation and tests
+- add JWS algorithm-confusion regression tests
+- expand coverage of resolver, twine types, stitches, and errors
+- substantially expand coverage of crypto, schemas, and signers
+- make twine_lib and twine_builder buildable for wasm32-unknown-unknown
+- reject weak RSA keys and stop v1 verify panicking
+- move verification off ring to RustCrypto
+- minor refactor for v2 schemas
+- *(twine_lib)* add schema traits and parity tests
+- lint fix
+- bump multihash-codetable 0.1 -> 0.2, drop yanked core2
+- default reqwest to rustls, commit lockfile, update deps
+
 ## [0.2.2](https://github.com/twine-protocol/twine-rs/compare/twine_lib-v0.2.1...twine_lib-v0.2.2) - 2025-04-18
 
 ### Added
