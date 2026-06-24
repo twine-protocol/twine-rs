@@ -215,6 +215,7 @@ impl<R: Resolver> Deref for MemoryCache<R> {
 #[cfg(test)]
 mod test {
   use super::*;
+  use crate::resolver::unchecked_base::BaseResolver;
   use crate::{test::*, twine::TwineBlock};
 
   #[derive(Debug, Clone)]
@@ -393,5 +394,103 @@ mod test {
 
     assert_eq!(cache.strand_hits.read().unwrap().get(&strand_cid), Some(&1));
     assert_eq!(cache.tixel_hits.read().unwrap().get(&tixel_cid), Some(&1));
+  }
+
+  fn dummy() -> DummyResolver {
+    DummyResolver {
+      strand_hits: Arc::new(RwLock::new(HashMap::new())),
+      tixel_hits: Arc::new(RwLock::new(HashMap::new())),
+    }
+  }
+
+  #[tokio::test]
+  async fn cache_has_methods_hit_and_miss() {
+    let cache = MemoryCache::new(dummy()).with_cache_size(10);
+    let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
+    let strand_cid = strand.cid();
+    let tixel_cid = tixel.cid();
+
+    // Cold cache: each has_* misses locally and defers to the resolver.
+    assert!(cache.has_strand(&strand_cid).await.unwrap());
+    assert!(cache.has_index(&strand_cid, tixel.index()).await.unwrap());
+    assert!(cache.has_twine(&strand_cid, &tixel_cid).await.unwrap());
+
+    // Unknown ids report false.
+    assert!(!cache.has_strand(&Cid::default()).await.unwrap());
+    assert!(!cache.has_index(&strand_cid, 999).await.unwrap());
+    assert!(!cache.has_twine(&strand_cid, &Cid::default()).await.unwrap());
+
+    // Warm the cache.
+    cache.resolve_strand(&strand_cid).await.unwrap();
+    cache.fetch_index(&strand_cid, tixel.index()).await.unwrap();
+
+    // Warm cache: has_* now hit the in-memory entries.
+    assert!(cache.has_strand(&strand_cid).await.unwrap());
+    assert!(cache.has_index(&strand_cid, tixel.index()).await.unwrap());
+    assert!(cache.has_twine(&strand_cid, &tixel_cid).await.unwrap());
+  }
+
+  #[tokio::test]
+  async fn cache_strands_streams_and_caches() {
+    let cache = MemoryCache::new(dummy());
+    let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
+
+    let strands: Vec<_> = cache.strands().await.unwrap().collect::<Vec<_>>().await;
+    assert_eq!(strands.len(), 1);
+    assert_eq!(strands[0].as_ref().unwrap().cid(), strand.cid());
+
+    // Streaming cached the strand, so a subsequent has_strand hits locally.
+    assert!(cache.has_strand(&strand.cid()).await.unwrap());
+  }
+
+  #[tokio::test]
+  async fn cache_range_stream_caches_tixels() {
+    use crate::resolver::AbsoluteRange;
+
+    let cache = MemoryCache::new(dummy());
+    let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
+    let strand_cid = tixel.strand_cid();
+    let tixel_cid = tixel.cid();
+    let idx = tixel.index();
+
+    // Call range_stream directly (BaseResolver impl) to exercise lines 187-202.
+    // DummyResolver::range_stream (lines 334-341) is exercised as the inner resolver.
+    let range = AbsoluteRange::new(strand_cid, idx, idx);
+    let results: Vec<_> = cache
+      .range_stream(range)
+      .await
+      .unwrap()
+      .collect::<Vec<_>>()
+      .await;
+
+    assert_eq!(results.len(), 1, "range_stream should return one tixel");
+    assert_eq!(
+      results[0].as_ref().unwrap().cid(),
+      tixel_cid,
+      "range_stream should yield the expected tixel"
+    );
+
+    // After range_stream the tixel must be in the local cache.
+    assert!(
+      cache.has_twine(&strand_cid, &tixel_cid).await.unwrap(),
+      "tixel should be cached after range_stream"
+    );
+  }
+
+  // range_stream for an unknown strand propagates NotFound from the resolver.
+  #[tokio::test]
+  async fn cache_range_stream_unknown_strand_returns_error() {
+    use crate::errors::ResolutionError;
+    use crate::resolver::AbsoluteRange;
+
+    let cache = MemoryCache::new(dummy());
+    let unknown_cid = Cid::default();
+    let range = AbsoluteRange::new(unknown_cid, 0, 0);
+    let err = cache.range_stream(range).await;
+    assert!(
+      matches!(err, Err(ResolutionError::NotFound)),
+      "expected NotFound for unknown strand"
+    );
   }
 }

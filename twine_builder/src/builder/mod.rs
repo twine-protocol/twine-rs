@@ -40,8 +40,9 @@ pub enum BuildError {
 /// # Example
 ///
 /// ```no_run
-/// use twine_builder::{TwineBuilder, RingSigner};
-/// let signer = RingSigner::generate_ed25519().unwrap();
+/// # #[cfg(feature = "rustcrypto-signer")] {
+/// use twine_builder::{TwineBuilder, RustCryptoSigner};
+/// let signer = RustCryptoSigner::generate_ed25519();
 /// let builder = TwineBuilder::new(signer);
 ///
 /// // build a simple test strand
@@ -53,6 +54,7 @@ pub enum BuildError {
 /// // build the next tixel
 /// let next = builder.build_next(&first).done().unwrap();
 /// println!("{}", next);
+/// # }
 /// ```
 pub struct TwineBuilder<const V: u8, S: Signer> {
   signer: S,
@@ -188,9 +190,10 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
   /// # Example
   ///
   /// ```no_run
+  /// # #[cfg(feature = "rustcrypto-signer")] {
   /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code};
-  /// use twine_builder::{TwineBuilder, RingSigner};
-  /// let signer = RingSigner::generate_ed25519().unwrap();
+  /// use twine_builder::{TwineBuilder, RustCryptoSigner};
+  /// let signer = RustCryptoSigner::generate_ed25519();
   /// let builder = TwineBuilder::new(signer);
   /// let strand = builder.build_strand()
   ///   .details(ipld!({
@@ -198,6 +201,7 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
   ///   }))
   ///   .done()
   ///   .unwrap();
+  /// # }
   /// ```
   pub fn build_strand<'a>(&'a self) -> builder_v2::StrandBuilder<'a, S> {
     builder_v2::StrandBuilder::new(&self.signer)
@@ -211,9 +215,10 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
   /// # Example
   ///
   /// ```no_run
+  /// # #[cfg(feature = "rustcrypto-signer")] {
   /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code, twine::CrossStitches};
-  /// use twine_builder::{TwineBuilder, RingSigner};
-  /// let signer = RingSigner::generate_ed25519().unwrap();
+  /// use twine_builder::{TwineBuilder, RustCryptoSigner};
+  /// let signer = RustCryptoSigner::generate_ed25519();
   /// let builder = TwineBuilder::new(signer);
   /// let strand = builder.build_strand().done().unwrap();
   /// let first = builder.build_first(strand)
@@ -223,6 +228,7 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
   ///    }))
   ///    .done()
   ///    .unwrap();
+  /// # }
   /// ```
   pub fn build_first<'a>(&'a self, strand: Strand) -> builder_v2::TixelBuilder<'a, 'a, S> {
     builder_v2::TixelBuilder::new_first(&self.signer, strand)
@@ -236,9 +242,10 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
   /// # Example
   ///
   /// ```no_run
+  /// # #[cfg(feature = "rustcrypto-signer")] {
   /// use twine_lib::{ipld_core::ipld, multihash_codetable::Code, twine::CrossStitches};
-  /// use twine_builder::{TwineBuilder, RingSigner};
-  /// let signer = RingSigner::generate_ed25519().unwrap();
+  /// use twine_builder::{TwineBuilder, RustCryptoSigner};
+  /// let signer = RustCryptoSigner::generate_ed25519();
   /// let builder = TwineBuilder::new(signer);
   /// let strand = builder.build_strand().done().unwrap();
   /// let prev = builder.build_first(strand).done().unwrap();
@@ -249,6 +256,7 @@ impl<S: Signer<Key = PublicKey>> TwineBuilder<2, S> {
   ///    }))
   ///    .done()
   ///    .unwrap();
+  /// # }
   /// ```
   pub fn build_next<'a, 'b>(&'a self, prev: &'b Twine) -> builder_v2::TixelBuilder<'a, 'b, S> {
     builder_v2::TixelBuilder::new_next(&self.signer, prev)
@@ -445,13 +453,76 @@ mod testv1 {
       "payload".to_string()
     );
   }
+
+  fn es256_signer() -> BiscuitSigner {
+    let key = ec_key(&ECDSA_P256_SHA256_FIXED_SIGNING);
+    let secret = Secret::EcdsaKeyPair(Arc::new(key));
+    BiscuitSigner::new(secret, "ES256".to_string())
+  }
+
+  #[test]
+  fn strand_subspec_and_radix_setters() {
+    let builder = TwineBuilder::new(es256_signer());
+    let strand = builder
+      .build_strand()
+      .subspec("foo/1.0.0".to_string())
+      .radix(4)
+      .done()
+      .unwrap();
+    assert_eq!(strand.radix(), 4);
+    assert_eq!(strand.subspec().map(|s| s.to_string()), Some("foo/1.0.0".to_string()));
+  }
+
+  #[test]
+  fn cross_stitch_propagation_is_enforced() {
+    use twine_lib::twine::Stitch;
+    let builder = TwineBuilder::new(es256_signer());
+
+    // A second strand to cross-stitch into.
+    let strand_b = builder.build_strand().done().unwrap();
+    let tixel_b = builder.build_first(strand_b.clone()).done().unwrap();
+    let stitch_b: Stitch = tixel_b.into();
+
+    let strand_a = builder.build_strand().done().unwrap();
+    let first = builder
+      .build_first(strand_a.clone())
+      .cross_stitches(vec![stitch_b])
+      .done()
+      .unwrap();
+    assert_eq!(first.cross_stitches().len(), 1);
+
+    // A next tixel that drops the inherited cross stitch must be rejected.
+    let err = builder
+      .build_next(&first)
+      .cross_stitches(Vec::<Stitch>::new())
+      .done();
+    assert!(matches!(err, Err(BuildError::BadData(_))));
+
+    // Keeping the cross stitch (the default) succeeds.
+    assert!(builder.build_next(&first).done().is_ok());
+  }
+
+  #[test]
+  fn deprecated_source_setters_still_build() {
+    let builder = TwineBuilder::new(es256_signer());
+    let strand = builder
+      .build_strand()
+      .source("strand-source".to_string())
+      .done()
+      .unwrap();
+    let tixel = builder
+      .build_first(strand)
+      .source("tixel-source".to_string())
+      .done();
+    assert!(tixel.is_ok());
+  }
 }
 
 #[allow(deprecated)]
-#[cfg(test)]
+#[cfg(all(test, feature = "rustcrypto-signer"))]
 mod testv2 {
   use super::*;
-  use ring::signature::Ed25519KeyPair;
+  use crate::RustCryptoSigner;
   use twine_lib::{
     ipld_core::ipld,
     store::MemoryStore,
@@ -460,10 +531,7 @@ mod testv2 {
 
   #[test]
   fn test_v2() {
-    let rng = ring::rand::SystemRandom::new();
-    let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
-    let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
-    let builder = TwineBuilder::new(key);
+    let builder = TwineBuilder::new(RustCryptoSigner::generate_ed25519());
     let strand = builder
       .build_strand()
       .details(ipld!({
@@ -501,7 +569,7 @@ mod testv2 {
   #[tokio::test]
   async fn test_entwining() {
     fn make_strand(
-      builder: &TwineBuilder<2, Ed25519KeyPair>,
+      builder: &TwineBuilder<2, RustCryptoSigner>,
       store: MemoryStore,
     ) -> (Strand, Twine) {
       let strand = builder.build_strand().done().unwrap();
@@ -533,10 +601,7 @@ mod testv2 {
     }
 
     let store = MemoryStore::new();
-    let rng = ring::rand::SystemRandom::new();
-    let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
-    let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
-    let builder = TwineBuilder::new(key);
+    let builder = TwineBuilder::new(RustCryptoSigner::generate_ed25519());
 
     let first = make_strand(&builder, store.clone());
     let second = make_strand(&builder, store.clone());
@@ -567,10 +632,7 @@ mod testv2 {
 
   #[test]
   fn test_payload_builder_v2() {
-    let rng = ring::rand::SystemRandom::new();
-    let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
-    let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
-    let builder = TwineBuilder::new(key);
+    let builder = TwineBuilder::new(RustCryptoSigner::generate_ed25519());
     let strand = builder
       .build_strand()
       .details(ipld!({
@@ -595,10 +657,7 @@ mod testv2 {
 
   #[test]
   fn test_deny_stitches_to_self() {
-    let rng = ring::rand::SystemRandom::new();
-    let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
-    let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
-    let builder = TwineBuilder::new(key);
+    let builder = TwineBuilder::new(RustCryptoSigner::generate_ed25519());
     let strand = builder
       .build_strand()
       .details("a".to_string())
@@ -622,10 +681,7 @@ mod testv2 {
 
   #[test]
   fn test_dropped_stitch() {
-    let rng = ring::rand::SystemRandom::new();
-    let pkcs8 = ring::signature::Ed25519KeyPair::generate_pkcs8(&rng).unwrap();
-    let key = ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
-    let builder = TwineBuilder::new(key);
+    let builder = TwineBuilder::new(RustCryptoSigner::generate_ed25519());
     let strand_a = builder
       .build_strand()
       .details("a".to_string())

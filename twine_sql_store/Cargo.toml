@@ -27,7 +27,7 @@ serde_json.workspace = true
 [dev-dependencies]
 sqlx = { version = "0.8.3", features = ["any", "mysql", "sqlite", "postgres", "runtime-tokio"] }
 tokio.workspace = true
-twine_builder.workspace = true
+twine_builder = { workspace = true, features = ["rustcrypto-signer"] }
 
 [profile.dev.package.sqlx-macros]
 opt-level = 3

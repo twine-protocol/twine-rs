@@ -11,8 +11,16 @@ description = "Twine protocol rust library functionality for building Twine data
 
 [features]
 default = []
-rsa = ["dep:rsa", "dep:rand"]
-v1 = ["dep:biscuit"]
+# RustCrypto-backed signer (recommended for v2). No `ring`.
+rustcrypto-signer = ["dep:ed25519-dalek", "dep:p256", "dep:p384", "dep:rand_core", "dep:zeroize"]
+# Deprecated `ring`-backed signer.
+ring-signer = ["dep:ring"]
+# RSA support (applies to whichever signer backend is enabled).
+rsa = ["dep:rsa", "dep:rand", "dep:sha2"]
+# Password-encrypted PKCS#8 import/export for RustCryptoSigner.
+encryption = ["rustcrypto-signer", "pkcs8/encryption"]
+# Twine v1 (deprecated) signer, built on biscuit (which uses ring).
+v1 = ["dep:biscuit", "dep:ring"]
 
 [dependencies]
 twine_lib.workspace = true
@@ -25,15 +33,26 @@ num-bigint = "0.4"
 biscuit = { version = "0.7", optional = true }
 rsa = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }
+sha2 = { version = "0.10", optional = true }
+ed25519-dalek = { version = "2", optional = true, features = ["pkcs8", "pem", "rand_core"] }
+p256 = { version = "0.13", optional = true, features = ["ecdsa", "pkcs8", "pem"] }
+p384 = { version = "0.13", optional = true, features = ["ecdsa", "pkcs8", "pem"] }
+rand_core = { version = "0.6", optional = true, features = ["getrandom"] }
+zeroize = { version = "1", optional = true }
 pkcs8 = { version = "0.10", features = ["pem"] }
 const-oid = { version = "0.9.6", features = ["db"] }
-ring.workspace = true
+ring = { workspace = true, optional = true }
 
 [target.'wasm32-unknown-unknown'.dependencies.ring]
 version = "0.17"
 features = ["wasm32_unknown_unknown_js"]
+optional = true
 
 [dev-dependencies]
 rsa = "0.9"
 rand.workspace = true
 tokio.workspace = true
+
+[[example]]
+name = "simple"
+required-features = ["rustcrypto-signer"]

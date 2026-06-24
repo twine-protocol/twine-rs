@@ -223,3 +223,116 @@ impl ContainerV1<PulseContentV1> {
     CrossStitches::new(self.content.mixins.iter().cloned().collect::<Vec<Stitch>>())
   }
 }
+
+#[cfg(test)]
+mod test {
+  use super::*;
+  use crate::{
+    schemas::TixelSchemaVersion,
+    test::{STRANDJSON, TIXELJSON},
+    twine::{Strand, Tixel, TwineBlock},
+  };
+
+  fn strand_v1() -> Strand {
+    Strand::from_tagged_dag_json(STRANDJSON).unwrap()
+  }
+  fn tixel_v1() -> Tixel {
+    Tixel::from_tagged_dag_json(TIXELJSON).unwrap()
+  }
+
+  // --- V1::default (lines 30-32) -----------------------------------------
+
+  #[test]
+  fn v1_default_is_twine_1_0_x() {
+    // V1::default() must return the canonical v1 spec string.
+    let spec = V1::default();
+    assert_eq!(spec.0.as_str(), "twine/1.0.x");
+  }
+
+  #[test]
+  fn v1_default_semver_is_1_0_0() {
+    let spec = V1::default();
+    assert_eq!(spec.semver(), semver::Version::new(1, 0, 0));
+  }
+
+  // --- ContainerV1::Hash impl (lines 65-67) ------------------------------
+
+  #[test]
+  fn container_v1_chain_hash_equal_for_same_cid() {
+    // Two clones of the same container must hash identically.
+    use crate::schemas::StrandSchemaVersion;
+    let strand = strand_v1();
+    let a = match &**strand.0 {
+      StrandSchemaVersion::V1(c) => c.clone(),
+      _ => panic!("expected V1"),
+    };
+    let b = a.clone();
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut ha = DefaultHasher::new();
+    let mut hb = DefaultHasher::new();
+    a.hash(&mut ha);
+    b.hash(&mut hb);
+    assert_eq!(ha.finish(), hb.finish(), "identical V1 containers must hash equal");
+  }
+
+  #[test]
+  fn container_v1_pulse_hash_equal_for_same_cid() {
+    // Same check for the PulseContentV1 container.
+    let tixel = tixel_v1();
+    let a = match &**tixel.0 {
+      TixelSchemaVersion::V1(c) => c.clone(),
+      _ => panic!("expected V1"),
+    };
+    let b = a.clone();
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut ha = DefaultHasher::new();
+    let mut hb = DefaultHasher::new();
+    a.hash(&mut ha);
+    b.hash(&mut hb);
+    assert_eq!(ha.finish(), hb.finish(), "identical V1 pulse containers must hash equal");
+  }
+
+  // --- ContainerV1<PulseContentV1>::source (lines 206-208) ---------------
+
+  #[test]
+  fn pulse_container_source_matches_fixture() {
+    // The v1 tixel fixture has "source": "random.colorado.edu".
+    let tixel = tixel_v1();
+    let pulse = match &**tixel.0 {
+      TixelSchemaVersion::V1(c) => c.clone(),
+      _ => panic!("expected V1"),
+    };
+    assert_eq!(
+      pulse.source(),
+      "random.colorado.edu",
+      "source must match the fixture value"
+    );
+  }
+
+  // --- ContainerV1 PartialEq impl (lines 54-56) --------------------------
+
+  #[test]
+  fn container_v1_chain_eq_reflexive() {
+    use crate::schemas::StrandSchemaVersion;
+    let strand = strand_v1();
+    let a = match &**strand.0 {
+      StrandSchemaVersion::V1(c) => c.clone(),
+      _ => panic!("expected V1"),
+    };
+    let b = a.clone();
+    assert_eq!(a, b, "cloned V1 chain container must equal itself");
+  }
+
+  #[test]
+  fn container_v1_pulse_eq_reflexive() {
+    let tixel = tixel_v1();
+    let a = match &**tixel.0 {
+      TixelSchemaVersion::V1(c) => c.clone(),
+      _ => panic!("expected V1"),
+    };
+    let b = a.clone();
+    assert_eq!(a, b, "cloned V1 pulse container must equal itself");
+  }
+}

@@ -1,6 +1,6 @@
 //! Example of creating twine data and saving it to a sled store
 use futures::{StreamExt, TryStreamExt};
-use twine_builder::RingSigner;
+use twine_builder::RustCryptoSigner;
 use twine_builder::TwineBuilder;
 use twine_lib::resolver::*;
 use twine_lib::store::Store;
@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .open()?;
   let store = SledStore::new(db, SledStoreOptions::default());
 
-  let signer = RingSigner::generate_ed25519().unwrap();
+  let signer = RustCryptoSigner::generate_ed25519();
   let builder = TwineBuilder::new(signer);
   let strand = builder.build_strand().radix(2).done()?;
 

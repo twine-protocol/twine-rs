@@ -2,7 +2,8 @@ use crate::prompt::prompt_for_filename;
 use anyhow::Result;
 use clap::Parser;
 use inquire::Select;
-use twine_builder::RingSigner;
+use twine_builder::RustCryptoSigner;
+use twine_lib::crypto::SignatureAlgorithm;
 
 #[derive(Debug, Parser)]
 pub struct KeygenCommand {
@@ -31,16 +32,16 @@ impl KeygenCommand {
     let key_type = Select::new("Select key type", items).prompt()?;
 
     let signer = match key_type {
-      "Ed25519" => RingSigner::generate_ed25519().map_err(|e| anyhow::anyhow!(e))?,
-      "EcdsaP256" => RingSigner::generate_p256().map_err(|e| anyhow::anyhow!(e))?,
-      "EcdsaP384" => RingSigner::generate_p384().map_err(|e| anyhow::anyhow!(e))?,
-      "RSA2048 (sha256)" => RingSigner::generate_rs256(2048)?,
-      "RSA3072 (sha384)" => RingSigner::generate_rs384(3072)?,
-      "RSA4096 (sha512)" => RingSigner::generate_rs512(4096)?,
+      "Ed25519" => RustCryptoSigner::generate_ed25519(),
+      "EcdsaP256" => RustCryptoSigner::generate_p256(),
+      "EcdsaP384" => RustCryptoSigner::generate_p384(),
+      "RSA2048 (sha256)" => RustCryptoSigner::generate(SignatureAlgorithm::Sha256Rsa(2048))?,
+      "RSA3072 (sha384)" => RustCryptoSigner::generate(SignatureAlgorithm::Sha384Rsa(3072))?,
+      "RSA4096 (sha512)" => RustCryptoSigner::generate(SignatureAlgorithm::Sha512Rsa(4096))?,
       _ => unreachable!(),
     };
 
-    let pem = signer.private_key_pem()?;
+    let pem = signer.to_pkcs8_pem()?;
 
     // write the file and set permissions to 600
     tokio::fs::write(&filename, pem).await?;

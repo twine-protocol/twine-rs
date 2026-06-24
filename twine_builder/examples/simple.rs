@@ -1,11 +1,11 @@
 //! This example demonstrates how to build a strand of twines
 //! using the TwineBuilder API.
-use twine_builder::{RingSigner, TwineBuilder};
+use twine_builder::{RustCryptoSigner, TwineBuilder};
 use twine_lib::{ipld_core::ipld, multihash_codetable::Code};
 
 fn main() {
-  let signer = RingSigner::generate_ed25519().unwrap();
-  println!("Private key (PEM):\n{}", signer.private_key_pem().unwrap());
+  let signer = RustCryptoSigner::generate_ed25519();
+  println!("Private key (PEM):\n{}", &*signer.to_pkcs8_pem().unwrap());
 
   let builder = TwineBuilder::new(signer);
   let strand = builder

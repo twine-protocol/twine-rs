@@ -18,6 +18,16 @@ Normal construction of twine data involves the following:
 See the documentation for specifics about the [`Signer`], [`TwineBuilder`],
 and [`Store`](https://docs.rs/twine_lib/latest/twine_lib/store/trait.Store.html).
 
+## Signers
+
+No signer is enabled by default — pick a backend via a feature flag:
+
+- `rustcrypto-signer` provides `RustCryptoSigner`, the recommended pure-Rust
+  signer for v2 data.
+- `ring-signer` provides the **deprecated** `RingSigner`. It emits non-canonical
+  high-S ECDSA signatures that v2 verification rejects; prefer `RustCryptoSigner`.
+- `rsa` adds RSA support to whichever signer backend is enabled.
+
 ## Version 1 data
 
 In order to construct version 1 data structures, the `v1` feature flag

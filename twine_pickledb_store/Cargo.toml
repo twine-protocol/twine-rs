@@ -20,5 +20,5 @@ serde_bytes.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
-twine_builder.workspace = true
+twine_builder = { workspace = true, features = ["rustcrypto-signer"] }
 tempfile = "3.15"

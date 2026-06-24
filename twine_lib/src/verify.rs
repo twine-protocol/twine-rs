@@ -113,6 +113,7 @@ impl<'de, T: Verifiable + Deserialize<'de>> Deserialize<'de> for Verified<T> {
   }
 }
 
+
 #[cfg(test)]
 mod test {
   use super::*;
@@ -173,5 +174,100 @@ mod test {
     let data = r#"{"value": 42, "nested": {"value": 9}}"#;
     let res: Result<WithNested, _> = serde_json::from_str(data);
     assert!(res.is_err());
+  }
+
+  // --- is_all_unique ----------------------------------------------------
+
+  #[test]
+  fn is_all_unique_empty_is_true() {
+    assert!(is_all_unique(std::iter::empty::<u32>()));
+  }
+
+  #[test]
+  fn is_all_unique_single_element_is_true() {
+    assert!(is_all_unique(vec![1u32]));
+  }
+
+  #[test]
+  fn is_all_unique_all_distinct_is_true() {
+    assert!(is_all_unique(vec![1u32, 2, 3, 4, 5]));
+  }
+
+  #[test]
+  fn is_all_unique_with_duplicate_is_false() {
+    assert!(!is_all_unique(vec![1u32, 2, 3, 2, 4]));
+  }
+
+  #[test]
+  fn is_all_unique_all_same_is_false() {
+    assert!(!is_all_unique(vec![7u32, 7, 7]));
+  }
+
+  #[test]
+  fn is_all_unique_strings() {
+    assert!(is_all_unique(vec!["a", "b", "c"]));
+    assert!(!is_all_unique(vec!["a", "b", "a"]));
+  }
+
+  // --- Verified<T> Deref and accessors ----------------------------------
+
+  #[test]
+  fn verified_deref_gives_inner_value() {
+    let v = Verified::try_new(TestStruct { value: 42 }).unwrap();
+    // Deref should give access to inner fields
+    assert_eq!(v.value, 42);
+  }
+
+  #[test]
+  fn verified_as_inner_matches_deref() {
+    let v = Verified::try_new(TestStruct { value: 42 }).unwrap();
+    assert_eq!(v.as_inner().value, 42);
+    assert_eq!((*v).value, 42);
+  }
+
+  #[test]
+  fn verified_into_inner_consumes() {
+    let v = Verified::try_new(TestStruct { value: 42 }).unwrap();
+    let inner = v.into_inner();
+    assert_eq!(inner.value, 42);
+  }
+
+  #[test]
+  fn verified_try_new_propagates_error() {
+    let res = Verified::try_new(TestStruct { value: 0 });
+    assert!(
+      res.is_err(),
+      "try_new must propagate verification error"
+    );
+    // Error type should be VerificationError::InvalidTwineFormat
+    let err = res.unwrap_err();
+    assert!(
+      matches!(err, VerificationError::InvalidTwineFormat(_)),
+      "expected InvalidTwineFormat, got {:?}",
+      err
+    );
+  }
+
+  #[test]
+  fn verified_deserialize_triggers_verify() {
+    // Deserialization of Verified<T> must call verify() and fail if invalid.
+    let invalid_json = r#"{"value": 0}"#;
+    let res: Result<Verified<TestStruct>, _> = serde_json::from_str(invalid_json);
+    assert!(res.is_err(), "deserialization of invalid T must fail");
+  }
+
+  #[test]
+  fn verified_deserialize_succeeds_for_valid() {
+    let valid_json = r#"{"value": 42}"#;
+    let res: Result<Verified<TestStruct>, _> = serde_json::from_str(valid_json);
+    assert!(res.is_ok(), "deserialization of valid T must succeed");
+    assert_eq!(res.unwrap().value, 42);
+  }
+
+  #[test]
+  fn verified_equality() {
+    let a = Verified::try_new(TestStruct { value: 42 }).unwrap();
+    let b = Verified::try_new(TestStruct { value: 42 }).unwrap();
+    assert_eq!(a, b);
   }
 }

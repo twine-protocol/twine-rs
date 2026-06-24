@@ -301,4 +301,32 @@ mod test {
     let latest = store.resolve(strand).await.unwrap();
     assert_eq!(latest, tixel);
   }
+
+  #[tokio::test]
+  async fn save_tixel_without_strand_returns_error() {
+    let store = MemoryStore::new();
+    let tixel = Tixel::from_tagged_dag_json(TIXELJSON).unwrap();
+    let err = store.save(tixel).await;
+    assert!(
+      err.is_err(),
+      "expected StoreError when saving tixel before its strand"
+    );
+  }
+
+  // fetch_latest on a strand with no tixels returns NotFound.
+  #[tokio::test]
+  async fn fetch_latest_empty_strand_returns_not_found() {
+    use crate::errors::ResolutionError;
+    use crate::resolver::unchecked_base::BaseResolver;
+
+    let store = MemoryStore::new();
+    let strand = Strand::from_tagged_dag_json(STRANDJSON).unwrap();
+    store.save(strand.clone()).await.unwrap();
+    let err = store.fetch_latest(&strand.cid()).await;
+    assert!(
+      matches!(err, Err(ResolutionError::NotFound)),
+      "expected NotFound when no tixels in strand, got {:?}",
+      err
+    );
+  }
 }

@@ -15,7 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 twine_lib.workspace = true
-twine_builder = { workspace = true, features = ["rsa"] }
+twine_builder = { workspace = true, features = ["rsa", "rustcrypto-signer"] }
 twine_http_store.workspace = true
 twine_sled_store.workspace = true
 twine_car_store.workspace = true
@@ -33,7 +33,7 @@ clap = { version = "4", features = ["derive"] }
 clap-stdin = "0.6.0"
 directories = "6.0.0"
 anyhow = "1.0"
-indicatif = { version = "0.17", features = ["futures"] }
+indicatif = { version = "0.18", features = ["futures"] }
 indicatif-log-bridge = "0.2"
 log.workspace = true
 simplelog = "0.12"

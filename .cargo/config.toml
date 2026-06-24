@@ -1,2 +1,18 @@
 [build]
 rustflags = ["-Wmissing-docs"]
+
+# Building twine_lib / twine_builder for browser wasm requires two things:
+#
+#  1. A clang capable of targeting wasm32 (ring compiles C in its build script).
+#     Point cargo at it for this target, e.g.:
+#       export CC_wasm32_unknown_unknown="$(mise which clang)"
+#
+#  2. An explicit getrandom backend. getrandom 0.3 (pulled transitively via
+#     quick_cache -> ahash) refuses to build for wasm32-unknown-unknown unless
+#     told which source to use. The cfg below selects the JS backend; the
+#     matching `wasm_js` feature is enabled in twine_lib/Cargo.toml.
+#
+# (-Wmissing-docs is repeated here because per-target rustflags replace, rather
+# than extend, the [build] rustflags above.)
+[target.wasm32-unknown-unknown]
+rustflags = ["-Wmissing-docs", "--cfg", "getrandom_backend=\"wasm_js\""]

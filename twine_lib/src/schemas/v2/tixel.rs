@@ -103,3 +103,193 @@ impl Verifiable for TixelFields {
     Ok(())
   }
 }
+
+#[cfg(test)]
+mod test {
+  use super::*;
+  use crate::errors::VerificationError;
+  use ipld_core::cid::Cid;
+
+  // Helper: build two distinct CIDs to use as strand / tixel references
+  fn dummy_cid_1() -> Cid {
+    use ipld_core::cid::Version;
+    use multihash_codetable::{Code, MultihashDigest};
+    let hash = Code::Sha2_256.digest(b"dummy-cid-1");
+    Cid::new(Version::V1, 0x71u64, hash).unwrap()
+  }
+
+  fn dummy_cid_2() -> Cid {
+    use ipld_core::cid::Version;
+    use multihash_codetable::{Code, MultihashDigest};
+    let hash = Code::Sha2_256.digest(b"dummy-cid-2");
+    Cid::new(Version::V1, 0x71u64, hash).unwrap()
+  }
+
+  fn dummy_cid_3() -> Cid {
+    use ipld_core::cid::Version;
+    use multihash_codetable::{Code, MultihashDigest};
+    let hash = Code::Sha2_256.digest(b"dummy-cid-3");
+    Cid::new(Version::V1, 0x71u64, hash).unwrap()
+  }
+
+  // --- EncodedCrossStitches ordering -------------------------------------
+
+  #[test]
+  fn encoded_cross_stitches_empty_ok() {
+    // Empty cross-stitches list is always valid
+    let result: Result<EncodedCrossStitches, VerificationError> =
+      EncodedCrossStitches::try_from(vec![]);
+    assert!(result.is_ok(), "empty cross-stitches should be Ok");
+  }
+
+  #[test]
+  fn encoded_cross_stitches_single_ok() {
+    let result = EncodedCrossStitches::try_from(vec![(dummy_cid_1(), dummy_cid_2())]);
+    assert!(result.is_ok(), "single cross-stitch should be Ok");
+  }
+
+  #[test]
+  fn encoded_cross_stitches_ordered_ok() {
+    // Two entries where first strand CID < second strand CID
+    let a = dummy_cid_1();
+    let b = dummy_cid_2();
+    // Ensure ordering by using sorted cids
+    let mut cids = vec![a, b];
+    cids.sort();
+    let input = vec![(cids[0], dummy_cid_3()), (cids[1], dummy_cid_3())];
+    let result = EncodedCrossStitches::try_from(input);
+    assert!(result.is_ok(), "strictly ordered cross-stitches should be Ok");
+  }
+
+  #[test]
+  fn encoded_cross_stitches_duplicate_strand_rejected() {
+    // Two entries with the same strand CID (w[0].0 >= w[1].0 because equal)
+    let same = dummy_cid_1();
+    let input = vec![(same, dummy_cid_2()), (same, dummy_cid_3())];
+    let result = EncodedCrossStitches::try_from(input);
+    assert!(
+      result.is_err(),
+      "duplicate strand CIDs in cross-stitches should be rejected"
+    );
+    assert!(matches!(
+      result,
+      Err(VerificationError::InvalidTwineFormat(_))
+    ));
+  }
+
+  #[test]
+  fn encoded_cross_stitches_reverse_order_rejected() {
+    // Two entries in reverse order (w[0].0 > w[1].0)
+    let a = dummy_cid_1();
+    let b = dummy_cid_2();
+    let mut cids = vec![a, b];
+    cids.sort();
+    // Reverse so that first > second
+    let input = vec![(cids[1], dummy_cid_3()), (cids[0], dummy_cid_3())];
+    let result = EncodedCrossStitches::try_from(input);
+    assert!(
+      result.is_err(),
+      "reverse-ordered cross-stitches must be rejected"
+    );
+    assert!(matches!(
+      result,
+      Err(VerificationError::InvalidTwineFormat(_))
+    ));
+  }
+
+  // --- TixelFields::verify -----------------------------------------------
+
+  #[test]
+  fn tixel_fields_genesis_tixel_ok() {
+    let fields = TixelFields {
+      strand: dummy_cid_1(),
+      index: 0,
+      cross_stitches: EncodedCrossStitches::try_from(vec![]).unwrap(),
+      back_stitches: vec![],
+      drop: 0,
+      payload: Ipld::Null,
+    };
+    assert!(fields.verify().is_ok(), "genesis tixel (index 0) must pass");
+  }
+
+  #[test]
+  fn tixel_fields_non_genesis_with_back_stitch_ok() {
+    let strand = dummy_cid_1();
+    let prev = dummy_cid_2();
+    let fields = TixelFields {
+      strand,
+      index: 1,
+      cross_stitches: EncodedCrossStitches::try_from(vec![]).unwrap(),
+      back_stitches: vec![Some(prev)],
+      drop: 0,
+      payload: Ipld::Null,
+    };
+    assert!(fields.verify().is_ok());
+  }
+
+  #[test]
+  fn tixel_fields_non_genesis_no_back_stitch_rejected() {
+    let fields = TixelFields {
+      strand: dummy_cid_1(),
+      index: 1,
+      cross_stitches: EncodedCrossStitches::try_from(vec![]).unwrap(),
+      back_stitches: vec![], // required but missing
+      drop: 0,
+      payload: Ipld::Null,
+    };
+    let result = fields.verify();
+    assert!(result.is_err(), "non-genesis tixel with no back-stitch must fail");
+    assert!(matches!(result, Err(VerificationError::InvalidTwineFormat(_))));
+  }
+
+  #[test]
+  fn tixel_fields_cross_stitch_on_own_strand_rejected() {
+    let strand = dummy_cid_1();
+    let other = dummy_cid_2();
+    // Cross-stitch pointing to own strand must be rejected
+    let fields = TixelFields {
+      strand,
+      index: 0,
+      cross_stitches: EncodedCrossStitches::try_from(vec![(strand, other)]).unwrap(),
+      back_stitches: vec![],
+      drop: 0,
+      payload: Ipld::Null,
+    };
+    let result = fields.verify();
+    assert!(result.is_err(), "cross-stitch on own strand must be rejected");
+    assert!(matches!(result, Err(VerificationError::InvalidTwineFormat(_))));
+  }
+
+  #[test]
+  fn tixel_fields_cross_stitch_on_different_strand_ok() {
+    let strand = dummy_cid_1();
+    let other_strand = dummy_cid_2();
+    let tixel_ref = dummy_cid_3();
+    let fields = TixelFields {
+      strand,
+      index: 0,
+      cross_stitches: EncodedCrossStitches::try_from(vec![(other_strand, tixel_ref)]).unwrap(),
+      back_stitches: vec![],
+      drop: 0,
+      payload: Ipld::Null,
+    };
+    assert!(fields.verify().is_ok(), "cross-stitch on different strand must be Ok");
+  }
+
+  #[test]
+  fn tixel_fields_invalid_condensed_back_stitches_rejected() {
+    // A back_stitches list where a non-last entry is None AND the last is also
+    // None (invalid condensed form).
+    let strand = dummy_cid_1();
+    let fields = TixelFields {
+      strand,
+      index: 1,
+      cross_stitches: EncodedCrossStitches::try_from(vec![]).unwrap(),
+      back_stitches: vec![None], // None at last position is invalid
+      drop: 0,
+      payload: Ipld::Null,
+    };
+    let result = fields.verify();
+    assert!(result.is_err(), "invalid condensed back-stitches must fail");
+  }
+}

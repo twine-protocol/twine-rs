@@ -1,7 +1,7 @@
 //! Example of using a local CAR file as a store.
 use futures::TryStreamExt;
 use tempfile::NamedTempFile;
-use twine_builder::{RingSigner, TwineBuilder};
+use twine_builder::{RustCryptoSigner, TwineBuilder};
 use twine_car_store::CarStore;
 use twine_lib::{ipld_core::ipld, multihash_codetable::Code, resolver::Resolver, store::Store};
 
@@ -11,7 +11,7 @@ async fn main() {
   let filename = f.path().to_str().unwrap();
   println!("filename: {}", filename);
 
-  let signer = RingSigner::generate_ed25519().unwrap();
+  let signer = RustCryptoSigner::generate_ed25519();
   let builder = TwineBuilder::new(signer);
   let strand = builder
     .build_strand()

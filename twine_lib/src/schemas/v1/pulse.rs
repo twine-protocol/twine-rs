@@ -111,4 +111,37 @@ mod test {
 
     assert!(pulse.verify().is_err());
   }
+
+  #[test]
+  fn test_pulse_content_v1_verify_mixin_on_own_chain_rejected() {
+    // A single mixin whose chain CID == self.chain triggers lines 42-44.
+    // We use a non-default CID to avoid the duplicate check which fires first.
+    use ipld_core::cid::Version;
+    use multihash_codetable::{Code, MultihashDigest};
+    let hash = Code::Sha2_256.digest(b"own-chain-cid");
+    let own_chain = Cid::new(Version::V1, 0x71u64, hash).unwrap();
+
+    let pulse = PulseContentV1 {
+      chain: own_chain,
+      index: 0,
+      source: "test".into(),
+      links: vec![],
+      mixins: vec![Mixin {
+        chain: own_chain, // same as self.chain → must fail
+        value: Cid::default(),
+      }],
+      payload: Ipld::Null,
+    };
+
+    let result = pulse.verify();
+    assert!(
+      result.is_err(),
+      "mixin pointing to own chain must be rejected"
+    );
+    assert!(
+      matches!(result, Err(crate::errors::VerificationError::InvalidTwineFormat(_))),
+      "expected InvalidTwineFormat, got {:?}",
+      result
+    );
+  }
 }

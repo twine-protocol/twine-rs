@@ -1130,4 +1130,385 @@ mod test {
       assert_eq!(cid.to_string(), s);
     }
   }
+
+  fn twine() -> Twine {
+    use crate::twine::TwineBlock;
+    let strand = Strand::from_tagged_dag_json(crate::test::STRAND_V2_JSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(crate::test::TIXEL_V2_JSON).unwrap();
+    Twine::try_new(strand, tixel).unwrap()
+  }
+
+  #[test]
+  fn single_query_strand_cid_for_all_variants() {
+    let strand = Cid::default();
+    let tixel = "bafyrmibrw2iojkmsnyaffhaqwujqriumkk6whnd3bc6rdob7le7zquslp4"
+      .parse()
+      .unwrap();
+    assert_eq!(
+      SingleQuery::Stitch((strand, tixel).into()).strand_cid(),
+      &strand
+    );
+    assert_eq!(SingleQuery::Index(strand, 3).strand_cid(), &strand);
+    assert_eq!(SingleQuery::Latest(strand).strand_cid(), &strand);
+  }
+
+  #[test]
+  fn single_query_unwrap_index_and_panic() {
+    assert_eq!(SingleQuery::Index(Cid::default(), 7).unwrap_index(), 7);
+  }
+
+  #[test]
+  #[should_panic(expected = "not an index query")]
+  fn single_query_unwrap_index_panics_on_latest() {
+    SingleQuery::Latest(Cid::default()).unwrap_index();
+  }
+
+  #[test]
+  fn single_query_matches_each_variant() {
+    let twine = twine();
+    let strand = twine.strand_cid();
+    let other = Cid::default();
+
+    // Stitch: must match strand + tixel cid.
+    let stitch: Stitch = twine.clone().into();
+    assert!(SingleQuery::Stitch(stitch).matches(&twine));
+    let bad_stitch: Stitch = (strand, Cid::default()).into();
+    assert!(!SingleQuery::Stitch(bad_stitch).matches(&twine));
+
+    // Absolute index: matches when index + strand line up.
+    assert!(SingleQuery::Index(strand, twine.index() as i64).matches(&twine));
+    assert!(!SingleQuery::Index(strand, twine.index() as i64 + 1).matches(&twine));
+    assert!(!SingleQuery::Index(other, twine.index() as i64).matches(&twine));
+
+    // Relative (negative) index ignores the index, only checks the strand.
+    assert!(SingleQuery::Index(strand, -5).matches(&twine));
+    assert!(!SingleQuery::Index(other, -5).matches(&twine));
+
+    // Latest only checks the strand.
+    assert!(SingleQuery::Latest(strand).matches(&twine));
+    assert!(!SingleQuery::Latest(other).matches(&twine));
+  }
+
+  #[test]
+  fn single_query_from_tuple_conversions() {
+    let cid = Cid::default();
+    assert_eq!(SingleQuery::from((cid, 3u64)), SingleQuery::Index(cid, 3));
+    assert_eq!(SingleQuery::from((cid, 3i32)), SingleQuery::Index(cid, 3));
+    assert_eq!(SingleQuery::from((cid, 3u32)), SingleQuery::Index(cid, 3));
+    assert_eq!(SingleQuery::from((cid, 3usize)), SingleQuery::Index(cid, 3));
+    assert_eq!(SingleQuery::from((cid, 3i16)), SingleQuery::Index(cid, 3));
+    assert_eq!(SingleQuery::from((cid, 3u16)), SingleQuery::Index(cid, 3));
+    // -1 collapses to Latest.
+    assert_eq!(SingleQuery::from((cid, -1i64)), SingleQuery::Latest(cid));
+    assert_eq!(SingleQuery::from((cid, 2i64)), SingleQuery::Index(cid, 2));
+    // (C, C) becomes a stitch query.
+    assert!(matches!(SingleQuery::from((cid, cid)), SingleQuery::Stitch(_)));
+    // Cid alone is a latest query.
+    assert_eq!(SingleQuery::from(cid), SingleQuery::Latest(cid));
+  }
+
+  #[test]
+  fn single_query_from_str_errors() {
+    // Single component (no colon) is not a valid SingleQuery.
+    assert!("not-a-cid".parse::<SingleQuery>().is_err());
+    // Too many components.
+    let cid = Cid::default().to_string();
+    assert!(format!("{cid}:1:2").parse::<SingleQuery>().is_err());
+  }
+
+  #[test]
+  fn absolute_range_geometry() {
+    let cid = Cid::default();
+    let inc = AbsoluteRange::new(cid, 2, 5);
+    assert!(inc.is_increasing() && !inc.is_decreasing());
+    assert_eq!(inc.lower(), 2);
+    assert_eq!(inc.upper(), 5);
+    assert_eq!(inc.len(), 4);
+    assert_eq!(inc.strand_cid(), &cid);
+
+    let dec = AbsoluteRange::new(cid, 5, 2);
+    assert!(dec.is_decreasing() && !dec.is_increasing());
+    assert_eq!(dec.lower(), 2);
+    assert_eq!(dec.upper(), 5);
+    assert_eq!(dec.len(), 4);
+
+    // iter() agrees with into_iter().
+    assert_eq!(inc.iter().count(), 4);
+    assert_eq!(format!("{}", inc), format!("{}:2:=5", cid));
+  }
+
+  #[test]
+  #[should_panic(expected = "Batch size must be greater than 0")]
+  fn absolute_range_batches_zero_size_panics() {
+    AbsoluteRange::new(Cid::default(), 0, 10).batches(0);
+  }
+
+  #[test]
+  fn range_query_accessors_and_display() {
+    let cid = Cid::default();
+    let abs: RangeQuery = AbsoluteRange::new(cid, 0, 4).into();
+    assert!(abs.is_absolute());
+    assert_eq!(abs.strand_cid(), &cid);
+
+    let rel: RangeQuery = (cid, 1i64, 5i64).into();
+    assert!(!rel.is_absolute());
+    assert_eq!(rel.strand_cid(), &cid);
+    assert!(matches!(rel, RangeQuery::Relative(_, _, _)));
+
+    // Display of a relative range with included bounds.
+    assert_eq!(rel.to_string(), format!("{cid}:1:=5"));
+  }
+
+  #[test]
+  fn any_query_predicates_reduce_and_conversions() {
+    let cid = Cid::default();
+
+    let strand: AnyQuery = cid.into();
+    assert!(strand.is_strand());
+    assert_eq!(strand.strand_cid(), &cid);
+
+    let one: AnyQuery = SingleQuery::Latest(cid).into();
+    assert!(one.is_one());
+    assert_eq!(one.strand_cid(), &cid);
+
+    // A range of length 1 reduces to a single (index) query.
+    let many: AnyQuery = RangeQuery::Absolute(AbsoluteRange::new(cid, 3, 3)).into();
+    assert!(many.is_one());
+    assert!(matches!(many, AnyQuery::One(SingleQuery::Index(_, 3))));
+
+    // A wider range stays Many.
+    let wide: AnyQuery = (cid, 0i64, 9i64).into();
+    assert!(wide.is_many());
+
+    // Tuple conversions.
+    assert!(matches!(AnyQuery::from((cid, 4i64)), AnyQuery::One(_)));
+    assert!(matches!(AnyQuery::from((cid, cid)), AnyQuery::One(_)));
+
+    // FromStr with too many parts errors.
+    assert!("a:b:c:d".parse::<AnyQuery>().is_err());
+  }
+
+  #[test]
+  fn single_query_from_strand_is_latest() {
+    // From<Strand> for SingleQuery (lines 76-80): should produce Latest.
+    use crate::twine::TwineBlock;
+    let strand = Strand::from_tagged_dag_json(crate::test::STRAND_V2_JSON).unwrap();
+    let strand_cid = strand.cid();
+    let query = SingleQuery::from(strand);
+    assert_eq!(query, SingleQuery::Latest(strand_cid));
+  }
+
+  #[test]
+  fn single_query_display_stitch_and_index() {
+    let strand = Cid::default();
+    let tixel = "bafyrmibrw2iojkmsnyaffhaqwujqriumkk6whnd3bc6rdob7le7zquslp4"
+      .parse::<Cid>()
+      .unwrap();
+
+    // Stitch display: "<strand>:<tixel>"
+    let stitch_q = SingleQuery::Stitch((strand, tixel).into());
+    let displayed = stitch_q.to_string();
+    assert!(displayed.contains(&strand.to_string()));
+    assert!(displayed.contains(&tixel.to_string()));
+    assert_eq!(displayed, format!("{}:{}", strand, tixel));
+
+    // Index display: "<strand>:<index>"
+    let index_q = SingleQuery::Index(strand, 42);
+    assert_eq!(index_q.to_string(), format!("{}:42", strand));
+  }
+
+  #[test]
+  fn single_query_from_str_cid_colon_cid() {
+    let strand = Cid::default();
+    let tixel = "bafyrmibrw2iojkmsnyaffhaqwujqriumkk6whnd3bc6rdob7le7zquslp4"
+      .parse::<Cid>()
+      .unwrap();
+    let s = format!("{}:{}", strand, tixel);
+    let q: SingleQuery = s.parse().unwrap();
+    assert!(matches!(q, SingleQuery::Stitch(_)));
+    if let SingleQuery::Stitch(st) = q {
+      assert_eq!(st.strand, strand);
+      assert_eq!(st.tixel, tixel);
+    }
+  }
+
+  #[test]
+  fn absolute_range_iter_new_direct() {
+    let cid = Cid::default();
+    let range = AbsoluteRange::new(cid, 3, 7);
+    let mut iter = AbsoluteRangeIter::new(range);
+    assert_eq!(iter.next(), Some(SingleQuery::Index(cid, 3)));
+    assert_eq!(iter.next(), Some(SingleQuery::Index(cid, 4)));
+    // 5 elements total (3,4,5,6,7).
+    let rest: Vec<_> = iter.collect();
+    assert_eq!(rest.len(), 3);
+  }
+
+  #[test]
+  fn from_range_bounds_included_excluded_both_directions() {
+    let cid = Cid::default();
+    // Increasing absolute: (Included(2), Excluded(6)) → start=2, end=5 (e-1).
+    // This exercises the (Included(s), Excluded(e)) branch where e > s (line 477).
+    let range = RangeQuery::from_range_bounds(&cid, 2i64..6i64);
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 2, 5)));
+
+    // Decreasing absolute: (Included(6), Excluded(2)) → start=6, end=3 (e+1).
+    // This exercises the (Included(s), Excluded(e)) branch where e < s (line 481).
+    let range = RangeQuery::from_range_bounds(&cid, 6i64..2i64);
+    assert_eq!(range, RangeQuery::Absolute(AbsoluteRange::new(cid, 6, 3)));
+  }
+
+  #[test]
+  fn range_query_absolute_passthrough() {
+    let cid = Cid::default();
+    let abs = AbsoluteRange::new(cid, 5, 10);
+    let rq = RangeQuery::Absolute(abs);
+    // to_absolute on an already-absolute range must return it as-is.
+    let result = rq.to_absolute(99).unwrap();
+    assert_eq!(result, abs);
+    // is_absolute returns true.
+    assert!(rq.is_absolute());
+  }
+
+  #[tokio::test]
+  async fn range_query_try_to_absolute_and_streams() {
+    use crate::store::MemoryStore;
+    use crate::twine::TwineBlock;
+    use futures::TryStreamExt;
+
+    let strand = Strand::from_tagged_dag_json(crate::test::STRAND_V2_JSON).unwrap();
+    let tixel = Tixel::from_tagged_dag_json(crate::test::TIXEL_V2_JSON).unwrap();
+    let strand_cid = strand.cid();
+
+    let store = MemoryStore::default();
+    store.save_sync(strand.into()).unwrap();
+    store.save_sync(tixel.into()).unwrap();
+
+    // Absolute: try_to_absolute should just pass through (line 568).
+    let abs = AbsoluteRange::new(strand_cid, 0, 0);
+    let rq_abs = RangeQuery::Absolute(abs);
+    let result = rq_abs.try_to_absolute(&store).await.unwrap();
+    assert_eq!(result, Some(abs));
+
+    // Relative: try_to_absolute resolves against the resolver (lines 569-573).
+    let rq_rel: RangeQuery = (strand_cid, ..).into();
+    let result = rq_rel.try_to_absolute(&store).await.unwrap();
+    assert!(result.is_some());
+    assert_eq!(result.unwrap(), AbsoluteRange::new(strand_cid, 0, 0));
+
+    // to_stream: yields SingleQuery items (lines 577-585).
+    let rq: RangeQuery = (strand_cid, ..).into();
+    let queries: Vec<SingleQuery> = rq
+      .to_stream(&store)
+      .try_collect()
+      .await
+      .unwrap();
+    assert_eq!(queries.len(), 1);
+    assert_eq!(queries[0], SingleQuery::Index(strand_cid, 0));
+
+    // to_batch_stream: yields AbsoluteRange batches (lines 588-604).
+    let rq: RangeQuery = (strand_cid, ..).into();
+    let batches: Vec<AbsoluteRange> = rq
+      .to_batch_stream(&store, 10)
+      .try_collect()
+      .await
+      .unwrap();
+    assert_eq!(batches.len(), 1);
+    assert_eq!(batches[0], AbsoluteRange::new(strand_cid, 0, 0));
+
+    // to_batch_stream with an empty relative range yields no batches.
+    let rq_empty: RangeQuery = (strand_cid, 5i64..).into();
+    let batches: Vec<AbsoluteRange> = rq_empty
+      .to_batch_stream(&store, 10)
+      .try_collect()
+      .await
+      .unwrap();
+    assert!(batches.is_empty());
+  }
+
+  // ---------------------------------------------------------------------------
+  // RangeQuery::from_str parsing paths (lines 656-707):
+  // - ("", ""): all
+  // - (start, ""): start to latest
+  // - ("", end with =): 0 to inclusive end
+  // - ("", end without =): 0 to exclusive end
+  // - (start, end with =): start to inclusive end
+  // - (start, end without =): start to exclusive end
+  // - invalid (not 3 parts): error
+  // - "latest" keyword synonym for -1
+  // ---------------------------------------------------------------------------
+  #[test]
+  fn range_query_from_str_all_paths() {
+    let cid_s = "bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune";
+    let cid: Cid = cid_s.parse().unwrap();
+
+    // ("", ""): unbounded → RangeQuery for all
+    let all: RangeQuery = format!("{cid_s}::").parse().unwrap();
+    assert!(!all.is_absolute()); // relative
+
+    // (start, ""): start.. → relative to latest end
+    let from_start: RangeQuery = format!("{cid_s}:5:").parse().unwrap();
+    // 5 is positive, end is negative (latest), so it's relative
+    assert!(!from_start.is_absolute());
+
+    // ("", =end): ..=end inclusive
+    let to_end: RangeQuery = format!("{cid_s}::=3").parse().unwrap();
+    // start=0 (absolute), end=3 (absolute), so absolute
+    assert!(to_end.is_absolute());
+    assert_eq!(to_end.to_absolute(999).unwrap(), AbsoluteRange::new(cid, 0, 3));
+
+    // ("", end without =): ..end exclusive
+    let to_excl: RangeQuery = format!("{cid_s}::3").parse().unwrap();
+    assert!(to_excl.is_absolute());
+    // Excluded end: ..3 → end=2
+    assert_eq!(to_excl.to_absolute(999).unwrap(), AbsoluteRange::new(cid, 0, 2));
+
+    // (start, =end): start..=end
+    let incl: RangeQuery = format!("{cid_s}:2:=5").parse().unwrap();
+    assert!(incl.is_absolute());
+    assert_eq!(incl.to_absolute(999).unwrap(), AbsoluteRange::new(cid, 2, 5));
+
+    // (start, end without =): start..end exclusive
+    let excl: RangeQuery = format!("{cid_s}:2:5").parse().unwrap();
+    assert!(excl.is_absolute());
+    assert_eq!(excl.to_absolute(999).unwrap(), AbsoluteRange::new(cid, 2, 4));
+
+    // "latest" is a keyword for -1
+    let latest_start: RangeQuery = format!("{cid_s}:latest:=0").parse().unwrap();
+    assert!(!latest_start.is_absolute());
+    assert_eq!(
+      latest_start,
+      RangeQuery::from((cid, -1i64..=0i64))
+    );
+
+    // Too few parts: error
+    assert!(format!("{cid_s}:5").parse::<RangeQuery>().is_err());
+    // Too many parts: error
+    assert!(format!("{cid_s}:1:2:3").parse::<RangeQuery>().is_err());
+
+    // Invalid CID: error
+    assert!("not-a-cid:1:2".parse::<RangeQuery>().is_err());
+  }
+
+  #[test]
+  fn any_query_from_str_single_cid_is_strand() {
+    let cid_s = "bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune";
+    let q: AnyQuery = cid_s.parse().unwrap();
+    assert!(matches!(q, AnyQuery::Strand(_)));
+    assert_eq!(q.to_string(), cid_s);
+  }
+
+  #[test]
+  fn any_query_from_str_two_parts_is_one() {
+    let cid_s = "bafyriqdik6t7lricocnj4gu7bcac2rk52566ff2qy7fcg2gxzzj5sjbl5kbera6lurzghkeoanrz73pqb4buzpvb7iy54j5opgvlxtpfhfune";
+    // Two parts: SingleQuery::Latest
+    let s = format!("{cid_s}:-1");
+    let q: AnyQuery = s.parse().unwrap();
+    assert!(matches!(q, AnyQuery::One(SingleQuery::Latest(_))));
+
+    // Two parts: SingleQuery::Index
+    let s = format!("{cid_s}:5");
+    let q: AnyQuery = s.parse().unwrap();
+    assert!(matches!(q, AnyQuery::One(SingleQuery::Index(_, 5))));
+  }
 }

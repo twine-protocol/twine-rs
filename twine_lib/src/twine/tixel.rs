@@ -238,3 +238,101 @@ impl Display for Tixel {
     write!(f, "{}", self.tagged_dag_json_pretty())
   }
 }
+
+#[cfg(test)]
+mod test {
+  use super::*;
+  use crate::test::{TIXELJSON, TIXEL_V2_JSON};
+
+  fn v1() -> Tixel {
+    Tixel::from_tagged_dag_json(TIXELJSON).unwrap()
+  }
+
+  fn v2() -> Tixel {
+    Tixel::from_tagged_dag_json(TIXEL_V2_JSON).unwrap()
+  }
+
+  #[test]
+  fn accessors() {
+    let t = v1();
+    assert_eq!(t.index(), 100);
+    assert_eq!(t.version().major, 1);
+    assert!(t.spec_str().starts_with("twine/1"));
+    // v1 tixel carries back-stitches (links) and cross-stitches (mixins).
+    assert_eq!(t.back_stitches().len(), 2);
+    assert_eq!(t.cross_stitches().len(), 1);
+    assert_eq!(t.previous(), t.back_stitches().get(0).cloned());
+    assert!(t.previous().is_some());
+  }
+
+  #[test]
+  fn includes_matches_back_and_cross_stitches() {
+    let t = v1();
+    let back = t.back_stitches().first().unwrap().tixel;
+    let cross = t.cross_stitches().stitches()[0].tixel;
+    assert!(t.includes(back));
+    assert!(t.includes(cross));
+    assert!(!t.includes(t.cid()));
+  }
+
+  #[test]
+  fn extract_payload_success_and_failure() {
+    #[derive(serde::Deserialize)]
+    struct Partial {
+      status: u64,
+      #[serde(rename = "type")]
+      kind: String,
+    }
+    let t = v1();
+    let p: Partial = t.extract_payload().unwrap();
+    assert_eq!(p.status, 0);
+    assert_eq!(p.kind, "result");
+
+    // Extracting into an incompatible shape yields a Payload error.
+    let err = t.extract_payload::<String>().unwrap_err();
+    assert!(matches!(err, VerificationError::Payload(_)));
+  }
+
+  #[test]
+  fn partial_ord_only_within_same_strand() {
+    let a = v1();
+    let b = v1();
+    // Same strand, same index => Equal.
+    assert_eq!(a.partial_cmp(&b), Some(std::cmp::Ordering::Equal));
+    // Different strands are incomparable.
+    assert_eq!(a.partial_cmp(&v2()), None);
+  }
+
+  #[test]
+  fn cid_conversions_and_bytes_round_trip() {
+    let t = v1();
+    let cid: Cid = t.clone().into();
+    assert_eq!(cid, t.cid());
+    assert_eq!(t.as_cid(), &t.cid());
+
+    // from_block re-decodes and validates the CID.
+    let decoded = Tixel::from_block(t.cid(), &t.bytes()).unwrap();
+    assert_eq!(decoded, t);
+
+    // A wrong CID is rejected.
+    let err = Tixel::from_block(v2().cid(), &t.bytes()).unwrap_err();
+    assert!(matches!(err, VerificationError::CidMismatch { .. }));
+  }
+
+  #[test]
+  fn from_tagged_dag_json_rejects_non_tixel() {
+    let err = Tixel::from_tagged_dag_json("{\"cid\":1}").unwrap_err();
+    assert!(matches!(
+      err,
+      VerificationError::BadJson(_) | VerificationError::InvalidTwineFormat(_)
+    ));
+  }
+
+  #[test]
+  fn drop_index_and_subspec_defaults() {
+    let t = v2();
+    assert_eq!(t.drop_index(), 0);
+    // The "twine/2.0.0/time/1.0.0" fixture carries a "time" subspec.
+    assert_eq!(t.subspec().map(|s| s.to_string()), Some("time/1.0.0".to_string()));
+  }
+}

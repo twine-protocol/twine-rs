@@ -3,7 +3,7 @@ use axum::{
   http::StatusCode, extract::Request, middleware::Next, response::Response
 };
 use tokio::net::TcpListener;
-use twine_builder::{RingSigner, TwineBuilder};
+use twine_builder::{RustCryptoSigner, TwineBuilder};
 use twine_http_store::server;
 use twine_lib::ipld_core::ipld;
 use twine_lib::{resolver::*, Cid};
@@ -12,7 +12,7 @@ use twine_lib::store::{MemoryStore, Store};
 async fn make_strand_data<S: Store + Resolver>(
     store: &S,
   ) -> Result<Cid, Box<dyn std::error::Error>> {
-  let signer = RingSigner::generate_ed25519().unwrap();
+  let signer = RustCryptoSigner::generate_ed25519();
   let builder = TwineBuilder::new(signer);
   let strand = builder.build_strand().done()?;
   store.save(strand.clone()).await?;
